@@ -9,7 +9,7 @@ export type ActionResult = { ok: true } | { ok: false; error: string };
 
 const portionSchema = z.number().int().nonnegative("Los valores no pueden ser negativos");
 
-// Reajuste manual del reparto de la base (solo dueño).
+// Reajuste manual del reparto de la base (solo administrador).
 // Define cuánto de la base está en efectivo y cuánto en Nequi; el total es la suma.
 export async function setBaseFund(
   cashPortion: number,
@@ -19,7 +19,7 @@ export async function setBaseFund(
     const session = await auth();
     if (!session?.user) return { ok: false, error: "No autorizado" };
     if (session.user.role !== "ADMIN")
-      return { ok: false, error: "Solo el dueño puede ajustar la base" };
+      return { ok: false, error: "Solo el administrador puede ajustar la base" };
 
     const cash = portionSchema.parse(cashPortion);
     const nequi = portionSchema.parse(nequiPortion);

@@ -1,6 +1,6 @@
 // Parámetros del negocio — editarlos aquí requiere redeploy, pero quedan versionados.
 
-// Base que el dueño mantiene disponible para consignaciones/transferencias (informativo).
+// Base que el administrador mantiene disponible para consignaciones/transferencias (informativo).
 export const SALDO_REFERENCIA = 1_110_000;
 
 // Impuesto 4x1000: 4 pesos por cada 1.000 → 0.4% sobre dinero que SALE de Nequi.

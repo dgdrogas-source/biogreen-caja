@@ -94,6 +94,14 @@ export async function getAuditLog(limit = 100) {
   });
 }
 
+export async function getSellers() {
+  return prisma.user.findMany({
+    where: { role: "WORKER" },
+    select: { id: true, username: true, name: true, isActive: true },
+    orderBy: { username: "asc" },
+  });
+}
+
 export async function getBaseFund() {
   const fund = await prisma.baseFund.findUnique({ where: { id: 1 } });
   return fund ?? { id: 1, cashPortion: 0, nequiPortion: 1_110_000, updatedAt: new Date() };

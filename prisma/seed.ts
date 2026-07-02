@@ -3,34 +3,60 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-// Usuarios iniciales — contraseñas provisionales, cambiarlas tras el primer ingreso.
-const users = [
-  { username: "admin", name: "Dueño", password: "admin2026", role: "ADMIN" },
-  { username: "trabajadora1", name: "Trabajadora 1", password: "farmacia1", role: "WORKER" },
-  { username: "trabajadora2", name: "Trabajadora 2", password: "farmacia2", role: "WORKER" },
-];
+async function hash(pw: string) {
+  return bcrypt.hash(pw, 10);
+}
 
 async function main() {
-  for (const u of users) {
+  // Administrador (dueño). Se actualiza el nombre por si venía como "Dueño".
+  await prisma.user.upsert({
+    where: { username: "admin" },
+    update: { name: "Administrador", role: "ADMIN" },
+    create: {
+      username: "admin",
+      name: "Administrador",
+      passwordHash: await hash("admin2026"),
+      role: "ADMIN",
+    },
+  });
+
+  // Migrar las trabajadoras antiguas a la nueva nomenclatura de vendedoras.
+  const renames: Array<[string, string, string]> = [
+    ["trabajadora1", "vendedora1", "Vendedora 1"],
+    ["trabajadora2", "vendedora2", "Vendedora 2"],
+  ];
+  for (const [oldUser, newUser, newName] of renames) {
+    const existing = await prisma.user.findUnique({ where: { username: oldUser } });
+    if (existing && !(await prisma.user.findUnique({ where: { username: newUser } }))) {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { username: newUser, name: newName },
+      });
+    }
+  }
+
+  // 4 vendedoras (contraseñas provisionales; el administrador las cambia desde el gestor de usuarios).
+  for (let i = 1; i <= 4; i++) {
     await prisma.user.upsert({
-      where: { username: u.username },
+      where: { username: `vendedora${i}` },
       update: {},
       create: {
-        username: u.username,
-        name: u.name,
-        passwordHash: await bcrypt.hash(u.password, 10),
-        role: u.role,
+        username: `vendedora${i}`,
+        name: `Vendedora ${i}`,
+        passwordHash: await hash(`ventas${i}`),
+        role: "WORKER",
       },
     });
   }
-  // Base de trabajo inicial: todo del lado Nequi (el dueño la reajusta luego).
+
+  // Base de trabajo inicial: todo del lado Nequi (el administrador la reajusta luego).
   await prisma.baseFund.upsert({
     where: { id: 1 },
     update: {},
     create: { id: 1, cashPortion: 0, nequiPortion: 1_110_000 },
   });
 
-  console.log("Seed listo: admin, trabajadora1, trabajadora2 + base $1.110.000");
+  console.log("Seed listo: administrador + vendedora1..4 + base $1.110.000");
 }
 
 main()
