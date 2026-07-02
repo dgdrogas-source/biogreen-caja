@@ -2,7 +2,8 @@ import Link from "next/link";
 import { formatDateCo, todayBogota } from "@/lib/dates";
 import { BaseFundCard } from "@/modules/nequi/components/BaseFundCard";
 import { CuadreBlock } from "@/modules/nequi/components/CuadreBlock";
-import { getBaseFund, getDaySummary } from "@/modules/nequi/queries";
+import { PettyCashCard } from "@/modules/nequi/components/PettyCashCard";
+import { getBaseFund, getDaySummary, getPettyCash } from "@/modules/nequi/queries";
 import { MOVEMENT_LABELS, type MovementType } from "@/modules/nequi/types";
 
 const INCOME_CARDS: { type: MovementType; icon: string }[] = [
@@ -30,6 +31,7 @@ export default async function DashboardPage({
   const date = fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : todayBogota();
   const { day, totals, saldoEsperado, pendingCount } = await getDaySummary(date);
   const baseFund = await getBaseFund();
+  const pettyCash = await getPettyCash();
 
   const cardTotal = (type: MovementType) => totals.get(type) ?? { nequi: 0, efectivo: 0 };
 
@@ -126,6 +128,11 @@ export default async function DashboardPage({
           <BaseFundCard
             cashPortion={baseFund.cashPortion}
             nequiPortion={baseFund.nequiPortion}
+          />
+          <PettyCashCard
+            comisiones={pettyCash.comisiones}
+            pagos={pettyCash.pagos}
+            disponible={pettyCash.disponible}
           />
         </div>
       </div>

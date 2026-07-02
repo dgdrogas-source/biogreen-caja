@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { todayBogota } from "@/lib/dates";
 import { calcularSaldoEsperado } from "../calculations/cuadre";
+import { calcularSaldoMiniCaja } from "../calculations/miniCaja";
 import type { Direction, MovementType, PaymentMethod } from "../types";
 import { getOrCreateDay } from "../server/businessDay";
 
@@ -92,6 +93,20 @@ export async function getAuditLog(limit = 100) {
     orderBy: { changedAt: "desc" },
     take: limit,
   });
+}
+
+// Mini caja menor de comisiones (acumulado histórico, organizativo).
+export async function getPettyCash() {
+  const rows = await prisma.movement.findMany({
+    where: {
+      deletedAt: null,
+      OR: [{ type: "COMISION" }, { fromPettyCash: true }],
+    },
+    select: { type: true, amount: true, fromPettyCash: true },
+  });
+  return calcularSaldoMiniCaja(
+    rows.map((r) => ({ type: r.type as MovementType, amount: r.amount, fromPettyCash: r.fromPettyCash }))
+  );
 }
 
 export async function getSellers() {

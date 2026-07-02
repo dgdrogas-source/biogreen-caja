@@ -12,6 +12,7 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   SET_BASE: { label: "Ajustó la base", style: "bg-purple-50 text-purple-700" },
   USER_PROFILE: { label: "Editó una vendedora", style: "bg-blue-50 text-blue-700" },
   USER_PASSWORD: { label: "Cambió una contraseña", style: "bg-blue-50 text-blue-700" },
+  PETTY_CASH: { label: "Pago con comisiones", style: "bg-amber-50 text-amber-700" },
 };
 
 function formatValue(v: unknown): string {

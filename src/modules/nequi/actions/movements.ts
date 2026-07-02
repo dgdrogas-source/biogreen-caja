@@ -47,7 +47,13 @@ const movementSchema = z.object({
   note: z.string().max(300).optional(),
   direction: z.enum(["INCOME", "EXPENSE"]).optional(), // solo para PENDIENTE_OTRO
   sourceMovementId: z.string().optional(), // solo para COMISION
+  fromPettyCash: z.boolean().optional(), // solo para GASTO_FARMACIA / PAGO_FACTURA
 });
+
+// Solo gastos y facturas pueden pagarse desde la mini caja menor de comisiones.
+function canUsePettyCash(type: MovementType): boolean {
+  return type === "GASTO_FARMACIA" || type === "PAGO_FACTURA";
+}
 
 export type MovementInput = z.infer<typeof movementSchema>;
 
@@ -126,6 +132,7 @@ export async function createMovement(input: MovementInput): Promise<ActionResult
           registeredById: user.id,
           sourceMovementId: data.sourceMovementId,
           needsReclassification: data.type === "PENDIENTE_OTRO",
+          fromPettyCash: canUsePettyCash(data.type) ? (data.fromPettyCash ?? false) : false,
         },
       });
 
@@ -156,6 +163,7 @@ export async function createMovement(input: MovementInput): Promise<ActionResult
             registeredById: user.id,
             isSystemGenerated: true,
             sourceMovementId: movement.id,
+            fromPettyCash: true,
           },
         });
         await tx.auditLog.create({
@@ -265,6 +273,7 @@ export async function updateMovement(input: MovementUpdateInput): Promise<Action
               registeredById: user.id,
               isSystemGenerated: true,
               sourceMovementId: movement.id,
+              fromPettyCash: true,
             },
           });
         }
@@ -393,10 +402,46 @@ export async function reclassifyMovement(id: string, newType: MovementType): Pro
             registeredById: user.id,
             isSystemGenerated: true,
             sourceMovementId: movement.id,
+            fromPettyCash: true,
           },
         });
       }
     });
+
+    revalidateAll();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
+// Marcar/desmarcar un gasto o factura como pagado con la mini caja menor (solo admin).
+export async function setPettyCashFlag(id: string, value: boolean): Promise<ActionResult> {
+  try {
+    const user = await requireSession();
+    if (user.role !== "ADMIN")
+      return { ok: false, error: "Solo el administrador puede marcar pagos con comisiones" };
+
+    const movement = await prisma.movement.findUnique({ where: { id } });
+    if (!movement || movement.deletedAt) return { ok: false, error: "Movimiento no encontrado" };
+    if (!canUsePettyCash(movement.type as MovementType))
+      return { ok: false, error: "Solo gastos y facturas pueden pagarse con comisiones" };
+    if (movement.fromPettyCash === value) return { ok: true };
+
+    await prisma.$transaction([
+      prisma.movement.update({ where: { id }, data: { fromPettyCash: value } }),
+      prisma.auditLog.create({
+        data: {
+          movementId: id,
+          businessDayId: movement.businessDayId,
+          action: "PETTY_CASH",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({
+            pagadoConComisiones: { before: movement.fromPettyCash, after: value },
+          }),
+        },
+      }),
+    ]);
 
     revalidateAll();
     return { ok: true };

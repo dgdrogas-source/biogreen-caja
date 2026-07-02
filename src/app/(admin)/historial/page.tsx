@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/permissions";
 import { formatTimeCo, todayBogota } from "@/lib/dates";
 import { getMovementsRange } from "@/modules/nequi/queries";
 import { ReclassifySelect } from "@/modules/nequi/components/ReclassifySelect";
+import { HistorialRowActions } from "@/modules/nequi/components/HistorialRowActions";
 import { MOVEMENT_LABELS, type MovementType } from "@/modules/nequi/types";
 
 export default async function HistorialPage({
@@ -51,12 +52,13 @@ export default async function HistorialPage({
               <th className="px-4 py-3">Medio</th>
               <th className="px-4 py-3">Registró</th>
               <th className="px-4 py-3">Nota</th>
+              <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {movements.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                   Sin movimientos en este rango
                 </td>
               </tr>
@@ -72,6 +74,11 @@ export default async function HistorialPage({
                   </span>
                   {m.isSystemGenerated && (
                     <span className="ml-1 text-xs text-gray-400">(auto)</span>
+                  )}
+                  {m.fromPettyCash && (
+                    <span className="ml-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+                      comisiones
+                    </span>
                   )}
                   {m.needsReclassification && (
                     <div className="mt-1">
@@ -99,6 +106,14 @@ export default async function HistorialPage({
                 </td>
                 <td className="px-4 py-2.5 text-gray-600">{m.registeredBy.name}</td>
                 <td className="max-w-[200px] truncate px-4 py-2.5 text-gray-400">{m.note}</td>
+                <td className="px-4 py-2.5">
+                  <HistorialRowActions
+                    id={m.id}
+                    type={m.type}
+                    isSystemGenerated={m.isSystemGenerated}
+                    fromPettyCash={m.fromPettyCash}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>

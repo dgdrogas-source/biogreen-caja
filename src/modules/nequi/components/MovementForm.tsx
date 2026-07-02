@@ -51,11 +51,13 @@ export function MovementForm({
   const [note, setNote] = useState("");
   const [direction, setDirection] = useState<"INCOME" | "EXPENSE">("INCOME");
   const [sourceId, setSourceId] = useState<string>("");
+  const [fromPettyCash, setFromPettyCash] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const isCommission = type === "COMISION";
   const isPending = type === "PENDIENTE_OTRO";
+  const canPettyCash = type === "GASTO_FARMACIA" || type === "PAGO_FACTURA";
 
   function selectCommissionSource(id: string) {
     setSourceId(id);
@@ -77,12 +79,14 @@ export function MovementForm({
         note: note.trim() || undefined,
         direction: isPending ? direction : undefined,
         sourceMovementId: isCommission && sourceId ? sourceId : undefined,
+        fromPettyCash: canPettyCash ? fromPettyCash : undefined,
       });
       if (result.ok) {
         setType(null);
         setAmount(null);
         setNote("");
         setSourceId("");
+        setFromPettyCash(false);
         setPaymentMethod("NEQUI");
         setSuccess(true);
         setTimeout(() => setSuccess(false), 2500);
@@ -114,6 +118,7 @@ export function MovementForm({
             onClick={() => {
               setType(t);
               if (t !== "COMISION") setSourceId("");
+              if (t !== "GASTO_FARMACIA" && t !== "PAGO_FACTURA") setFromPettyCash(false);
             }}
             className={`rounded-xl border-2 px-3 py-3 text-sm font-medium transition ${typeButtonClass(
               t,
@@ -206,6 +211,23 @@ export function MovementForm({
           Efectivo
         </button>
       </div>
+
+      {canPettyCash && (
+        <label className="mb-4 flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2.5">
+          <span className="text-sm text-gray-700">
+            Pagar con comisiones
+            <span className="block text-xs text-gray-400">
+              Lo descuenta de la mini caja menor de comisiones.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={fromPettyCash}
+            onChange={(e) => setFromPettyCash(e.target.checked)}
+            className="h-5 w-5 accent-amber-600"
+          />
+        </label>
+      )}
 
       <div className="mb-4">
         <label className="mb-1 block text-sm font-medium text-gray-700">Nota (opcional)</label>
