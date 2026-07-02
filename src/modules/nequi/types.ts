@@ -8,6 +8,7 @@ export const MOVEMENT_TYPES = [
   "VENTA_LICORES_JHOANN",
   "PAGO_FACTURA",
   "GASTO_FARMACIA",
+  "OTRO",
   "PENDIENTE_OTRO",
   "IMPUESTO_4X1000",
 ] as const;
@@ -28,12 +29,16 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
   VENTA_LICORES_JHOANN: "Venta Licores Jhoann",
   PAGO_FACTURA: "Pago de factura",
   GASTO_FARMACIA: "Gasto farmacia",
+  OTRO: "Otro",
   PENDIENTE_OTRO: "Pendiente / Otro",
   IMPUESTO_4X1000: "Impuesto 4x1000",
 };
 
-// Dirección fija por tipo. PENDIENTE_OTRO la elige quien registra.
-export const MOVEMENT_DIRECTIONS: Record<Exclude<MovementType, "PENDIENTE_OTRO">, Direction> = {
+// Dirección fija por tipo. PENDIENTE_OTRO y OTRO la elige quien registra/reclasifica.
+export const MOVEMENT_DIRECTIONS: Record<
+  Exclude<MovementType, "PENDIENTE_OTRO" | "OTRO">,
+  Direction
+> = {
   VENTA_FARMACIA: "INCOME",
   ABONO_CREDITO: "INCOME",
   RETIRO_CLIENTE: "INCOME", // el cliente envía a Nequi y recibe efectivo
@@ -66,3 +71,35 @@ export const ADMIN_TYPES: MovementType[] = [
 
 // Tipos que se ingresan como UN total diario (vienen agregados del software de facturación).
 export const DAILY_TOTAL_TYPES: MovementType[] = ["VENTA_FARMACIA", "ABONO_CREDITO"];
+
+// Bolsillos organizativos ("Tus Bolsillos"): acumulados paralelos, NO afectan el cuadre de
+// Nequi. Cada uno tiene un ingreso automático (tipo nativo) opcional; los gastos/facturas
+// se marcan manualmente contra el bolsillo del que salen.
+export const POCKET_BUCKETS = ["COMISION", "LICORES_JHOANN", "FUXION", "BASE_FACTURAS"] as const;
+export type PocketBucket = (typeof POCKET_BUCKETS)[number];
+
+export const POCKET_LABELS: Record<PocketBucket, string> = {
+  COMISION: "Comisiones",
+  LICORES_JHOANN: "Licores Jhoann",
+  FUXION: "Fuxion",
+  BASE_FACTURAS: "Base para facturas",
+};
+
+// Tipo cuyo ingreso alimenta automáticamente el bolsillo al registrarse (null = solo manual).
+export const POCKET_AUTO_INCOME_TYPE: Record<PocketBucket, MovementType | null> = {
+  COMISION: "COMISION",
+  LICORES_JHOANN: "VENTA_LICORES_JHOANN",
+  FUXION: "VENTA_FUXION",
+  BASE_FACTURAS: null, // por ahora solo entrada manual (70% de venta total vendrá en el módulo 2)
+};
+
+// Tipos que en el Historial pueden (re)asignarse a un bolsillo: los ingresos que ya
+// alimentan uno (para poder corregirlo), los gastos/facturas (salida) y OTRO (entrada manual).
+export const POCKET_ELIGIBLE_TYPES: MovementType[] = [
+  "COMISION",
+  "VENTA_LICORES_JHOANN",
+  "VENTA_FUXION",
+  "GASTO_FARMACIA",
+  "PAGO_FACTURA",
+  "OTRO",
+];

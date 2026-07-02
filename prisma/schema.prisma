@@ -66,10 +66,11 @@ model Movement {
   derivedMovements      Movement[] @relation("Derived")
   needsReclassification Boolean    @default(false) // true si type=PENDIENTE_OTRO
 
-  // "Mini caja menor": pagos que salen del acumulado de comisiones (organizativo,
-  // no afecta el cuadre de Nequi). true en el 4x1000 automático y en gastos/facturas
-  // que el administrador marque como pagados con comisiones.
-  fromPettyCash Boolean @default(false)
+  // Bolsillos organizativos: "COMISION", "LICORES_JHOANN", "FUXION", "BASE_FACTURAS", o null.
+  // Entra: automático para VENTA_* + manual para GASTO/PAGO_FACTURA.
+  // Sale: al marcar movimientos como pagados desde ese bolsillo.
+  // NO afecta el cuadre de Nequi (puro organizativo).
+  pettyCashBucket String?
 
   deletedAt DateTime? // soft delete: nunca se borra físicamente
   createdAt DateTime  @default(now())

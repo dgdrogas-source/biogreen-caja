@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/permissions";
 import { formatDateTimeCo } from "@/lib/dates";
 import { getAuditLog } from "@/modules/nequi/queries";
-import { MOVEMENT_LABELS, type MovementType } from "@/modules/nequi/types";
+import { MOVEMENT_LABELS, POCKET_LABELS, type MovementType } from "@/modules/nequi/types";
 
 const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   CREATE: { label: "Creó", style: "bg-emerald-50 text-emerald-700" },
@@ -12,14 +12,18 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   SET_BASE: { label: "Ajustó la base", style: "bg-purple-50 text-purple-700" },
   USER_PROFILE: { label: "Editó una vendedora", style: "bg-blue-50 text-blue-700" },
   USER_PASSWORD: { label: "Cambió una contraseña", style: "bg-blue-50 text-blue-700" },
-  PETTY_CASH: { label: "Pago con comisiones", style: "bg-amber-50 text-amber-700" },
+  POCKET: { label: "Asignó bolsillo", style: "bg-amber-50 text-amber-700" },
 };
 
 function formatValue(v: unknown): string {
   if (v === null || v === undefined) return "—";
   if (typeof v === "number") return `$${v.toLocaleString("es-CO")}`;
   const str = String(v);
-  return (MOVEMENT_LABELS as Record<string, string>)[str] ?? str;
+  return (
+    (MOVEMENT_LABELS as Record<string, string>)[str] ??
+    (POCKET_LABELS as Record<string, string>)[str] ??
+    str
+  );
 }
 
 export default async function AuditoriaPage() {

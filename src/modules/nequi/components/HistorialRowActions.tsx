@@ -2,22 +2,23 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { deleteMovement, setPettyCashFlag } from "../actions/movements";
+import { deleteMovement, setPettyCashBucket } from "../actions/movements";
+import { POCKET_BUCKETS, POCKET_ELIGIBLE_TYPES, POCKET_LABELS, type MovementType, type PocketBucket } from "../types";
 
 export function HistorialRowActions({
   id,
   type,
   isSystemGenerated,
-  fromPettyCash,
+  pettyCashBucket,
 }: {
   id: string;
   type: string;
   isSystemGenerated: boolean;
-  fromPettyCash: boolean;
+  pettyCashBucket: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const canPetty = type === "GASTO_FARMACIA" || type === "PAGO_FACTURA";
+  const canChooseBucket = POCKET_ELIGIBLE_TYPES.includes(type as MovementType);
 
   function remove() {
     if (
@@ -33,9 +34,9 @@ export function HistorialRowActions({
     });
   }
 
-  function togglePetty() {
+  function changeBucket(value: string) {
     startTransition(async () => {
-      const r = await setPettyCashFlag(id, !fromPettyCash);
+      const r = await setPettyCashBucket(id, value ? (value as PocketBucket) : null);
       if (r.ok) router.refresh();
       else alert(r.error);
     });
@@ -43,20 +44,25 @@ export function HistorialRowActions({
 
   return (
     <div className="flex items-center justify-end gap-1">
-      {canPetty && (
-        <button
-          type="button"
-          onClick={togglePetty}
+      {canChooseBucket && (
+        <select
+          value={pettyCashBucket ?? ""}
+          onChange={(e) => changeBucket(e.target.value)}
           disabled={pending}
-          title="Marcar como pagado con la mini caja menor de comisiones"
-          className={`rounded-lg border px-2 py-1 text-xs font-medium disabled:opacity-50 ${
-            fromPettyCash
-              ? "border-amber-500 bg-amber-50 text-amber-700"
-              : "border-gray-200 text-gray-400 hover:border-amber-300 hover:text-amber-600"
+          title="Asignar a un bolsillo"
+          className={`rounded-lg border px-1.5 py-1 text-xs font-medium disabled:opacity-50 ${
+            pettyCashBucket
+              ? "border-amber-400 bg-amber-50 text-amber-700"
+              : "border-gray-200 text-gray-400"
           }`}
         >
-          {fromPettyCash ? "✓ Comisiones" : "Comisiones"}
-        </button>
+          <option value="">Sin bolsillo</option>
+          {POCKET_BUCKETS.map((b) => (
+            <option key={b} value={b}>
+              {POCKET_LABELS[b]}
+            </option>
+          ))}
+        </select>
       )}
       {!isSystemGenerated && (
         <button

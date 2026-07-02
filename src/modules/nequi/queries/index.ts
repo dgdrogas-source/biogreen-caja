@@ -2,8 +2,8 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { todayBogota } from "@/lib/dates";
 import { calcularSaldoEsperado } from "../calculations/cuadre";
-import { calcularSaldoMiniCaja } from "../calculations/miniCaja";
-import type { Direction, MovementType, PaymentMethod } from "../types";
+import { calcularSaldoPorBolsillo, type PocketResumen } from "../calculations/pockets";
+import { POCKET_BUCKETS, type Direction, type MovementType, type PaymentMethod, type PocketBucket } from "../types";
 import { getOrCreateDay } from "../server/businessDay";
 
 export type MovementWithUser = Awaited<ReturnType<typeof getDayMovements>>[number];
@@ -95,18 +95,25 @@ export async function getAuditLog(limit = 100) {
   });
 }
 
-// Mini caja menor de comisiones (acumulado histórico, organizativo).
-export async function getPettyCash() {
+// Bolsillos organizativos ("Tus Bolsillos"): acumulado histórico por bucket, en una sola
+// consulta. NO afecta el cuadre de Nequi.
+export async function getPockets(): Promise<Record<PocketBucket, PocketResumen>> {
   const rows = await prisma.movement.findMany({
-    where: {
-      deletedAt: null,
-      OR: [{ type: "COMISION" }, { fromPettyCash: true }],
-    },
-    select: { type: true, amount: true, fromPettyCash: true },
+    where: { deletedAt: null, pettyCashBucket: { not: null } },
+    select: { amount: true, direction: true, pettyCashBucket: true },
   });
-  return calcularSaldoMiniCaja(
-    rows.map((r) => ({ type: r.type as MovementType, amount: r.amount, fromPettyCash: r.fromPettyCash }))
-  );
+  const result = {} as Record<PocketBucket, PocketResumen>;
+  for (const bucket of POCKET_BUCKETS) {
+    result[bucket] = calcularSaldoPorBolsillo(
+      bucket,
+      rows.map((r) => ({
+        amount: r.amount,
+        direction: r.direction as Direction,
+        pettyCashBucket: r.pettyCashBucket,
+      }))
+    );
+  }
+  return result;
 }
 
 export async function getSellers() {

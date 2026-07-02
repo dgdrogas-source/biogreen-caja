@@ -7,8 +7,11 @@ import { createMovement } from "../actions/movements";
 import {
   MOVEMENT_DIRECTIONS,
   MOVEMENT_LABELS,
+  POCKET_BUCKETS,
+  POCKET_LABELS,
   type MovementType,
   type PaymentMethod,
+  type PocketBucket,
 } from "../types";
 import { MoneyInput } from "./MoneyInput";
 
@@ -20,7 +23,10 @@ export interface CommissionSource {
 
 // Verde = entra plata a Nequi; rojo = sale plata de Nequi; gris = depende (Pendiente/Otro).
 function typeButtonClass(type: MovementType, selected: boolean): string {
-  const dir = type === "PENDIENTE_OTRO" ? null : MOVEMENT_DIRECTIONS[type];
+  const dir =
+    type === "PENDIENTE_OTRO" || type === "OTRO"
+      ? null
+      : MOVEMENT_DIRECTIONS[type as Exclude<MovementType, "PENDIENTE_OTRO" | "OTRO">];
   if (dir === "INCOME") {
     return selected
       ? "border-emerald-600 bg-emerald-100 text-emerald-900"
@@ -51,13 +57,13 @@ export function MovementForm({
   const [note, setNote] = useState("");
   const [direction, setDirection] = useState<"INCOME" | "EXPENSE">("INCOME");
   const [sourceId, setSourceId] = useState<string>("");
-  const [fromPettyCash, setFromPettyCash] = useState(false);
+  const [pettyCashBucket, setPettyCashBucket] = useState<PocketBucket | "">("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const isCommission = type === "COMISION";
   const isPending = type === "PENDIENTE_OTRO";
-  const canPettyCash = type === "GASTO_FARMACIA" || type === "PAGO_FACTURA";
+  const canChooseBucket = type === "GASTO_FARMACIA" || type === "PAGO_FACTURA";
 
   function selectCommissionSource(id: string) {
     setSourceId(id);
@@ -79,14 +85,14 @@ export function MovementForm({
         note: note.trim() || undefined,
         direction: isPending ? direction : undefined,
         sourceMovementId: isCommission && sourceId ? sourceId : undefined,
-        fromPettyCash: canPettyCash ? fromPettyCash : undefined,
+        pettyCashBucket: canChooseBucket && pettyCashBucket ? pettyCashBucket : undefined,
       });
       if (result.ok) {
         setType(null);
         setAmount(null);
         setNote("");
         setSourceId("");
-        setFromPettyCash(false);
+        setPettyCashBucket("");
         setPaymentMethod("NEQUI");
         setSuccess(true);
         setTimeout(() => setSuccess(false), 2500);
@@ -118,7 +124,7 @@ export function MovementForm({
             onClick={() => {
               setType(t);
               if (t !== "COMISION") setSourceId("");
-              if (t !== "GASTO_FARMACIA" && t !== "PAGO_FACTURA") setFromPettyCash(false);
+              if (t !== "GASTO_FARMACIA" && t !== "PAGO_FACTURA") setPettyCashBucket("");
             }}
             className={`rounded-xl border-2 px-3 py-3 text-sm font-medium transition ${typeButtonClass(
               t,
@@ -212,21 +218,22 @@ export function MovementForm({
         </button>
       </div>
 
-      {canPettyCash && (
-        <label className="mb-4 flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2.5">
-          <span className="text-sm text-gray-700">
-            Pagar con comisiones
-            <span className="block text-xs text-gray-400">
-              Lo descuenta de la mini caja menor de comisiones.
-            </span>
-          </span>
-          <input
-            type="checkbox"
-            checked={fromPettyCash}
-            onChange={(e) => setFromPettyCash(e.target.checked)}
-            className="h-5 w-5 accent-amber-600"
-          />
-        </label>
+      {canChooseBucket && (
+        <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2.5">
+          <label className="mb-1 block text-sm text-gray-700">¿De cuál bolsillo se paga?</label>
+          <select
+            value={pettyCashBucket}
+            onChange={(e) => setPettyCashBucket(e.target.value as PocketBucket | "")}
+            className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none"
+          >
+            <option value="">Ninguno (no se descuenta de un bolsillo)</option>
+            {POCKET_BUCKETS.map((b) => (
+              <option key={b} value={b}>
+                {POCKET_LABELS[b]}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
 
       <div className="mb-4">

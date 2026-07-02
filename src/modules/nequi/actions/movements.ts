@@ -14,10 +14,12 @@ import {
   DAILY_TOTAL_TYPES,
   MOVEMENT_DIRECTIONS,
   MOVEMENT_TYPES,
+  POCKET_BUCKETS,
   WORKER_TYPES,
   type Direction,
   type MovementType,
   type PaymentMethod,
+  type PocketBucket,
 } from "../types";
 import { getOrCreateDay } from "../server/businessDay";
 
@@ -47,12 +49,21 @@ const movementSchema = z.object({
   note: z.string().max(300).optional(),
   direction: z.enum(["INCOME", "EXPENSE"]).optional(), // solo para PENDIENTE_OTRO
   sourceMovementId: z.string().optional(), // solo para COMISION
-  fromPettyCash: z.boolean().optional(), // solo para GASTO_FARMACIA / PAGO_FACTURA
+  pettyCashBucket: z.enum(POCKET_BUCKETS).optional(), // solo para GASTO_FARMACIA / PAGO_FACTURA
 });
 
-// Solo gastos y facturas pueden pagarse desde la mini caja menor de comisiones.
-function canUsePettyCash(type: MovementType): boolean {
+// Solo gastos y facturas eligen bolsillo al registrarse (los demás se auto-asignan o se
+// etiquetan después desde el historial).
+function canChooseBucket(type: MovementType): boolean {
   return type === "GASTO_FARMACIA" || type === "PAGO_FACTURA";
+}
+
+// Ingreso automático: el tipo alimenta su propio bolsillo sin que nadie lo elija.
+function autoPocketBucket(type: MovementType): PocketBucket | null {
+  if (type === "COMISION") return "COMISION";
+  if (type === "VENTA_LICORES_JHOANN") return "LICORES_JHOANN";
+  if (type === "VENTA_FUXION") return "FUXION";
+  return null;
 }
 
 export type MovementInput = z.infer<typeof movementSchema>;
@@ -68,8 +79,9 @@ function allowedTypes(role: string): MovementType[] {
 }
 
 function resolveDirection(type: MovementType, direction?: string): string {
-  if (type === "PENDIENTE_OTRO") return direction === "EXPENSE" ? "EXPENSE" : "INCOME";
-  return MOVEMENT_DIRECTIONS[type as Exclude<MovementType, "PENDIENTE_OTRO">];
+  if (type === "PENDIENTE_OTRO" || type === "OTRO")
+    return direction === "EXPENSE" ? "EXPENSE" : "INCOME";
+  return MOVEMENT_DIRECTIONS[type as Exclude<MovementType, "PENDIENTE_OTRO" | "OTRO">];
 }
 
 function revalidateAll() {
@@ -132,7 +144,9 @@ export async function createMovement(input: MovementInput): Promise<ActionResult
           registeredById: user.id,
           sourceMovementId: data.sourceMovementId,
           needsReclassification: data.type === "PENDIENTE_OTRO",
-          fromPettyCash: canUsePettyCash(data.type) ? (data.fromPettyCash ?? false) : false,
+          pettyCashBucket:
+            autoPocketBucket(data.type) ??
+            (canChooseBucket(data.type) ? (data.pettyCashBucket ?? null) : null),
         },
       });
 
@@ -163,7 +177,7 @@ export async function createMovement(input: MovementInput): Promise<ActionResult
             registeredById: user.id,
             isSystemGenerated: true,
             sourceMovementId: movement.id,
-            fromPettyCash: true,
+            pettyCashBucket: "COMISION",
           },
         });
         await tx.auditLog.create({
@@ -273,7 +287,7 @@ export async function updateMovement(input: MovementUpdateInput): Promise<Action
               registeredById: user.id,
               isSystemGenerated: true,
               sourceMovementId: movement.id,
-              fromPettyCash: true,
+              pettyCashBucket: "COMISION",
             },
           });
         }
@@ -363,7 +377,8 @@ export async function reclassifyMovement(id: string, newType: MovementType): Pro
     if (!movement || movement.deletedAt) return { ok: false, error: "Movimiento no encontrado" };
     if (movement.type !== "PENDIENTE_OTRO") return { ok: false, error: "Solo se reclasifican movimientos pendientes" };
 
-    const direction = resolveDirection(newType);
+    // Para OTRO no hay dirección fija: se conserva la que ya tenía el movimiento.
+    const direction = resolveDirection(newType, movement.direction);
 
     await prisma.$transaction(async (tx) => {
       await tx.movement.update({
@@ -402,7 +417,7 @@ export async function reclassifyMovement(id: string, newType: MovementType): Pro
             registeredById: user.id,
             isSystemGenerated: true,
             sourceMovementId: movement.id,
-            fromPettyCash: true,
+            pettyCashBucket: "COMISION",
           },
         });
       }
@@ -415,29 +430,34 @@ export async function reclassifyMovement(id: string, newType: MovementType): Pro
   }
 }
 
-// Marcar/desmarcar un gasto o factura como pagado con la mini caja menor (solo admin).
-export async function setPettyCashFlag(id: string, value: boolean): Promise<ActionResult> {
+// Asignar/quitar el bolsillo de un movimiento (solo admin). Permite marcar gastos/facturas
+// como pagados desde un bolsillo, y también etiquetar entradas manuales (ej. un "Otro"
+// reclasificado) como ingreso de Licores/Fuxion/Base.
+export async function setPettyCashBucket(
+  id: string,
+  bucket: PocketBucket | null
+): Promise<ActionResult> {
   try {
     const user = await requireSession();
     if (user.role !== "ADMIN")
-      return { ok: false, error: "Solo el administrador puede marcar pagos con comisiones" };
+      return { ok: false, error: "Solo el administrador puede asignar bolsillos" };
 
     const movement = await prisma.movement.findUnique({ where: { id } });
     if (!movement || movement.deletedAt) return { ok: false, error: "Movimiento no encontrado" };
-    if (!canUsePettyCash(movement.type as MovementType))
-      return { ok: false, error: "Solo gastos y facturas pueden pagarse con comisiones" };
-    if (movement.fromPettyCash === value) return { ok: true };
+    if (movement.isSystemGenerated)
+      return { ok: false, error: "El 4x1000 automático siempre se paga desde Comisiones" };
+    if (movement.pettyCashBucket === bucket) return { ok: true };
 
     await prisma.$transaction([
-      prisma.movement.update({ where: { id }, data: { fromPettyCash: value } }),
+      prisma.movement.update({ where: { id }, data: { pettyCashBucket: bucket } }),
       prisma.auditLog.create({
         data: {
           movementId: id,
           businessDayId: movement.businessDayId,
-          action: "PETTY_CASH",
+          action: "POCKET",
           changedById: user.id,
           fieldChanges: JSON.stringify({
-            pagadoConComisiones: { before: movement.fromPettyCash, after: value },
+            bolsillo: { before: movement.pettyCashBucket, after: bucket },
           }),
         },
       }),

@@ -3,7 +3,7 @@ import { formatTimeCo, todayBogota } from "@/lib/dates";
 import { getMovementsRange } from "@/modules/nequi/queries";
 import { ReclassifySelect } from "@/modules/nequi/components/ReclassifySelect";
 import { HistorialRowActions } from "@/modules/nequi/components/HistorialRowActions";
-import { MOVEMENT_LABELS, type MovementType } from "@/modules/nequi/types";
+import { MOVEMENT_LABELS, POCKET_LABELS, type MovementType, type PocketBucket } from "@/modules/nequi/types";
 
 export default async function HistorialPage({
   searchParams,
@@ -75,9 +75,9 @@ export default async function HistorialPage({
                   {m.isSystemGenerated && (
                     <span className="ml-1 text-xs text-gray-400">(auto)</span>
                   )}
-                  {m.fromPettyCash && (
+                  {m.pettyCashBucket && (
                     <span className="ml-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
-                      comisiones
+                      {POCKET_LABELS[m.pettyCashBucket as PocketBucket]}
                     </span>
                   )}
                   {m.needsReclassification && (
@@ -111,7 +111,7 @@ export default async function HistorialPage({
                     id={m.id}
                     type={m.type}
                     isSystemGenerated={m.isSystemGenerated}
-                    fromPettyCash={m.fromPettyCash}
+                    pettyCashBucket={m.pettyCashBucket}
                   />
                 </td>
               </tr>
