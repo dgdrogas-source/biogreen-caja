@@ -22,6 +22,7 @@ export function CuadreBlock({
   const [pending, startTransition] = useTransition();
   const [opening, setOpening] = useState<number | null>(openingBalance);
   const [real, setReal] = useState<number | null>(closingRealBalance);
+  const [editingOpening, setEditingOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const diferencia =
@@ -31,8 +32,10 @@ export function CuadreBlock({
     if (opening === null) return;
     startTransition(async () => {
       const r = await setOpeningBalance(date, opening);
-      if (r.ok) router.refresh();
-      else setError(r.error);
+      if (r.ok) {
+        setEditingOpening(false);
+        router.refresh();
+      } else setError(r.error);
     });
   }
 
@@ -100,10 +103,52 @@ export function CuadreBlock({
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Saldo inicial</span>
-            <span className="font-medium">${openingBalance.toLocaleString("es-CO")}</span>
-          </div>
+          {editingOpening ? (
+            <div className="rounded-xl bg-gray-50 p-3">
+              <label className="mb-1 block text-sm text-gray-500">Corregir saldo inicial</label>
+              <MoneyInput value={opening} onChange={setOpening} />
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={saveOpening}
+                  disabled={pending}
+                  className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Guardar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpening(openingBalance);
+                    setEditingOpening(false);
+                    setError(null);
+                  }}
+                  className="flex-1 rounded-lg border border-gray-300 py-2 text-sm text-gray-600"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Saldo inicial</span>
+              <span className="flex items-center gap-2">
+                <span className="font-medium">${openingBalance.toLocaleString("es-CO")}</span>
+                {status === "OPEN" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpening(openingBalance);
+                      setEditingOpening(true);
+                    }}
+                    className="rounded-lg px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                  >
+                    Editar
+                  </button>
+                )}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">Saldo esperado (calculado)</span>
             <span className="font-semibold text-gray-800">
