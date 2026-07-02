@@ -1,0 +1,91 @@
+// Módulo Nequi — Sistema de caja Biogreen
+// SQLite en desarrollo; portable a PostgreSQL cambiando el provider
+// (los enums se modelan como String validados con Zod para mantener portabilidad).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  name         String
+  passwordHash String
+  role         String // ADMIN | WORKER
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  movements  Movement[]
+  auditLogs  AuditLog[]
+  closedDays BusinessDay[]
+}
+
+model BusinessDay {
+  id                 String    @id @default(cuid())
+  date               String    @unique // YYYY-MM-DD (zona America/Bogota)
+  openingBalance     Int? // saldo Nequi al iniciar el día (null hasta definirse el primer día)
+  closingRealBalance Int? // saldo real ingresado por el dueño al cerrar
+  status             String    @default("OPEN") // OPEN | CLOSED
+  closedAt           DateTime?
+  closedById         String?
+  closedBy           User?     @relation(fields: [closedById], references: [id])
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  movements Movement[]
+  auditLogs AuditLog[]
+}
+
+model Movement {
+  id            String  @id @default(cuid())
+  businessDayId String
+  businessDay   BusinessDay @relation(fields: [businessDayId], references: [id])
+
+  // VENTA_FARMACIA | ABONO_CREDITO | RETIRO_CLIENTE | CONSIGNACION_CLIENTE | COMISION
+  // | VENTA_FUXION | VENTA_LICORES_JHOANN | PAGO_FACTURA | GASTO_FARMACIA
+  // | PENDIENTE_OTRO | IMPUESTO_4X1000
+  type          String
+  direction     String // INCOME | EXPENSE
+  amount        Int // pesos colombianos (sin centavos)
+  paymentMethod String // NEQUI | EFECTIVO
+  note          String?
+
+  registeredById String
+  registeredBy   User     @relation(fields: [registeredById], references: [id])
+  registeredAt   DateTime @default(now())
+
+  isSystemGenerated     Boolean @default(false) // true para el 4x1000 automático
+  // comisión -> retiro/consignación que la originó; impuesto -> movimiento que lo generó
+  sourceMovementId      String?
+  sourceMovement        Movement?  @relation("Derived", fields: [sourceMovementId], references: [id])
+  derivedMovements      Movement[] @relation("Derived")
+  needsReclassification Boolean    @default(false) // true si type=PENDIENTE_OTRO
+
+  deletedAt DateTime? // soft delete: nunca se borra físicamente
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  auditLogs AuditLog[]
+
+  @@index([businessDayId, deletedAt])
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  movementId    String?
+  movement      Movement? @relation(fields: [movementId], references: [id])
+  businessDayId String?
+  businessDay   BusinessDay? @relation(fields: [businessDayId], references: [id])
+  action        String // CREATE | UPDATE | DELETE | CLOSE_DAY | REOPEN_DAY
+  changedById   String
+  changedBy     User     @relation(fields: [changedById], references: [id])
+  changedAt     DateTime @default(now())
+  fieldChanges  String? // JSON { campo: { before, after } }
+
+  @@index([changedAt])
+}

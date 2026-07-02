@@ -1,0 +1,109 @@
+import "server-only";
+import { prisma } from "@/lib/db";
+import { todayBogota } from "@/lib/dates";
+import { calcularSaldoEsperado } from "../calculations/cuadre";
+import type { Direction, MovementType, PaymentMethod } from "../types";
+import { getOrCreateDay } from "../server/businessDay";
+
+export type MovementWithUser = Awaited<ReturnType<typeof getDayMovements>>[number];
+
+export async function getDayMovements(businessDayId: string) {
+  return prisma.movement.findMany({
+    where: { businessDayId, deletedAt: null },
+    include: { registeredBy: { select: { name: true, username: true } } },
+    orderBy: { registeredAt: "asc" },
+  });
+}
+
+export async function getDaySummary(date?: string) {
+  const day = await getOrCreateDay(date ?? todayBogota());
+  const movements = await getDayMovements(day.id);
+
+  const totals = new Map<MovementType, { nequi: number; efectivo: number }>();
+  for (const m of movements) {
+    const t = (totals.get(m.type as MovementType) ?? { nequi: 0, efectivo: 0 });
+    if (m.paymentMethod === "NEQUI") t.nequi += m.amount;
+    else t.efectivo += m.amount;
+    totals.set(m.type as MovementType, t);
+  }
+
+  const saldoEsperado =
+    day.openingBalance === null
+      ? null
+      : calcularSaldoEsperado(
+          day.openingBalance,
+          movements.map((m) => ({
+            amount: m.amount,
+            direction: m.direction as Direction,
+            paymentMethod: m.paymentMethod as PaymentMethod,
+          }))
+        );
+
+  const pendingCount = movements.filter((m) => m.needsReclassification).length;
+
+  return { day, movements, totals, saldoEsperado, pendingCount };
+}
+
+// Movimientos propios del día actual (vista de las trabajadoras).
+export async function getMyTodayMovements(userId: string) {
+  const day = await getOrCreateDay(todayBogota());
+  const movements = await prisma.movement.findMany({
+    where: { businessDayId: day.id, registeredById: userId, deletedAt: null },
+    orderBy: { registeredAt: "desc" },
+  });
+  return { day, movements };
+}
+
+// Retiros/consignaciones propios de hoy, para enlazar una comisión.
+export async function getMyCommissionSources(userId: string) {
+  const day = await getOrCreateDay(todayBogota());
+  return prisma.movement.findMany({
+    where: {
+      businessDayId: day.id,
+      registeredById: userId,
+      deletedAt: null,
+      type: { in: ["RETIRO_CLIENTE", "CONSIGNACION_CLIENTE"] },
+    },
+    orderBy: { registeredAt: "desc" },
+  });
+}
+
+export async function getMovementsRange(from: string, to: string) {
+  return prisma.movement.findMany({
+    where: {
+      deletedAt: null,
+      businessDay: { date: { gte: from, lte: to } },
+    },
+    include: {
+      registeredBy: { select: { name: true } },
+      businessDay: { select: { date: true } },
+    },
+    orderBy: [{ businessDay: { date: "desc" } }, { registeredAt: "desc" }],
+  });
+}
+
+export async function getAuditLog(limit = 100) {
+  return prisma.auditLog.findMany({
+    include: {
+      changedBy: { select: { name: true } },
+      movement: { select: { type: true, amount: true, note: true } },
+      businessDay: { select: { date: true } },
+    },
+    orderBy: { changedAt: "desc" },
+    take: limit,
+  });
+}
+
+export async function getDaysRange(from: string, to: string) {
+  return prisma.businessDay.findMany({
+    where: { date: { gte: from, lte: to } },
+    orderBy: { date: "asc" },
+    include: {
+      movements: {
+        where: { deletedAt: null },
+        include: { registeredBy: { select: { name: true } } },
+        orderBy: { registeredAt: "asc" },
+      },
+    },
+  });
+}

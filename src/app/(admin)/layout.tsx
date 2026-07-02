@@ -1,0 +1,44 @@
+import Link from "next/link";
+import { requireAdmin } from "@/lib/permissions";
+import { LogoutButton } from "@/components/LogoutButton";
+
+const NAV = [
+  { href: "/dashboard", label: "Resumen" },
+  { href: "/movimientos", label: "Movimientos" },
+  { href: "/cierre", label: "Cierre" },
+  { href: "/historial", label: "Historial" },
+  { href: "/auditoria", label: "Cambios" },
+  { href: "/exportar", label: "Exportar" },
+];
+
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const user = await requireAdmin();
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-emerald-700">💊 Caja Nequi — Farmacia Biogreen</p>
+            <p className="text-xs text-gray-500">{user.name}</p>
+          </div>
+          <LogoutButton />
+        </div>
+        <nav className="mx-auto max-w-5xl overflow-x-auto px-4">
+          <div className="flex gap-1 pb-2">
+            {NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </nav>
+      </header>
+      <main className="mx-auto w-full max-w-5xl flex-1 p-4">{children}</main>
+    </div>
+  );
+}
