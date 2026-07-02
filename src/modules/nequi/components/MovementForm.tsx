@@ -4,13 +4,36 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { calcularComisionSugerida } from "../calculations/comision";
 import { createMovement } from "../actions/movements";
-import { MOVEMENT_LABELS, type MovementType, type PaymentMethod } from "../types";
+import {
+  MOVEMENT_DIRECTIONS,
+  MOVEMENT_LABELS,
+  type MovementType,
+  type PaymentMethod,
+} from "../types";
 import { MoneyInput } from "./MoneyInput";
 
 export interface CommissionSource {
   id: string;
   type: string;
   amount: number;
+}
+
+// Verde = entra plata a Nequi; rojo = sale plata de Nequi; gris = depende (Pendiente/Otro).
+function typeButtonClass(type: MovementType, selected: boolean): string {
+  const dir = type === "PENDIENTE_OTRO" ? null : MOVEMENT_DIRECTIONS[type];
+  if (dir === "INCOME") {
+    return selected
+      ? "border-emerald-600 bg-emerald-100 text-emerald-900"
+      : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400";
+  }
+  if (dir === "EXPENSE") {
+    return selected
+      ? "border-red-600 bg-red-100 text-red-900"
+      : "border-red-300 bg-red-50 text-red-700 hover:border-red-400";
+  }
+  return selected
+    ? "border-gray-500 bg-gray-100 text-gray-800"
+    : "border-gray-200 bg-white text-gray-600 hover:border-gray-300";
 }
 
 export function MovementForm({
@@ -92,11 +115,10 @@ export function MovementForm({
               setType(t);
               if (t !== "COMISION") setSourceId("");
             }}
-            className={`rounded-xl border-2 px-3 py-3 text-sm font-medium transition ${
+            className={`rounded-xl border-2 px-3 py-3 text-sm font-medium transition ${typeButtonClass(
+              t,
               type === t
-                ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-            }`}
+            )}`}
           >
             {MOVEMENT_LABELS[t]}
           </button>

@@ -9,6 +9,7 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   DELETE: { label: "Borró", style: "bg-red-50 text-red-600" },
   CLOSE_DAY: { label: "Cerró el día", style: "bg-gray-100 text-gray-700" },
   REOPEN_DAY: { label: "Reabrió el día", style: "bg-amber-50 text-amber-700" },
+  SET_BASE: { label: "Ajustó la base", style: "bg-purple-50 text-purple-700" },
 };
 
 function formatValue(v: unknown): string {

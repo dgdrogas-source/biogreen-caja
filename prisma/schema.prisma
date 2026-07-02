@@ -81,11 +81,21 @@ model AuditLog {
   movement      Movement? @relation(fields: [movementId], references: [id])
   businessDayId String?
   businessDay   BusinessDay? @relation(fields: [businessDayId], references: [id])
-  action        String // CREATE | UPDATE | DELETE | CLOSE_DAY | REOPEN_DAY
+  action        String // CREATE | UPDATE | DELETE | CLOSE_DAY | REOPEN_DAY | SET_BASE
   changedById   String
   changedBy     User     @relation(fields: [changedById], references: [id])
   changedAt     DateTime @default(now())
   fieldChanges  String? // JSON { campo: { before, after } }
 
   @@index([changedAt])
+}
+
+// Base de trabajo para el servicio de retiros/consignaciones (registro único, id=1).
+// La base total = efectivo + Nequi. El total solo cambia cuando el dueño lo edita;
+// los retiros/consignaciones solo desplazan el reparto entre efectivo y Nequi.
+model BaseFund {
+  id           Int      @id @default(1)
+  cashPortion  Int      @default(0)
+  nequiPortion Int      @default(1110000)
+  updatedAt    DateTime @updatedAt
 }

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { SALDO_REFERENCIA } from "@/lib/config";
 import { formatDateCo, todayBogota } from "@/lib/dates";
+import { BaseFundCard } from "@/modules/nequi/components/BaseFundCard";
 import { CuadreBlock } from "@/modules/nequi/components/CuadreBlock";
-import { getDaySummary } from "@/modules/nequi/queries";
+import { getBaseFund, getDaySummary } from "@/modules/nequi/queries";
 import { MOVEMENT_LABELS, type MovementType } from "@/modules/nequi/types";
 
 const INCOME_CARDS: { type: MovementType; icon: string }[] = [
@@ -29,6 +29,7 @@ export default async function DashboardPage({
   const { fecha } = await searchParams;
   const date = fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : todayBogota();
   const { day, totals, saldoEsperado, pendingCount } = await getDaySummary(date);
+  const baseFund = await getBaseFund();
 
   const cardTotal = (type: MovementType) => totals.get(type) ?? { nequi: 0, efectivo: 0 };
 
@@ -114,14 +115,19 @@ export default async function DashboardPage({
           </section>
         </div>
 
-        <CuadreBlock
-          date={date}
-          status={day.status}
-          openingBalance={day.openingBalance}
-          saldoEsperado={saldoEsperado}
-          closingRealBalance={day.closingRealBalance}
-          saldoReferencia={SALDO_REFERENCIA}
-        />
+        <div className="space-y-4">
+          <CuadreBlock
+            date={date}
+            status={day.status}
+            openingBalance={day.openingBalance}
+            saldoEsperado={saldoEsperado}
+            closingRealBalance={day.closingRealBalance}
+          />
+          <BaseFundCard
+            cashPortion={baseFund.cashPortion}
+            nequiPortion={baseFund.nequiPortion}
+          />
+        </div>
       </div>
     </div>
   );

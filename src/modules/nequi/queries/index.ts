@@ -94,6 +94,11 @@ export async function getAuditLog(limit = 100) {
   });
 }
 
+export async function getBaseFund() {
+  const fund = await prisma.baseFund.findUnique({ where: { id: 1 } });
+  return fund ?? { id: 1, cashPortion: 0, nequiPortion: 1_110_000, updatedAt: new Date() };
+}
+
 export async function getDaysRange(from: string, to: string) {
   return prisma.businessDay.findMany({
     where: { date: { gte: from, lte: to } },

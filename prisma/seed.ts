@@ -23,7 +23,14 @@ async function main() {
       },
     });
   }
-  console.log("Seed listo: admin, trabajadora1, trabajadora2");
+  // Base de trabajo inicial: todo del lado Nequi (el dueño la reajusta luego).
+  await prisma.baseFund.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1, cashPortion: 0, nequiPortion: 1_110_000 },
+  });
+
+  console.log("Seed listo: admin, trabajadora1, trabajadora2 + base $1.110.000");
 }
 
 main()

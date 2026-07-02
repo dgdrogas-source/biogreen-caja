@@ -1,10 +1,13 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { SALDO_REFERENCIA } from "@/lib/config";
 import { todayBogota } from "@/lib/dates";
+import { baseNequiFlow } from "../calculations/base";
 import { aplica4x1000, calcularImpuesto4x1000 } from "../calculations/impuesto4x1000";
 import {
   ADMIN_TYPES,
@@ -12,10 +15,28 @@ import {
   MOVEMENT_DIRECTIONS,
   MOVEMENT_TYPES,
   WORKER_TYPES,
+  type Direction,
   type MovementType,
   type PaymentMethod,
 } from "../types";
 import { getOrCreateDay } from "../server/businessDay";
+
+// Desplaza el reparto de la base: la porción Nequi cambia y la de efectivo va al revés.
+async function adjustBase(tx: Prisma.TransactionClient, deltaNequi: number) {
+  if (deltaNequi === 0) return;
+  await tx.baseFund.upsert({
+    where: { id: 1 },
+    update: {
+      nequiPortion: { increment: deltaNequi },
+      cashPortion: { decrement: deltaNequi },
+    },
+    create: {
+      id: 1,
+      nequiPortion: SALDO_REFERENCIA + deltaNequi,
+      cashPortion: -deltaNequi,
+    },
+  });
+}
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -117,6 +138,12 @@ export async function createMovement(input: MovementInput): Promise<ActionResult
         },
       });
 
+      // Un retiro/consignación desplaza el reparto de la base.
+      await adjustBase(
+        tx,
+        baseNequiFlow(data.type, direction as Direction, data.amount, data.paymentMethod)
+      );
+
       // 4x1000 automático sobre dinero que sale de Nequi.
       if (aplica4x1000(data.type, data.paymentMethod)) {
         const tax = await tx.movement.create({
@@ -193,6 +220,21 @@ export async function updateMovement(input: MovementUpdateInput): Promise<Action
         data: { amount: data.amount, paymentMethod: data.paymentMethod, note: data.note },
       });
 
+      // Ajustar el reparto de la base por la diferencia (viejo → nuevo).
+      const oldFlow = baseNequiFlow(
+        movement.type as MovementType,
+        movement.direction as Direction,
+        movement.amount,
+        movement.paymentMethod as PaymentMethod
+      );
+      const newFlow = baseNequiFlow(
+        movement.type as MovementType,
+        movement.direction as Direction,
+        data.amount,
+        data.paymentMethod as PaymentMethod
+      );
+      await adjustBase(tx, newFlow - oldFlow);
+
       await tx.auditLog.create({
         data: {
           movementId: movement.id,
@@ -261,6 +303,18 @@ export async function deleteMovement(id: string): Promise<ActionResult> {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       await tx.movement.update({ where: { id: movement.id }, data: { deletedAt: now } });
+
+      // Revertir el efecto del movimiento sobre el reparto de la base.
+      await adjustBase(
+        tx,
+        -baseNequiFlow(
+          movement.type as MovementType,
+          movement.direction as Direction,
+          movement.amount,
+          movement.paymentMethod as PaymentMethod
+        )
+      );
+
       await tx.auditLog.create({
         data: {
           movementId: movement.id,
@@ -307,6 +361,18 @@ export async function reclassifyMovement(id: string, newType: MovementType): Pro
         where: { id: movement.id },
         data: { type: newType, direction, needsReclassification: false },
       });
+
+      // Si pasa a ser retiro/consignación, ahora sí desplaza el reparto de la base.
+      await adjustBase(
+        tx,
+        baseNequiFlow(
+          newType,
+          direction as Direction,
+          movement.amount,
+          movement.paymentMethod as PaymentMethod
+        )
+      );
+
       await tx.auditLog.create({
         data: {
           movementId: movement.id,

@@ -1,5 +1,4 @@
 import { requireAdmin } from "@/lib/permissions";
-import { SALDO_REFERENCIA } from "@/lib/config";
 import { formatDateCo, todayBogota } from "@/lib/dates";
 import { CuadreBlock } from "@/modules/nequi/components/CuadreBlock";
 import { getDaySummary } from "@/modules/nequi/queries";
@@ -65,7 +64,6 @@ export default async function CierrePage({
         openingBalance={day.openingBalance}
         saldoEsperado={saldoEsperado}
         closingRealBalance={day.closingRealBalance}
-        saldoReferencia={SALDO_REFERENCIA}
       />
     </div>
   );

@@ -11,14 +11,12 @@ export function CuadreBlock({
   openingBalance,
   saldoEsperado,
   closingRealBalance,
-  saldoReferencia,
 }: {
   date: string;
   status: string;
   openingBalance: number | null;
   saldoEsperado: number | null;
   closingRealBalance: number | null;
-  saldoReferencia: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -135,10 +133,6 @@ export function CuadreBlock({
                   ).toLocaleString("es-CO")}`}
             </div>
           )}
-
-          <p className="text-xs text-gray-400">
-            Base de referencia para consignaciones: ${saldoReferencia.toLocaleString("es-CO")}
-          </p>
 
           {status === "OPEN" ? (
             <button
