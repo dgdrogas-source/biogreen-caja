@@ -20,9 +20,10 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
-  movements  Movement[]
-  auditLogs  AuditLog[]
-  closedDays BusinessDay[]
+  movements        Movement[]
+  auditLogs        AuditLog[]
+  closedDays       BusinessDay[]
+  pocketTransfers  PocketTransfer[]
 }
 
 model BusinessDay {
@@ -96,6 +97,19 @@ model AuditLog {
   @@index([changedAt])
 }
 
+// Historial de transferencias entre bolsillos (reclasificación interna, no afecta Nequi).
+model PocketTransfer {
+  id        String   @id @default(cuid())
+  fromBucket String  // LICORES_JHOANN | FUXION | BASE_FACTURAS
+  toBucket  String   // LICORES_JHOANN | FUXION | BASE_FACTURAS
+  amount    Int
+  createdById String
+  createdBy User    @relation(fields: [createdById], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // Base de trabajo para el servicio de retiros/consignaciones (registro único, id=1).
 // La base total = efectivo + Nequi. El total solo cambia cuando el dueño lo edita;
 // los retiros/consignaciones solo desplazan el reparto entre efectivo y Nequi.
@@ -104,4 +118,13 @@ model BaseFund {
   cashPortion  Int      @default(0)
   nequiPortion Int      @default(1110000)
   updatedAt    DateTime @updatedAt
+}
+
+// Saldo inicial manual por bolsillo (ajuste puntual del dueño, fuera de
+// Movement/PocketTransfer). Solo existe fila para los bolsillos ajustados;
+// los demás se tratan como 0 (ver getPockets()).
+model PocketBalance {
+  bucket         String   @id // COMISION | LICORES_JHOANN | FUXION | BASE_FACTURAS | PENDIENTE_OTRO
+  openingBalance Int      @default(0)
+  updatedAt      DateTime @updatedAt
 }

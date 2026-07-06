@@ -56,6 +56,14 @@ async function main() {
     create: { id: 1, cashPortion: 0, nequiPortion: 1_110_000 },
   });
 
+  // Saldo inicial real del bolsillo Comisiones (ajuste puntual del dueño, no un movimiento).
+  // update: {} para no pisar un ajuste posterior hecho manualmente.
+  await prisma.pocketBalance.upsert({
+    where: { bucket: "COMISION" },
+    update: {},
+    create: { bucket: "COMISION", openingBalance: 42_960 },
+  });
+
   console.log("Seed listo: administrador + vendedora1..4 + base $1.110.000");
 }
 

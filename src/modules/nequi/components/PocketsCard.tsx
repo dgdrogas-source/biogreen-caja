@@ -6,6 +6,7 @@ const POCKET_STYLES: Record<PocketBucket, { bg: string; text: string; icon: stri
   LICORES_JHOANN: { bg: "bg-pink-50", text: "text-pink-700", icon: "🍾" },
   FUXION: { bg: "bg-emerald-50", text: "text-emerald-700", icon: "🌿" },
   BASE_FACTURAS: { bg: "bg-blue-50", text: "text-blue-700", icon: "🧾" },
+  PENDIENTE_OTRO: { bg: "bg-gray-50", text: "text-gray-600", icon: "📥" },
 };
 
 // "Tus Bolsillos": acumulados organizativos paralelos. NO afectan el cuadre de Nequi.
@@ -40,6 +41,11 @@ export function PocketsCard({ pockets }: { pockets: Record<PocketBucket, PocketR
               <p className="text-[11px] text-gray-400">
                 +${r.ingresos.toLocaleString("es-CO")} · −${r.egresos.toLocaleString("es-CO")}
               </p>
+              {r.openingBalance !== 0 && (
+                <p className="text-[11px] text-gray-400">
+                  Saldo inicial: ${r.openingBalance.toLocaleString("es-CO")}
+                </p>
+              )}
             </div>
           );
         })}

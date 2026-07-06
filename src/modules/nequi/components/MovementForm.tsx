@@ -139,7 +139,7 @@ export function MovementForm({
       {isCommission && commissionSources.length > 0 && (
         <div className="mb-4">
           <label className="mb-1 block text-sm font-medium text-gray-700">
-            ¿De cuál retiro/consignación?
+            ¿De cuál retiro/recarga?
           </label>
           <select
             value={sourceId}

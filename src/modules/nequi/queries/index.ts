@@ -2,7 +2,11 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { todayBogota } from "@/lib/dates";
 import { calcularSaldoEsperado } from "../calculations/cuadre";
-import { calcularSaldoPorBolsillo, type PocketResumen } from "../calculations/pockets";
+import {
+  aplicarTransferencias,
+  calcularSaldoPorBolsillo,
+  type PocketResumen,
+} from "../calculations/pockets";
 import { POCKET_BUCKETS, type Direction, type MovementType, type PaymentMethod, type PocketBucket } from "../types";
 import { getOrCreateDay } from "../server/businessDay";
 
@@ -95,13 +99,18 @@ export async function getAuditLog(limit = 100) {
   });
 }
 
-// Bolsillos organizativos ("Tus Bolsillos"): acumulado histórico por bucket, en una sola
-// consulta. NO afecta el cuadre de Nequi.
+// Bolsillos organizativos ("Tus Bolsillos"): acumulado histórico por bucket (movimientos
+// marcados + transferencias entre bolsillos aplicadas). NO afecta el cuadre de Nequi.
 export async function getPockets(): Promise<Record<PocketBucket, PocketResumen>> {
-  const rows = await prisma.movement.findMany({
-    where: { deletedAt: null, pettyCashBucket: { not: null } },
-    select: { amount: true, direction: true, pettyCashBucket: true },
-  });
+  const [rows, transfers, balances] = await Promise.all([
+    prisma.movement.findMany({
+      where: { deletedAt: null, pettyCashBucket: { not: null } },
+      select: { amount: true, direction: true, pettyCashBucket: true },
+    }),
+    prisma.pocketTransfer.findMany({ select: { fromBucket: true, toBucket: true, amount: true } }),
+    prisma.pocketBalance.findMany({ select: { bucket: true, openingBalance: true } }),
+  ]);
+  const openingByBucket = new Map(balances.map((b) => [b.bucket, b.openingBalance]));
   const result = {} as Record<PocketBucket, PocketResumen>;
   for (const bucket of POCKET_BUCKETS) {
     result[bucket] = calcularSaldoPorBolsillo(
@@ -110,10 +119,19 @@ export async function getPockets(): Promise<Record<PocketBucket, PocketResumen>>
         amount: r.amount,
         direction: r.direction as Direction,
         pettyCashBucket: r.pettyCashBucket,
-      }))
+      })),
+      openingByBucket.get(bucket) ?? 0
     );
   }
-  return result;
+  return aplicarTransferencias(result, transfers) as Record<PocketBucket, PocketResumen>;
+}
+
+export async function getPocketTransfers(limit = 50) {
+  return prisma.pocketTransfer.findMany({
+    include: { createdBy: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
 }
 
 export async function getSellers() {

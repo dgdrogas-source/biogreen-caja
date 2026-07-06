@@ -23,7 +23,7 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
   VENTA_FARMACIA: "Venta farmacia",
   ABONO_CREDITO: "Abono a crédito",
   RETIRO_CLIENTE: "Retiro cliente",
-  CONSIGNACION_CLIENTE: "Consignación cliente",
+  CONSIGNACION_CLIENTE: "Recarga cliente",
   COMISION: "Comisión retiro/consignación",
   VENTA_FUXION: "Venta Fuxion",
   VENTA_LICORES_JHOANN: "Venta Licores Jhoann",
@@ -75,7 +75,13 @@ export const DAILY_TOTAL_TYPES: MovementType[] = ["VENTA_FARMACIA", "ABONO_CREDI
 // Bolsillos organizativos ("Tus Bolsillos"): acumulados paralelos, NO afectan el cuadre de
 // Nequi. Cada uno tiene un ingreso automático (tipo nativo) opcional; los gastos/facturas
 // se marcan manualmente contra el bolsillo del que salen.
-export const POCKET_BUCKETS = ["COMISION", "LICORES_JHOANN", "FUXION", "BASE_FACTURAS"] as const;
+export const POCKET_BUCKETS = [
+  "COMISION",
+  "LICORES_JHOANN",
+  "FUXION",
+  "BASE_FACTURAS",
+  "PENDIENTE_OTRO",
+] as const;
 export type PocketBucket = (typeof POCKET_BUCKETS)[number];
 
 export const POCKET_LABELS: Record<PocketBucket, string> = {
@@ -83,6 +89,7 @@ export const POCKET_LABELS: Record<PocketBucket, string> = {
   LICORES_JHOANN: "Licores Jhoann",
   FUXION: "Fuxion",
   BASE_FACTURAS: "Base para facturas",
+  PENDIENTE_OTRO: "Pendiente / Otro",
 };
 
 // Tipo cuyo ingreso alimenta automáticamente el bolsillo al registrarse (null = solo manual).
@@ -91,6 +98,7 @@ export const POCKET_AUTO_INCOME_TYPE: Record<PocketBucket, MovementType | null> 
   LICORES_JHOANN: "VENTA_LICORES_JHOANN",
   FUXION: "VENTA_FUXION",
   BASE_FACTURAS: null, // por ahora solo entrada manual (70% de venta total vendrá en el módulo 2)
+  PENDIENTE_OTRO: null, // solo entrada manual
 };
 
 // Tipos que en el Historial pueden (re)asignarse a un bolsillo: los ingresos que ya
@@ -103,3 +111,27 @@ export const POCKET_ELIGIBLE_TYPES: MovementType[] = [
   "PAGO_FACTURA",
   "OTRO",
 ];
+
+// Bolsillos entre los que el admin puede transferir dinero (reclasificación interna,
+// histórica). Comisiones es un bolsillo normal: transfiere y aparta como los demás.
+// "DISPONIBLE" es un bolsillo virtual: representa la plata que está fuera de los bolsillos
+// reales, y es la diferencia entre el Total (saldo esperado) y lo apartado. No se guarda
+// como bucket en Movement, solo se usa para las transferencias.
+export const TRANSFER_BUCKETS = [
+  "DISPONIBLE",
+  "COMISION",
+  "LICORES_JHOANN",
+  "FUXION",
+  "BASE_FACTURAS",
+  "PENDIENTE_OTRO",
+] as const;
+export type TransferBucket = (typeof TRANSFER_BUCKETS)[number];
+
+export const TRANSFER_BUCKET_LABELS: Record<TransferBucket, string> = {
+  DISPONIBLE: "Disponible",
+  COMISION: "Comisiones",
+  LICORES_JHOANN: "Licores Jhoann",
+  FUXION: "Fuxion",
+  BASE_FACTURAS: "Base para facturas",
+  PENDIENTE_OTRO: "Pendiente / Otro",
+};

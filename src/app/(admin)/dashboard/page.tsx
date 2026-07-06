@@ -2,7 +2,9 @@ import Link from "next/link";
 import { formatDateCo, todayBogota } from "@/lib/dates";
 import { BaseFundCard } from "@/modules/nequi/components/BaseFundCard";
 import { CuadreBlock } from "@/modules/nequi/components/CuadreBlock";
+import { DisponibleCard } from "@/modules/nequi/components/DisponibleCard";
 import { PocketsCard } from "@/modules/nequi/components/PocketsCard";
+import { calcularApartadoEnBolsillos } from "@/modules/nequi/calculations/pockets";
 import { getBaseFund, getDaySummary, getPockets } from "@/modules/nequi/queries";
 import { MOVEMENT_LABELS, type MovementType } from "@/modules/nequi/types";
 
@@ -32,6 +34,7 @@ export default async function DashboardPage({
   const { day, totals, saldoEsperado, pendingCount } = await getDaySummary(date);
   const baseFund = await getBaseFund();
   const pockets = await getPockets();
+  const apartado = calcularApartadoEnBolsillos(pockets);
 
   const cardTotal = (type: MovementType) => totals.get(type) ?? { nequi: 0, efectivo: 0 };
 
@@ -128,6 +131,16 @@ export default async function DashboardPage({
           <BaseFundCard
             cashPortion={baseFund.cashPortion}
             nequiPortion={baseFund.nequiPortion}
+          />
+          <DisponibleCard
+            saldoEsperado={saldoEsperado}
+            comisionesDisponible={apartado.comisionesDisponible}
+            licoresDisponible={apartado.licoresDisponible}
+            fuxionDisponible={apartado.fuxionDisponible}
+            baseDisponible={apartado.baseDisponible}
+            pendienteOtroDisponible={apartado.pendienteOtroDisponible}
+            totalApartado={apartado.totalApartado}
+            baseFundNequiPortion={baseFund.nequiPortion}
           />
           <PocketsCard pockets={pockets} />
         </div>

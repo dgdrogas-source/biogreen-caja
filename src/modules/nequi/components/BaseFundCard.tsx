@@ -8,9 +8,11 @@ import { MoneyInput } from "./MoneyInput";
 export function BaseFundCard({
   cashPortion,
   nequiPortion,
+  readOnly = false,
 }: {
   cashPortion: number;
   nequiPortion: number;
+  readOnly?: boolean; // vista de las vendedoras: solo consulta, sin "Ajustar"
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -40,7 +42,7 @@ export function BaseFundCard({
     <div className="rounded-2xl bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">Base para consignaciones</h2>
-        {!editing && (
+        {!readOnly && !editing && (
           <button
             type="button"
             onClick={() => {

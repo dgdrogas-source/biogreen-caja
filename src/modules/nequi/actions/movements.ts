@@ -9,19 +9,24 @@ import { SALDO_REFERENCIA } from "@/lib/config";
 import { todayBogota } from "@/lib/dates";
 import { baseNequiFlow } from "../calculations/base";
 import { aplica4x1000, calcularImpuesto4x1000 } from "../calculations/impuesto4x1000";
+import { calcularApartadoEnBolsillos, calcularDisponible } from "../calculations/pockets";
 import {
   ADMIN_TYPES,
   DAILY_TOTAL_TYPES,
   MOVEMENT_DIRECTIONS,
   MOVEMENT_TYPES,
   POCKET_BUCKETS,
+  TRANSFER_BUCKETS,
+  TRANSFER_BUCKET_LABELS,
   WORKER_TYPES,
   type Direction,
   type MovementType,
   type PaymentMethod,
   type PocketBucket,
+  type TransferBucket,
 } from "../types";
 import { getOrCreateDay } from "../server/businessDay";
+import { getDaySummary, getPockets } from "../queries";
 
 // Desplaza el reparto de la base: la porción Nequi cambia y la de efectivo va al revés.
 async function adjustBase(tx: Prisma.TransactionClient, deltaNequi: number) {
@@ -462,6 +467,73 @@ export async function setPettyCashBucket(
         },
       }),
     ]);
+
+    revalidateAll();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
+const transferSchema = z
+  .object({
+    fromBucket: z.enum(TRANSFER_BUCKETS),
+    toBucket: z.enum(TRANSFER_BUCKETS),
+    amount: z.number().int("El monto debe ser un número entero").positive("El monto debe ser mayor a cero"),
+  })
+  .refine((d) => d.fromBucket !== d.toBucket, { message: "Elige dos bolsillos distintos" });
+
+// Transferir dinero entre bolsillos (o desde/hacia el Disponible). Es una reclasificación
+// interna: no crea un movimiento real ni afecta el cuadre de Nequi. Solo admin. Comisiones
+// no participa — nunca aparece como origen ni destino.
+export async function transferPocketFunds(
+  fromBucket: TransferBucket,
+  toBucket: TransferBucket,
+  amount: number
+): Promise<ActionResult> {
+  try {
+    const user = await requireSession();
+    if (user.role !== "ADMIN")
+      return { ok: false, error: "Solo el administrador puede transferir entre bolsillos" };
+
+    const data = transferSchema.parse({ fromBucket, toBucket, amount });
+
+    const [pockets, { saldoEsperado }] = await Promise.all([getPockets(), getDaySummary()]);
+
+    const disponibleOrigen =
+      data.fromBucket === "DISPONIBLE"
+        ? calcularDisponible(saldoEsperado ?? 0, calcularApartadoEnBolsillos(pockets).totalApartado)
+        : pockets[data.fromBucket].disponible;
+
+    if (data.amount > disponibleOrigen) {
+      return {
+        ok: false,
+        error: `No hay suficiente en ${TRANSFER_BUCKET_LABELS[data.fromBucket]} (disponible: $${disponibleOrigen.toLocaleString("es-CO")})`,
+      };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.pocketTransfer.create({
+        data: {
+          fromBucket: data.fromBucket,
+          toBucket: data.toBucket,
+          amount: data.amount,
+          createdById: user.id,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: "TRANSFER_POCKETS",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({
+            transferencia: {
+              before: TRANSFER_BUCKET_LABELS[data.fromBucket],
+              after: `${TRANSFER_BUCKET_LABELS[data.toBucket]}: $${data.amount.toLocaleString("es-CO")}`,
+            },
+          }),
+        },
+      });
+    });
 
     revalidateAll();
     return { ok: true };
