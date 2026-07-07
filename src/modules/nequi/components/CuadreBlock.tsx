@@ -3,16 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { closeDay, reopenDay, setOpeningBalance } from "../actions/day";
+import { SHIFT_LABELS, type Shift } from "../types";
 import { MoneyInput } from "./MoneyInput";
 
 export function CuadreBlock({
   date,
+  shift,
   status,
   openingBalance,
   saldoEsperado,
   closingRealBalance,
 }: {
   date: string;
+  shift: Shift;
   status: string;
   openingBalance: number | null;
   saldoEsperado: number | null;
@@ -31,7 +34,7 @@ export function CuadreBlock({
   function saveOpening() {
     if (opening === null) return;
     startTransition(async () => {
-      const r = await setOpeningBalance(date, opening);
+      const r = await setOpeningBalance(date, shift, opening);
       if (r.ok) {
         setEditingOpening(false);
         router.refresh();
@@ -48,22 +51,22 @@ export function CuadreBlock({
       diferencia !== null &&
       diferencia !== 0 &&
       !confirm(
-        `Hay un descuadre de $${Math.abs(diferencia).toLocaleString("es-CO")}. ¿Cerrar el día de todas formas?`
+        `Hay un descuadre de $${Math.abs(diferencia).toLocaleString("es-CO")}. Quedará registrado y el siguiente turno arrancará con el saldo real. ¿Cerrar el turno de todas formas?`
       )
     )
       return;
     startTransition(async () => {
-      const r = await closeDay(date, real);
+      const r = await closeDay(date, shift, real);
       if (r.ok) router.refresh();
       else setError(r.error);
     });
   }
 
   function doReopen() {
-    if (!confirm("¿Reabrir este día? El cambio quedará registrado en el historial de cambios."))
+    if (!confirm("¿Reabrir este turno? El cambio quedará registrado en el historial de cambios."))
       return;
     startTransition(async () => {
-      const r = await reopenDay(date);
+      const r = await reopenDay(date, shift);
       if (r.ok) router.refresh();
       else setError(r.error);
     });
@@ -72,13 +75,15 @@ export function CuadreBlock({
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Cuadre del día</h2>
+        <h2 className="text-base font-semibold text-gray-800">
+          Cuadre — {SHIFT_LABELS[shift]}
+        </h2>
         <span
           className={`rounded-full px-3 py-1 text-xs font-semibold ${
             status === "CLOSED" ? "bg-gray-100 text-gray-600" : "bg-emerald-50 text-emerald-700"
           }`}
         >
-          {status === "CLOSED" ? "Día cerrado" : "Día abierto"}
+          {status === "CLOSED" ? "Turno cerrado" : "Turno abierto"}
         </span>
       </div>
 
@@ -186,7 +191,7 @@ export function CuadreBlock({
               disabled={pending}
               className="w-full rounded-xl bg-gray-800 py-3 text-sm font-semibold text-white hover:bg-gray-900 disabled:opacity-50"
             >
-              {pending ? "Cerrando..." : "Cerrar el día"}
+              {pending ? "Cerrando..." : "Cerrar el turno"}
             </button>
           ) : (
             <button
@@ -195,7 +200,7 @@ export function CuadreBlock({
               disabled={pending}
               className="w-full rounded-xl border-2 border-gray-300 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
-              Reabrir día (queda registrado)
+              Reabrir turno (queda registrado)
             </button>
           )}
         </div>

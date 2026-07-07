@@ -3,20 +3,28 @@ import { formatTimeCo, todayBogota } from "@/lib/dates";
 import { getMovementsRange } from "@/modules/nequi/queries";
 import { ReclassifySelect } from "@/modules/nequi/components/ReclassifySelect";
 import { HistorialRowActions } from "@/modules/nequi/components/HistorialRowActions";
-import { MOVEMENT_LABELS, POCKET_LABELS, type MovementType, type PocketBucket } from "@/modules/nequi/types";
+import {
+  MOVEMENT_LABELS,
+  POCKET_LABELS,
+  type MovementType,
+  type PocketBucket,
+  type Shift,
+} from "@/modules/nequi/types";
 
 export default async function HistorialPage({
   searchParams,
 }: {
-  searchParams: Promise<{ desde?: string; hasta?: string }>;
+  searchParams: Promise<{ desde?: string; hasta?: string; turno?: string }>;
 }) {
   await requireAdmin();
   const params = await searchParams;
   const today = todayBogota();
   const desde = params.desde && /^\d{4}-\d{2}-\d{2}$/.test(params.desde) ? params.desde : today;
   const hasta = params.hasta && /^\d{4}-\d{2}-\d{2}$/.test(params.hasta) ? params.hasta : today;
+  const turno: Shift | undefined =
+    params.turno === "1" ? 1 : params.turno === "2" ? 2 : undefined;
 
-  const movements = await getMovementsRange(desde, hasta);
+  const movements = await getMovementsRange(desde, hasta, turno);
 
   return (
     <div className="space-y-4">
@@ -36,6 +44,15 @@ export default async function HistorialPage({
             defaultValue={hasta}
             className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
           />
+          <select
+            name="turno"
+            defaultValue={turno ? String(turno) : ""}
+            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+          >
+            <option value="">Ambos turnos</option>
+            <option value="1">Turno 1</option>
+            <option value="2">Turno 2</option>
+          </select>
           <button className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-white">
             Filtrar
           </button>
@@ -47,6 +64,7 @@ export default async function HistorialPage({
           <thead>
             <tr className="border-b border-gray-100 text-left text-xs uppercase tracking-wide text-gray-400">
               <th className="px-4 py-3">Fecha</th>
+              <th className="px-4 py-3">Turno</th>
               <th className="px-4 py-3">Tipo</th>
               <th className="px-4 py-3 text-right">Monto</th>
               <th className="px-4 py-3">Medio</th>
@@ -58,7 +76,7 @@ export default async function HistorialPage({
           <tbody className="divide-y divide-gray-50">
             {movements.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
                   Sin movimientos en este rango
                 </td>
               </tr>
@@ -67,6 +85,9 @@ export default async function HistorialPage({
               <tr key={m.id} className={m.needsReclassification ? "bg-amber-50/50" : ""}>
                 <td className="whitespace-nowrap px-4 py-2.5 text-gray-500">
                   {m.businessDay.date} · {formatTimeCo(m.registeredAt)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-gray-500">
+                  T{m.businessDay.shift}
                 </td>
                 <td className="px-4 py-2.5">
                   <span className="text-gray-700">
@@ -108,10 +129,16 @@ export default async function HistorialPage({
                 <td className="max-w-[200px] truncate px-4 py-2.5 text-gray-400">{m.note}</td>
                 <td className="px-4 py-2.5">
                   <HistorialRowActions
-                    id={m.id}
-                    type={m.type}
+                    movement={{
+                      id: m.id,
+                      type: m.type,
+                      direction: m.direction,
+                      amount: m.amount,
+                      paymentMethod: m.paymentMethod,
+                      note: m.note,
+                      pettyCashBucket: m.pettyCashBucket,
+                    }}
                     isSystemGenerated={m.isSystemGenerated}
-                    pettyCashBucket={m.pettyCashBucket}
                   />
                 </td>
               </tr>

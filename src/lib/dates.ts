@@ -11,6 +11,22 @@ export function todayBogota(): string {
   }).format(new Date()); // en-CA produce YYYY-MM-DD
 }
 
+// Hora actual en Bogotá como "HH:MM" (para deducir el turno por defecto).
+export function nowBogotaHHMM(): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: BOGOTA_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date());
+}
+
+// Suma días a una fecha YYYY-MM-DD (aritmética pura de calendario, sin zona horaria).
+export function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
 export function formatDateCo(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Intl.DateTimeFormat("es-CO", {

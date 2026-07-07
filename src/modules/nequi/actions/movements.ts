@@ -26,7 +26,7 @@ import {
   type TransferBucket,
 } from "../types";
 import { getOrCreateDay } from "../server/businessDay";
-import { getDaySummary, getPockets } from "../queries";
+import { getCurrentShift, getDaySummary, getPockets } from "../queries";
 
 // Desplaza el reparto de la base: la porción Nequi cambia y la de efectivo va al revés.
 async function adjustBase(tx: Prisma.TransactionClient, deltaNequi: number) {
@@ -55,6 +55,7 @@ const movementSchema = z.object({
   direction: z.enum(["INCOME", "EXPENSE"]).optional(), // solo para PENDIENTE_OTRO
   sourceMovementId: z.string().optional(), // solo para COMISION
   pettyCashBucket: z.enum(POCKET_BUCKETS).optional(), // solo para GASTO_FARMACIA / PAGO_FACTURA
+  shift: z.union([z.literal(1), z.literal(2)]).optional(), // turno elegido; sin él, se deduce de la hora
 });
 
 // Solo gastos y facturas eligen bolsillo al registrarse (los demás se auto-asignan o se
@@ -102,9 +103,10 @@ export async function createMovement(input: MovementInput): Promise<ActionResult
       return { ok: false, error: "No tienes permiso para registrar este tipo de movimiento" };
     }
 
-    const day = await getOrCreateDay(todayBogota());
+    const shift = data.shift ?? (await getCurrentShift());
+    const day = await getOrCreateDay(todayBogota(), shift);
     if (day.status === "CLOSED") {
-      return { ok: false, error: "El día ya fue cerrado. Pide al administrador que lo reabra." };
+      return { ok: false, error: `El turno ${shift} ya fue cerrado. Pide al administrador que lo reabra.` };
     }
 
     const direction = resolveDirection(data.type, data.direction);
@@ -210,6 +212,12 @@ const updateSchema = z.object({
   amount: z.number().int().positive("El monto debe ser mayor a cero"),
   paymentMethod: z.enum(["NEQUI", "EFECTIVO"]),
   note: z.string().max(300).optional(),
+  // Edición completa (solo admin, desde el Historial). Si no vienen, se conservan.
+  type: z
+    .enum(MOVEMENT_TYPES.filter((t) => t !== "IMPUESTO_4X1000") as [MovementType, ...MovementType[]])
+    .optional(),
+  direction: z.enum(["INCOME", "EXPENSE"]).optional(), // solo para PENDIENTE_OTRO / OTRO
+  pettyCashBucket: z.enum(POCKET_BUCKETS).nullable().optional(), // null = quitar bolsillo
 });
 
 export type MovementUpdateInput = z.infer<typeof updateSchema>;
@@ -229,37 +237,67 @@ export async function updateMovement(input: MovementUpdateInput): Promise<Action
     if (user.role !== "ADMIN") {
       if (movement.registeredById !== user.id) return { ok: false, error: "Solo puedes editar tus propios registros" };
       if (movement.businessDay.date !== todayBogota()) return { ok: false, error: "Solo puedes editar registros del día actual" };
+      if (data.type !== undefined || data.pettyCashBucket !== undefined)
+        return { ok: false, error: "Solo el administrador puede cambiar el tipo o el bolsillo" };
     }
     if (movement.businessDay.status === "CLOSED") {
-      return { ok: false, error: "El día está cerrado. El administrador debe reabrirlo para editar." };
+      return { ok: false, error: "El turno está cerrado. El administrador debe reabrirlo para editar." };
     }
 
+    const newType = data.type ?? (movement.type as MovementType);
+    if (newType !== movement.type) {
+      // Ventas farmacia y abonos viven como UN total del turno; convertir hacia o
+      // desde ellos duplicaría/rompería ese total. Se editan desde "Movimientos".
+      if (DAILY_TOTAL_TYPES.includes(newType) || DAILY_TOTAL_TYPES.includes(movement.type as MovementType)) {
+        return {
+          ok: false,
+          error: "Las ventas de farmacia y los abonos se manejan como un total del turno; ese tipo no se cambia desde aquí",
+        };
+      }
+    }
+    const newDirection = resolveDirection(newType, data.direction ?? movement.direction) as Direction;
+    const newBucket =
+      data.pettyCashBucket !== undefined
+        ? data.pettyCashBucket
+        : newType !== movement.type
+          ? (autoPocketBucket(newType) ?? movement.pettyCashBucket)
+          : movement.pettyCashBucket;
+
     const changes: Record<string, { before: unknown; after: unknown }> = {};
+    if (movement.type !== newType) changes.tipo = { before: movement.type, after: newType };
+    if (movement.direction !== newDirection)
+      changes.direccion = { before: movement.direction, after: newDirection };
     if (movement.amount !== data.amount) changes.monto = { before: movement.amount, after: data.amount };
     if (movement.paymentMethod !== data.paymentMethod)
       changes.medioPago = { before: movement.paymentMethod, after: data.paymentMethod };
     if ((movement.note ?? "") !== (data.note ?? "")) changes.nota = { before: movement.note, after: data.note };
+    if ((movement.pettyCashBucket ?? null) !== (newBucket ?? null))
+      changes.bolsillo = { before: movement.pettyCashBucket, after: newBucket };
     if (Object.keys(changes).length === 0) return { ok: true };
 
     await prisma.$transaction(async (tx) => {
       await tx.movement.update({
         where: { id: movement.id },
-        data: { amount: data.amount, paymentMethod: data.paymentMethod, note: data.note },
+        data: {
+          type: newType,
+          direction: newDirection,
+          amount: data.amount,
+          paymentMethod: data.paymentMethod,
+          note: data.note,
+          pettyCashBucket: newBucket,
+          needsReclassification: newType === "PENDIENTE_OTRO",
+        },
       });
 
-      // Ajustar el reparto de la base por la diferencia (viejo → nuevo).
+      // Ajustar el reparto de la base por la diferencia (viejo → nuevo), ahora
+      // también cuando cambia el tipo (p. ej. deja de ser retiro/consignación).
       const oldFlow = baseNequiFlow(
         movement.type as MovementType,
         movement.direction as Direction,
         movement.amount,
         movement.paymentMethod as PaymentMethod
       );
-      const newFlow = baseNequiFlow(
-        movement.type as MovementType,
-        movement.direction as Direction,
-        data.amount,
-        data.paymentMethod as PaymentMethod
-      );
+      const newFlow = baseNequiFlow(newType, newDirection, data.amount, data.paymentMethod as PaymentMethod);
       await adjustBase(tx, newFlow - oldFlow);
 
       await tx.auditLog.create({
@@ -272,9 +310,10 @@ export async function updateMovement(input: MovementUpdateInput): Promise<Action
         },
       });
 
-      // Recalcular el 4x1000 ligado si cambia monto o medio de pago.
+      // Recalcular el 4x1000 ligado según el TIPO y MEDIO nuevos: se crea si ahora
+      // aplica, se recalcula si cambió el monto, o se borra si dejó de aplicar.
       const taxChild = movement.derivedMovements[0];
-      const shouldHaveTax = aplica4x1000(movement.type as MovementType, data.paymentMethod as PaymentMethod);
+      const shouldHaveTax = aplica4x1000(newType, data.paymentMethod as PaymentMethod);
       if (shouldHaveTax) {
         const newTax = calcularImpuesto4x1000(data.amount);
         if (taxChild) {
@@ -325,7 +364,7 @@ export async function deleteMovement(id: string): Promise<ActionResult> {
       if (movement.businessDay.date !== todayBogota()) return { ok: false, error: "Solo puedes borrar registros del día actual" };
     }
     if (movement.businessDay.status === "CLOSED") {
-      return { ok: false, error: "El día está cerrado. El administrador debe reabrirlo." };
+      return { ok: false, error: "El turno está cerrado. El administrador debe reabrirlo." };
     }
 
     const now = new Date();

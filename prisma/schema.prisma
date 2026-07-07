@@ -26,20 +26,35 @@ model User {
   pocketTransfers  PocketTransfer[]
 }
 
+// Un registro por TURNO de caja (2 turnos por día, lunes-sábado). Las filas
+// anteriores a los turnos quedaron como turno 1 de su día.
 model BusinessDay {
-  id                 String    @id @default(cuid())
-  date               String    @unique // YYYY-MM-DD (zona America/Bogota)
-  openingBalance     Int? // saldo Nequi al iniciar el día (null hasta definirse el primer día)
-  closingRealBalance Int? // saldo real ingresado por el dueño al cerrar
-  status             String    @default("OPEN") // OPEN | CLOSED
-  closedAt           DateTime?
-  closedById         String?
-  closedBy           User?     @relation(fields: [closedById], references: [id])
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                     String    @id @default(cuid())
+  date                   String // YYYY-MM-DD (zona America/Bogota)
+  shift                  Int       @default(1) // 1 | 2
+  openingBalance         Int? // saldo Nequi al iniciar el turno (heredado del cierre real anterior)
+  closingRealBalance     Int? // saldo real ingresado por el dueño al cerrar
+  closingExpectedBalance Int? // snapshot del saldo esperado al cerrar (para calcular el descuadre)
+  status                 String    @default("OPEN") // OPEN | CLOSED
+  closedAt               DateTime?
+  closedById             String?
+  closedBy               User?     @relation(fields: [closedById], references: [id])
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   movements Movement[]
   auditLogs AuditLog[]
+
+  @@unique([date, shift])
+}
+
+// Horarios de los turnos (editables desde Configuración). Solo definen el turno
+// POR DEFECTO al registrar; no re-asignan movimientos ya guardados.
+model ShiftConfig {
+  shift     Int      @id // 1 | 2
+  startTime String // "HH:MM" (America/Bogota)
+  endTime   String // "HH:MM"
+  updatedAt DateTime @updatedAt
 }
 
 model Movement {

@@ -4,9 +4,10 @@ import { BaseFundCard } from "@/modules/nequi/components/BaseFundCard";
 import { CuadreBlock } from "@/modules/nequi/components/CuadreBlock";
 import { DisponibleCard } from "@/modules/nequi/components/DisponibleCard";
 import { PocketsCard } from "@/modules/nequi/components/PocketsCard";
+import { TurnoTabs } from "@/modules/nequi/components/TurnoTabs";
 import { calcularApartadoEnBolsillos } from "@/modules/nequi/calculations/pockets";
-import { getBaseFund, getDaySummary, getPockets } from "@/modules/nequi/queries";
-import { MOVEMENT_LABELS, type MovementType } from "@/modules/nequi/types";
+import { getBaseFund, getCurrentShift, getDaySummary, getPockets } from "@/modules/nequi/queries";
+import { MOVEMENT_LABELS, type MovementType, type Shift } from "@/modules/nequi/types";
 
 const INCOME_CARDS: { type: MovementType; icon: string }[] = [
   { type: "VENTA_FARMACIA", icon: "💊" },
@@ -27,11 +28,12 @@ const EXPENSE_CARDS: { type: MovementType; icon: string }[] = [
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ fecha?: string }>;
+  searchParams: Promise<{ fecha?: string; turno?: string }>;
 }) {
-  const { fecha } = await searchParams;
+  const { fecha, turno } = await searchParams;
   const date = fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : todayBogota();
-  const { day, totals, saldoEsperado, pendingCount } = await getDaySummary(date);
+  const shift: Shift = turno === "1" ? 1 : turno === "2" ? 2 : await getCurrentShift();
+  const { day, totals, saldoEsperado, pendingCount } = await getDaySummary(date, shift);
   const baseFund = await getBaseFund();
   const pockets = await getPockets();
   const apartado = calcularApartadoEnBolsillos(pockets);
@@ -42,17 +44,21 @@ export default async function DashboardPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-bold capitalize text-gray-800">{formatDateCo(date)}</h1>
-        <form className="flex items-center gap-2">
-          <input
-            type="date"
-            name="fecha"
-            defaultValue={date}
-            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-          />
-          <button className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-white">
-            Ver
-          </button>
-        </form>
+        <div className="flex flex-wrap items-center gap-2">
+          <TurnoTabs date={date} shift={shift} basePath="/dashboard" />
+          <form className="flex items-center gap-2">
+            <input type="hidden" name="turno" value={shift} />
+            <input
+              type="date"
+              name="fecha"
+              defaultValue={date}
+              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+            />
+            <button className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-white">
+              Ver
+            </button>
+          </form>
+        </div>
       </div>
 
       {pendingCount > 0 && (
@@ -123,6 +129,7 @@ export default async function DashboardPage({
         <div className="space-y-4">
           <CuadreBlock
             date={date}
+            shift={shift}
             status={day.status}
             openingBalance={day.openingBalance}
             saldoEsperado={saldoEsperado}

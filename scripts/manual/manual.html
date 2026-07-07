@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Manual de uso — Caja Nequi Farmacia Biogreen</title>
+<style>
+  :root{
+    --verde:#047857; --verde-claro:#ecfdf5; --rojo:#dc2626; --rojo-claro:#fef2f2;
+    --morado:#7c3aed; --morado-claro:#f5f3ff; --ambar:#b45309; --ambar-claro:#fffbeb;
+    --gris:#4b5563; --gris-claro:#f3f4f6; --linea:#e5e7eb; --texto:#1f2937;
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body{
+    font-family:"Segoe UI",Arial,sans-serif; color:var(--texto);
+    font-size:11.5px; line-height:1.55; margin:0;
+  }
+  h1,h2,h3,h4{ line-height:1.25; }
+  h2{
+    color:var(--verde); font-size:19px; margin:0 0 4px;
+    border-bottom:2.5px solid var(--verde); padding-bottom:5px;
+  }
+  h3{ color:#111827; font-size:14.5px; margin:16px 0 4px; }
+  h4{ color:var(--gris); font-size:12px; margin:12px 0 3px; text-transform:uppercase; letter-spacing:.4px; }
+  p{ margin:5px 0; }
+  ol,ul{ margin:5px 0 8px; padding-left:20px; }
+  li{ margin:2.5px 0; }
+  code{ background:var(--gris-claro); padding:1px 5px; border-radius:4px; font-family:Consolas,monospace; font-size:10.5px; }
+  .page{ padding:0 4px; }
+  .break{ page-break-before:always; }
+  .avoid{ page-break-inside:avoid; }
+
+  /* Portada */
+  .cover{
+    height:246mm; display:flex; flex-direction:column; justify-content:center;
+    text-align:center; page-break-after:always;
+  }
+  .cover .pill{
+    display:inline-block; background:var(--verde-claro); color:var(--verde);
+    border:1.5px solid var(--verde); border-radius:999px; padding:6px 18px;
+    font-weight:700; font-size:13px; margin:0 auto 26px;
+  }
+  .cover h1{ font-size:40px; color:#111827; margin:0 0 8px; }
+  .cover .sub{ font-size:17px; color:var(--gris); margin:0 0 40px; }
+  .cover .roles{ display:flex; gap:16px; justify-content:center; margin-top:10px; }
+  .cover .role{
+    width:210px; border:1.5px solid var(--linea); border-radius:14px; padding:16px;
+  }
+  .cover .role.admin{ border-color:var(--verde); background:var(--verde-claro); }
+  .cover .role.worker{ border-color:var(--morado); background:var(--morado-claro); }
+  .cover .role .ico{ font-size:30px; }
+  .cover .role b{ display:block; font-size:15px; margin:6px 0 3px; }
+  .cover .foot{ margin-top:46px; color:#9ca3af; font-size:11px; }
+
+  /* Índice */
+  .toc{ columns:2; column-gap:26px; }
+  .toc .grp{ break-inside:avoid; margin-bottom:10px; }
+  .toc .grp b{ color:var(--verde); }
+  .toc ol{ list-style:none; padding-left:0; margin:3px 0; }
+  .toc li{ font-size:11px; color:var(--gris); }
+
+  /* Cajas */
+  .box{ border-radius:10px; padding:9px 12px; margin:9px 0; border:1px solid; }
+  .exc{ background:var(--rojo-claro); border-color:#fecaca; }
+  .exc b{ color:var(--rojo); }
+  .note{ background:var(--morado-claro); border-color:#ddd6fe; }
+  .note b{ color:var(--morado); }
+  .tip{ background:var(--verde-claro); border-color:#a7f3d0; }
+  .tip b{ color:var(--verde); }
+  .warn{ background:var(--ambar-claro); border-color:#fde68a; }
+  .warn b{ color:var(--ambar); }
+  .box .lbl{ font-weight:700; display:block; margin-bottom:2px; }
+
+  .steps{ counter-reset:s; list-style:none; padding-left:0; }
+  .steps>li{ counter-increment:s; position:relative; padding-left:26px; margin:6px 0; }
+  .steps>li::before{
+    content:counter(s); position:absolute; left:0; top:0;
+    width:18px; height:18px; background:var(--verde); color:#fff; border-radius:50%;
+    font-size:10.5px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  .worker .steps>li::before{ background:var(--morado); }
+
+  table{ border-collapse:collapse; width:100%; margin:8px 0; font-size:10.5px; }
+  th,td{ border:1px solid var(--linea); padding:5px 7px; text-align:left; vertical-align:top; }
+  th{ background:var(--gris-claro); color:#111827; }
+  tr{ break-inside:avoid; }
+
+  .tag{ display:inline-block; border-radius:6px; padding:1px 6px; font-size:9.5px; font-weight:700; }
+  .tag.in{ background:var(--verde-claro); color:var(--verde); }
+  .tag.out{ background:var(--rojo-claro); color:var(--rojo); }
+  .tag.nequi{ background:var(--morado-claro); color:var(--morado); }
+  .tag.efe{ background:var(--ambar-claro); color:var(--ambar); }
+
+  .section-head{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .section-head .chip{ font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; }
+  .chip.admin{ background:var(--verde-claro); color:var(--verde); border:1px solid var(--verde); }
+  .chip.worker{ background:var(--morado-claro); color:var(--morado); border:1px solid var(--morado); }
+  .divider{ background:#111827; color:#fff; border-radius:12px; padding:14px 18px; margin:0 0 14px; }
+  .divider h2{ color:#fff; border:none; margin:0; font-size:22px; }
+  .divider p{ margin:4px 0 0; color:#d1d5db; font-size:12px; }
+</style>
+</head>
+<body>
+
+<!-- ========================= PORTADA ========================= -->
+<div class="cover">
+  <span class="pill">💊 Farmacia Biogreen</span>
+  <h1>Caja Nequi</h1>
+  <p class="sub">Manual de uso paso a paso · Versión con turnos (2 por día)</p>
+  <div class="roles">
+    <div class="role worker">
+      <div class="ico">🧑‍💼</div>
+      <b>Vendedora</b>
+      <span>Registra movimientos del día</span>
+    </div>
+    <div class="role admin">
+      <div class="ico">👑</div>
+      <b>Administrador</b>
+      <span>Controla, cuadra y configura todo</span>
+    </div>
+  </div>
+  <p class="foot">Documento interno · Julio 2026 · Léelo completo antes de usar el sistema</p>
+</div>
+
+<!-- ========================= ÍNDICE ========================= -->
+<div class="page">
+  <h2>Índice</h2>
+  <div class="toc">
+    <div class="grp">
+      <b>Parte 1 · Para todos</b>
+      <ol>
+        <li>1. Qué es este sistema</li>
+        <li>2. Palabras clave (glosario)</li>
+        <li>3. Cómo entrar (iniciar sesión)</li>
+        <li>4. Los colores y qué significan</li>
+      </ol>
+    </div>
+    <div class="grp">
+      <b>Parte 2 · Vendedora</b>
+      <ol>
+        <li>5. Tu pantalla</li>
+        <li>6. Elegir el turno</li>
+        <li>7. Registrar un movimiento</li>
+        <li>8. Cada tipo, uno por uno</li>
+        <li>9. Comisiones</li>
+        <li>10. Pendiente / Otro</li>
+        <li>11. Ver, corregir y borrar</li>
+        <li>12. Errores que puedes ver</li>
+      </ol>
+    </div>
+    <div class="grp">
+      <b>Parte 3 · Administrador</b>
+      <ol>
+        <li>13. El menú</li>
+        <li>14. Cómo funcionan los turnos</li>
+        <li>15. Resumen (tablero)</li>
+        <li>16. El Cuadre</li>
+        <li>17. Base para consignaciones</li>
+        <li>18. Disponible y transferencias</li>
+        <li>19. Registrar (totales del día)</li>
+        <li>20. Historial y edición</li>
+        <li>21. Cierre y descuadres</li>
+        <li>22. Reinicio de saldos</li>
+        <li>23. Configuración</li>
+        <li>24. Cambios (auditoría)</li>
+        <li>25. Exportar a Excel</li>
+        <li>26. Usuarios</li>
+      </ol>
+    </div>
+    <div class="grp">
+      <b>Parte 4 · Referencia</b>
+      <ol>
+        <li>27. Tabla de excepciones</li>
+        <li>28. Preguntas frecuentes</li>
+        <li>29. Recomendaciones de seguridad</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ===================== 1. QUÉ ES ===================== -->
+  <h2 style="margin-top:18px">1 · Qué es este sistema</h2>
+  <p>Es la caja digital de la farmacia para controlar el dinero que entra y sale de la cuenta
+  <b>Nequi</b> (y del efectivo relacionado). Reemplaza el Excel manual: tú solo <b>registras</b> cada
+  movimiento y el sistema hace las cuentas (impuestos, comisiones, saldos y cuadre) por ti.</p>
+  <p>Hay <b>dos tipos de usuario</b>:</p>
+  <table class="avoid">
+    <tr><th style="width:120px">Usuario</th><th>Qué puede hacer</th></tr>
+    <tr>
+      <td><b>Vendedora</b><br><span class="tag nequi">acceso básico</span></td>
+      <td>Registrar movimientos (retiros, recargas, comisiones, ventas de Fuxion y Licores, y
+      "pendientes"). Ver y corregir <b>solo sus propios</b> movimientos <b>del día de hoy</b>. No ve
+      saldos, cuadre ni historial general.</td>
+    </tr>
+    <tr>
+      <td><b>Administrador</b><br><span class="tag in">control total</span></td>
+      <td>Todo lo de la vendedora, más: ver saldos y el disponible, registrar totales de ventas,
+      cerrar y reabrir turnos, editar/borrar cualquier movimiento, ver descuadres, configurar
+      bolsillos y horarios, exportar a Excel y administrar usuarios.</td>
+    </tr>
+  </table>
+  <div class="box tip avoid">
+    <span class="lbl">Cómo se comporta la plataforma</span>
+    Después de <b>cada</b> acción (guardar, cerrar, transferir…) la pantalla se actualiza sola y el
+    cambio queda <b>registrado</b> con tu nombre, fecha y hora en la sección "Cambios". Nada se borra
+    de verdad: incluso al "borrar" un movimiento queda guardado para auditoría. Todos los montos son
+    en pesos, sin centavos. La fecha y hora son las de <b>Colombia</b>.
+  </div>
+</div>
+
+<!-- ===================== 2. GLOSARIO ===================== -->
+<div class="page break">
+  <h2>2 · Palabras clave (glosario)</h2>
+  <table>
+    <tr><th style="width:135px">Palabra</th><th>Qué significa en el sistema</th></tr>
+    <tr><td><b>Turno</b></td><td>Cada día tiene <b>2 turnos</b> (Turno 1 y Turno 2). Cada turno se
+      registra, se cuadra y se cierra por separado, como si fueran dos "mini días".</td></tr>
+    <tr><td><b>Nequi / Efectivo</b></td><td>El <b>medio de pago</b> de cada movimiento. Solo lo que
+      pasa por <b>Nequi</b> afecta el cuadre de Nequi. El efectivo se anota pero no mueve el saldo de
+      la cuenta Nequi.</td></tr>
+    <tr><td><b>Saldo inicial</b></td><td>Con cuánto dinero de Nequi <b>arranca</b> un turno.
+      Normalmente se hereda solo del cierre del turno anterior.</td></tr>
+    <tr><td><b>Saldo esperado</b></td><td>Lo que <b>debería</b> haber en Nequi según los movimientos:
+      saldo inicial + entradas Nequi − salidas Nequi. Lo calcula el sistema.</td></tr>
+    <tr><td><b>Saldo real</b></td><td>Lo que <b>de verdad</b> muestra la app de Nequi al cerrar el
+      turno. Lo escribe el administrador.</td></tr>
+    <tr><td><b>Descuadre</b></td><td>La diferencia entre el saldo real y el esperado. Si es 0,
+      "cuadra". Si no, "sobran" o "faltan" pesos.</td></tr>
+    <tr><td><b>4x1000</b></td><td>Impuesto de $4 por cada $1.000 (0,4%) que <b>sale</b> de Nequi en
+      recargas a clientes, pagos de facturas y gastos. El sistema lo crea <b>solo</b>.</td></tr>
+    <tr><td><b>Comisión</b></td><td>Lo que cobra la farmacia por hacer un retiro o recarga a un
+      cliente. El sistema <b>sugiere</b> el valor según una tabla.</td></tr>
+    <tr><td><b>Base para consignaciones</b></td><td>El dinero de trabajo para el servicio de
+      retiros/recargas, repartido entre <b>efectivo</b> y <b>Nequi</b>.</td></tr>
+    <tr><td><b>Bolsillos</b></td><td>"Cajones" para organizar dinero: Comisiones, Licores Jhoann,
+      Fuxion, Base para facturas y Pendiente/Otro. <b>No</b> afectan el cuadre de Nequi; solo
+      organizan.</td></tr>
+    <tr><td><b>Disponible</b></td><td>El dinero de Nequi que está <b>libre</b> (el saldo esperado
+      menos lo apartado en bolsillos).</td></tr>
+  </table>
+
+  <h2 style="margin-top:18px">3 · Cómo entrar (iniciar sesión)</h2>
+  <ol class="steps">
+    <li>Abre el enlace de la caja en el navegador del celular o del computador
+      (<code>biogreen-caja.vercel.app</code>).</li>
+    <li>Escribe tu <b>usuario</b> y tu <b>contraseña</b> (te los da el administrador).</li>
+    <li>Toca <b>Entrar</b>. La vendedora llega a la pantalla <b>Registrar</b>; el administrador llega
+      al <b>Resumen</b>.</li>
+  </ol>
+  <div class="box exc avoid">
+    <span class="lbl">Excepciones al entrar</span>
+    <ul style="margin:0">
+      <li><b>Usuario o contraseña incorrectos:</b> aparece un aviso y no te deja pasar. Verifica
+        mayúsculas y vuelve a intentar.</li>
+      <li><b>Una vendedora intenta abrir una pantalla de administrador</b> (escribiendo la dirección):
+        el sistema la devuelve automáticamente a su pantalla de Registrar.</li>
+      <li><b>Se cerró la sesión sola:</b> por seguridad, vuelve a iniciar sesión con tu usuario.</li>
+      <li>Para <b>salir</b>, usa el botón <b>Salir</b> arriba a la derecha (recomendado en equipos
+        compartidos).</li>
+    </ul>
+  </div>
+
+  <h2 style="margin-top:18px">4 · Los colores y qué significan</h2>
+  <p>Los botones y montos usan colores para que no te equivoques:</p>
+  <ul>
+    <li><span class="tag in">Verde</span> = <b>entra</b> plata a Nequi (retiro de cliente, comisión,
+      ventas).</li>
+    <li><span class="tag out">Rojo</span> = <b>sale</b> plata de Nequi (recarga a cliente, pago de
+      factura, gasto, impuesto 4x1000).</li>
+    <li><span class="tag nequi">Morado</span> = medio de pago <b>Nequi</b>.
+      <span class="tag efe">Ámbar</span> = medio de pago <b>Efectivo</b>.</li>
+    <li>Gris = "Pendiente/Otro", cuando aún no se sabe si entra o sale.</li>
+  </ul>
+</div>
+
+<!-- ========================================================= -->
+<!-- ================== PARTE 2 · VENDEDORA =================== -->
+<!-- ========================================================= -->
+<div class="page break worker">
+  <div class="divider">
+    <h2>Parte 2 · Manual de la Vendedora</h2>
+    <p>Todo lo que necesitas para registrar el día. Sencillo y rápido, pensado para el celular.</p>
+  </div>
+
+  <h2>5 · Tu pantalla</h2>
+  <p>Al entrar ves tres cosas, de arriba hacia abajo:</p>
+  <ol>
+    <li><b>Registrar movimiento:</b> el formulario donde anotas cada operación.</li>
+    <li><b>Base para consignaciones:</b> cuánto hay disponible para retiros/recargas (solo para
+      mirar; no la puedes cambiar).</li>
+    <li><b>Mis movimientos de hoy:</b> la lista de lo que <b>tú</b> registraste hoy, en los dos
+      turnos, con la etiqueta <code>T1</code> o <code>T2</code>.</li>
+  </ol>
+
+  <h2>6 · Elegir el turno</h2>
+  <p>Arriba del formulario hay dos botones: <b>Turno 1</b> y <b>Turno 2</b>. El sistema ya elige por
+  ti el turno según la hora, pero <b>puedes cambiarlo</b> tocando el otro botón antes de guardar.</p>
+  <div class="box note avoid">
+    <span class="lbl">Cómo se comporta</span>
+    Si un turno ya fue <b>cerrado</b> por el administrador, su botón sale gris y con la palabra
+    <b>(cerrado)</b>: no puedes registrar ahí. Si el turno que te tocaba por la hora ya está cerrado,
+    el sistema te pone automáticamente en el otro turno.
+  </div>
+
+  <h2>7 · Registrar un movimiento (pasos generales)</h2>
+  <ol class="steps">
+    <li>Confirma el <b>turno</b> (Turno 1 o Turno 2).</li>
+    <li>Toca el <b>tipo</b> de movimiento (los botones de colores).</li>
+    <li>Escribe el <b>monto</b> (el teclado numérico aparece solo; se ponen los puntos de miles
+      automáticamente).</li>
+    <li>Elige el <b>medio</b>: <b>Nequi</b> o <b>Efectivo</b>.</li>
+    <li>Si quieres, escribe una <b>nota</b> corta (ej. "recarga de Juan").</li>
+    <li>Toca <b>Guardar movimiento</b>. Verás el aviso verde <b>✓ Movimiento guardado</b> y aparecerá
+      en tu lista de abajo.</li>
+  </ol>
+  <div class="box exc avoid">
+    <span class="lbl">Excepciones al registrar</span>
+    <ul style="margin:0">
+      <li><b>No elegiste tipo o no escribiste monto:</b> sale "Selecciona el tipo y escribe el monto"
+        y no guarda.</li>
+      <li><b>El monto es 0 o negativo:</b> no se permite; debe ser mayor a cero.</li>
+      <li><b>El turno ya fue cerrado</b> mientras trabajabas: al guardar sale un aviso pidiendo que el
+        administrador lo reabra. Cambia al otro turno si está abierto.</li>
+      <li><b>Los dos turnos están cerrados:</b> arriba aparece un mensaje y no se puede registrar nada
+        hasta que el administrador reabra uno.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="page break worker">
+  <h2>8 · Cada tipo, uno por uno</h2>
+  <table>
+    <tr><th style="width:120px">Tipo</th><th>Cuándo se usa</th><th>Efecto</th></tr>
+    <tr>
+      <td><b>Retiro cliente</b> <span class="tag in">entra</span></td>
+      <td>El cliente te envía plata a Nequi y tú le das <b>efectivo</b>.</td>
+      <td>Sube el Nequi. Ajusta la base (más Nequi, menos efectivo). <b>No</b> genera 4x1000.</td>
+    </tr>
+    <tr>
+      <td><b>Recarga cliente</b> <span class="tag out">sale</span></td>
+      <td>Le envías plata desde el Nequi de la farmacia al cliente (él te paga en efectivo).</td>
+      <td>Baja el Nequi. Ajusta la base (menos Nequi, más efectivo). <b>Sí</b> genera 4x1000 si es por
+        Nequi.</td>
+    </tr>
+    <tr>
+      <td><b>Comisión</b> <span class="tag in">entra</span></td>
+      <td>Lo que cobras por hacer el retiro o la recarga. Ver sección 9.</td>
+      <td>Suma al bolsillo de <b>Comisiones</b>.</td>
+    </tr>
+    <tr>
+      <td><b>Venta Fuxion</b> <span class="tag in">entra</span></td>
+      <td>Venta de productos Fuxion.</td>
+      <td>Suma al bolsillo <b>Fuxion</b> automáticamente.</td>
+    </tr>
+    <tr>
+      <td><b>Venta Licores Jhoann</b> <span class="tag in">entra</span></td>
+      <td>Venta de licores.</td>
+      <td>Suma al bolsillo <b>Licores Jhoann</b> automáticamente.</td>
+    </tr>
+    <tr>
+      <td><b>Pendiente / Otro</b> <span class="tag" style="background:#e5e7eb;color:#374151">gris</span></td>
+      <td>Algo que no encaja en los demás o que no sabes clasificar. Ver sección 10.</td>
+      <td>Queda marcado para que el administrador lo revise y reclasifique.</td>
+    </tr>
+  </table>
+  <div class="box note avoid">
+    <span class="lbl">Sobre el 4x1000 (no tienes que hacer nada)</span>
+    Cuando registras una <b>Recarga cliente por Nequi</b>, el sistema crea <b>solo</b> el impuesto
+    4x1000 como un movimiento aparte que dice "(automático)". No lo escribas tú, no lo borres: se
+    maneja solo. Si registras la recarga en <b>Efectivo</b>, no se genera 4x1000.
+  </div>
+
+  <h2>9 · Comisiones (paso a paso)</h2>
+  <ol class="steps">
+    <li>Registra primero el <b>Retiro</b> o la <b>Recarga</b> del cliente.</li>
+    <li>Toca el tipo <b>Comisión</b>. Aparece la lista <b>"¿De cuál retiro/recarga?"</b>.</li>
+    <li>Elige el retiro o recarga correspondiente: el sistema <b>calcula solo</b> la comisión sugerida
+      según la tabla.</li>
+    <li>Si el valor real fue distinto, <b>ajústalo</b> a mano.</li>
+    <li>Elige el medio y toca <b>Guardar</b>.</li>
+  </ol>
+  <h4>Tabla de comisión sugerida</h4>
+  <table class="avoid">
+    <tr><th>Monto del retiro/recarga</th><th>Comisión sugerida</th></tr>
+    <tr><td>Hasta $50.000</td><td>$1.000</td></tr>
+    <tr><td>De $50.001 a $110.000</td><td>$2.000</td></tr>
+    <tr><td>De $110.001 a $300.000</td><td>$3.000</td></tr>
+    <tr><td>Más de $300.000</td><td>$3.000 + $1.000 por cada $100.000 (o fracción) por encima de
+      $300.000. Ej.: $320.000 → $4.000.</td></tr>
+  </table>
+  <div class="box exc avoid">
+    <span class="lbl">Excepciones de la comisión</span>
+    <ul style="margin:0">
+      <li>Si <b>no</b> hiciste ningún retiro/recarga hoy, la lista sale vacía: primero registra la
+        operación.</li>
+      <li>La lista solo muestra <b>tus</b> retiros/recargas del <b>día de hoy</b>.</li>
+      <li>El valor sugerido es una ayuda; <b>siempre</b> puedes cambiarlo antes de guardar.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="page break worker">
+  <h2>10 · Pendiente / Otro (paso a paso)</h2>
+  <p>Úsalo cuando no sabes cómo clasificar un movimiento o es algo poco común.</p>
+  <ol class="steps">
+    <li>Toca <b>Pendiente / Otro</b>.</li>
+    <li>Elige si <b>Entra plata</b> o <b>Sale plata</b> (dos botones).</li>
+    <li>Escribe el monto, el medio y una nota que explique qué fue.</li>
+    <li>Guarda. Quedará marcado en amarillo para que el <b>administrador</b> lo revise y le ponga el
+      tipo correcto después.</li>
+  </ol>
+  <div class="box tip avoid">
+    <span class="lbl">Consejo</span>
+    Escribe siempre una <b>nota</b> clara en los "Pendiente/Otro". Le ahorra tiempo al administrador
+    cuando lo vaya a reclasificar.
+  </div>
+
+  <h2>11 · Ver, corregir y borrar tus movimientos</h2>
+  <p>En "Mis movimientos de hoy" cada línea muestra el turno (<code>T1</code>/<code>T2</code>), la
+  hora, el medio y el monto. En los que <b>no</b> son automáticos verás dos íconos:</p>
+  <ul>
+    <li><b>✏️ Editar:</b> te deja cambiar el <b>monto</b>, el <b>medio</b> y la <b>nota</b>. Toca
+      Guardar para confirmar.</li>
+    <li><b>🗑️ Borrar:</b> quita el movimiento (te pide confirmación). Queda registrado en "Cambios".</li>
+  </ul>
+  <div class="box exc avoid">
+    <span class="lbl">Excepciones al corregir/borrar (importante)</span>
+    <ul style="margin:0">
+      <li>Solo puedes editar o borrar <b>tus propios</b> movimientos, y <b>solo los de hoy</b>. Los de
+        días anteriores no se tocan.</li>
+      <li>Si el <b>turno ya está cerrado</b>, no puedes editar ni borrar: pídele al administrador que
+        lo reabra.</li>
+      <li>El <b>impuesto 4x1000 automático</b> no tiene botones: no se edita ni se borra por separado.
+        Si borras la recarga que lo originó, su 4x1000 <b>se borra solo</b>.</li>
+      <li>La vendedora <b>no</b> puede cambiar el <b>tipo</b> ni el <b>bolsillo</b> de un movimiento
+        (eso lo hace el administrador desde el Historial).</li>
+    </ul>
+  </div>
+
+  <h2>12 · Errores que puedes ver (y qué hacer)</h2>
+  <table>
+    <tr><th style="width:250px">Mensaje</th><th>Qué hacer</th></tr>
+    <tr><td>"Selecciona el tipo y escribe el monto"</td><td>Faltó elegir el tipo o poner el monto.</td></tr>
+    <tr><td>"El turno … ya fue cerrado. Pide al administrador que lo reabra."</td><td>Cambia al otro
+      turno si está abierto, o avisa al administrador.</td></tr>
+    <tr><td>"Solo puedes editar/borrar tus propios registros"</td><td>Ese movimiento lo hizo otra
+      persona; no lo puedes tocar.</td></tr>
+    <tr><td>"Solo puedes editar registros del día actual"</td><td>Es de un día pasado; avisa al
+      administrador si hay que corregirlo.</td></tr>
+    <tr><td>"No autorizado"</td><td>Se cerró tu sesión. Vuelve a iniciar sesión.</td></tr>
+  </table>
+</div>
+
+<!-- ========================================================= -->
+<!-- ================ PARTE 3 · ADMINISTRADOR ================= -->
+<!-- ========================================================= -->
+<div class="page break">
+  <div class="divider">
+    <h2>Parte 3 · Manual del Administrador</h2>
+    <p>Control completo: saldos, cuadre por turno, edición, descuadres, configuración y usuarios.</p>
+  </div>
+
+  <h2>13 · El menú</h2>
+  <p>Arriba tienes las secciones: <b>Resumen · Movimientos · Cierre · Historial · Cambios · Exportar ·
+  Usuarios · Configuración</b>. Debajo aparece tu nombre y el botón <b>Salir</b>.</p>
+
+  <h2>14 · Cómo funcionan los turnos (léelo primero)</h2>
+  <p>Cada día tiene <b>Turno 1</b> y <b>Turno 2</b>. Cada uno es independiente: su propio saldo
+  inicial, sus movimientos, su cuadre y su cierre. En Resumen, Cierre e Historial hay un
+  <b>selector de turno</b> para moverte entre ellos.</p>
+  <div class="box note avoid">
+    <span class="lbl">Herencia del saldo (automática)</span>
+    Cuando cierras un turno con su <b>saldo real</b>, el <b>siguiente</b> turno arranca con ese mismo
+    saldo real como saldo inicial:
+    <ul style="margin:4px 0 0">
+      <li>Cierras <b>Turno 1</b> → el <b>Turno 2</b> del mismo día arranca con ese saldo.</li>
+      <li>Cierras <b>Turno 2</b> → el <b>Turno 1</b> del día siguiente arranca con ese saldo.</li>
+    </ul>
+    Por eso, aunque un turno tenga descuadre, el siguiente arranca con lo que <b>de verdad</b> hay en
+    Nequi: el descuadre queda registrado pero no se arrastra en las cuentas.
+  </div>
+  <div class="box warn avoid">
+    <span class="lbl">La primera vez</span>
+    El primer turno que uses no tiene de dónde heredar: tendrás que escribir el <b>saldo inicial</b> a
+    mano (sección 16).
+  </div>
+
+  <h2>15 · Resumen (tablero)</h2>
+  <p>Es tu vista principal. Arriba eliges <b>fecha</b> y <b>turno</b>. Debajo:</p>
+  <ul>
+    <li><b>Entradas / Salidas:</b> tarjetas con el total por categoría de ese turno (solo Nequi; el
+      efectivo se muestra aparte en letras ámbar).</li>
+    <li><b>Cuadre del turno</b> (sección 16).</li>
+    <li><b>Base para consignaciones</b> (sección 17).</li>
+    <li><b>Disponible</b> (sección 18).</li>
+    <li><b>Tus bolsillos:</b> saldo acumulado de cada bolsillo.</li>
+  </ul>
+  <div class="box note avoid">
+    <span class="lbl">Aviso de pendientes</span>
+    Si hay movimientos "Pendiente/Otro" sin clasificar, aparece una barra amarilla arriba que te lleva
+    al Historial para resolverlos.
+  </div>
+</div>
+
+<div class="page break">
+  <h2>16 · El Cuadre (paso a paso)</h2>
+  <p>El bloque <b>Cuadre del turno</b> es donde revisas y cierras cada turno.</p>
+  <h4>16.1 · Definir o corregir el saldo inicial</h4>
+  <ol class="steps">
+    <li>Si el turno no tiene saldo inicial, escribe cuánto había en Nequi al empezar y toca
+      <b>Guardar saldo inicial</b>.</li>
+    <li>Si ya hay uno y está mal, toca <b>Editar</b> junto a "Saldo inicial", corrige y guarda.
+      (Solo se puede con el turno <b>abierto</b>.)</li>
+  </ol>
+  <h4>16.2 · Cerrar el turno</h4>
+  <ol class="steps">
+    <li>Mira el <b>Saldo esperado</b> (lo calcula el sistema).</li>
+    <li>Escribe el <b>Saldo real</b> que muestra tu app de Nequi.</li>
+    <li>El sistema muestra al instante si <b>✓ Cuadra</b> o el <b>descuadre</b> (sobran/faltan).</li>
+    <li>Toca <b>Cerrar el turno</b>. Si hay descuadre, te pide confirmación.</li>
+  </ol>
+  <h4>16.3 · Reabrir un turno</h4>
+  <p>Con el turno cerrado, el botón cambia a <b>Reabrir turno</b>. Sirve para corregir algo después de
+  cerrado. Queda registrado en "Cambios".</p>
+  <div class="box exc avoid">
+    <span class="lbl">Excepciones y comportamiento del cuadre</span>
+    <ul style="margin:0">
+      <li><b>Sin saldo inicial no puedes cerrar:</b> primero defínelo.</li>
+      <li>El <b>saldo esperado puede salir negativo</b> (si salió más plata de la que había): es
+        normal, solo es un cálculo.</li>
+      <li>Al cerrar se guarda una <b>foto</b> del saldo esperado de ese momento; así el descuadre
+        queda fijo aunque después edites movimientos.</li>
+      <li><b>Descuadre "sobran"</b> = hay más plata de la esperada; <b>"faltan"</b> = hay menos.</li>
+      <li>Si <b>reabres</b> un turno, desaparece de la lista de descuadres hasta que lo vuelvas a
+        cerrar.</li>
+      <li>Solo el <b>administrador</b> puede cerrar, reabrir y editar el saldo inicial.</li>
+    </ul>
+  </div>
+
+  <h2>17 · Base para consignaciones</h2>
+  <p>Es tu dinero de trabajo para retiros/recargas, repartido entre <b>efectivo</b> y <b>Nequi</b>.
+  Los retiros y recargas mueven ese reparto <b>solos</b>. Además tienes dos botones:</p>
+  <h4>17.1 · Mover (cambiar el reparto)</h4>
+  <ol class="steps">
+    <li>Toca <b>Mover</b>.</li>
+    <li>Elige la dirección: <b>Efectivo → Nequi</b> (aumenta la parte en Nequi) o <b>Nequi →
+      Efectivo</b> (la reduce).</li>
+    <li>Escribe el monto (no puede ser mayor a lo que hay en la parte de origen) y confirma.</li>
+  </ol>
+  <div class="box note avoid">
+    <span class="lbl">Muy importante</span>
+    "Mover" <b>solo cambia el reparto</b> efectivo↔Nequi de la base. <b>No</b> cambia el total de la
+    base ni el Disponible. Sirve para reflejar que físicamente pasaste plata de un lado al otro.
+  </div>
+  <h4>17.2 · Ajustar (cambiar los valores directamente)</h4>
+  <p>El botón <b>Ajustar</b> te deja escribir directamente cuánto hay en Nequi y cuánto en efectivo
+  (por si quieres redefinir el total de la base). Guarda y queda registrado.</p>
+</div>
+
+<div class="page break">
+  <h2>18 · Disponible y transferencias</h2>
+  <p>La tarjeta <b>Disponible</b> muestra el dinero de Nequi que está libre:
+  <b>Saldo Nequi − apartado en bolsillos</b>. Abajo lista cuánto hay en cada bolsillo.</p>
+  <h4>Transferir dinero entre bolsillos</h4>
+  <ol class="steps">
+    <li>Toca <b>Transferir dinero</b>.</li>
+    <li>Elige <b>Desde</b> y <b>Hacia</b> (pueden ser bolsillos o el "Disponible").</li>
+    <li>Escribe el monto y confirma.</li>
+  </ol>
+  <div class="box exc avoid">
+    <span class="lbl">Excepciones del disponible</span>
+    <ul style="margin:0">
+      <li>No puedes transferir <b>más</b> de lo que hay en el origen.</li>
+      <li>Origen y destino deben ser <b>distintos</b>.</li>
+      <li>Si aún no hay saldo inicial en el turno, la tarjeta pide definirlo primero.</li>
+      <li>El <b>Disponible puede salir negativo</b> (en rojo) si lo apartado supera el saldo: es una
+        señal para revisar, no un error.</li>
+      <li>Las <b>Comisiones</b> y la <b>base para consignaciones</b> cuentan como parte del Disponible
+        (no se restan).</li>
+    </ul>
+  </div>
+
+  <h2>19 · Registrar (totales del día)</h2>
+  <p>En <b>Movimientos</b> registras lo que solo hace el administrador: Venta farmacia, Abono a
+  crédito, Pago de factura, Gasto farmacia y Pendiente/Otro. También eliges el <b>turno</b>.</p>
+  <div class="box note avoid">
+    <span class="lbl">Ventas y abonos = un total por turno</span>
+    <b>Venta farmacia</b> y <b>Abono a crédito</b> se guardan como <b>un solo total por turno</b>. Si
+    ya registraste uno y lo vuelves a guardar, <b>se actualiza</b> el valor (no se duplica).
+  </div>
+  <p>En <b>Pago de factura</b> y <b>Gasto farmacia</b> puedes elegir <b>de cuál bolsillo se paga</b>
+  (Comisiones, Licores, Fuxion, Base para facturas o ninguno). Si es por Nequi, se genera el 4x1000
+  automático.</p>
+</div>
+
+<div class="page break">
+  <h2>20 · Historial y edición</h2>
+  <p>En <b>Historial</b> ves todos los movimientos. Filtra por <b>rango de fechas</b> y por
+  <b>turno</b>. Cada fila muestra fecha, turno (<code>T1</code>/<code>T2</code>), tipo, monto, medio,
+  quién lo registró y nota.</p>
+  <h4>20.1 · Editar un movimiento (completo)</h4>
+  <ol class="steps">
+    <li>Toca <b>✏️</b> en la fila. Se abre una ventana.</li>
+    <li>Puedes cambiar: <b>tipo</b>, <b>dirección</b> (solo en Pendiente/Otro), <b>monto</b>,
+      <b>medio</b>, <b>bolsillo</b> y <b>nota</b>.</li>
+    <li>Toca <b>Guardar cambios</b>.</li>
+  </ol>
+  <div class="box note avoid">
+    <span class="lbl">Qué recalcula el sistema solo al editar</span>
+    Si el cambio afecta el <b>4x1000</b> (por tipo, monto o medio), el impuesto se <b>crea, recalcula
+    o elimina</b> automáticamente. La <b>base</b> para consignaciones también se ajusta sola por la
+    diferencia. Todo queda en "Cambios".
+  </div>
+  <h4>20.2 · Otras acciones en el Historial</h4>
+  <ul>
+    <li><b>🗑️ Borrar:</b> quita el movimiento (y su 4x1000 si lo tenía).</li>
+    <li><b>Asignar bolsillo:</b> en gastos, facturas, comisiones y ventas puedes elegir el bolsillo
+      con el menú desplegable de la fila.</li>
+    <li><b>Reclasificar:</b> los "Pendiente/Otro" muestran un menú para ponerles el tipo correcto.</li>
+  </ul>
+  <div class="box exc avoid">
+    <span class="lbl">Excepciones de la edición</span>
+    <ul style="margin:0">
+      <li>No se puede <b>cambiar el tipo</b> hacia o desde <b>Venta farmacia</b> / <b>Abono a
+        crédito</b> desde aquí (esos son "totales del turno"): se manejan en Movimientos.</li>
+      <li>El <b>4x1000 automático</b> no se edita ni se borra directamente: cámbialo editando el
+        movimiento que lo originó.</li>
+      <li>Si el <b>turno está cerrado</b>, primero hay que <b>reabrirlo</b> para editar o borrar.</li>
+    </ul>
+  </div>
+
+  <h2>21 · Cierre y descuadres</h2>
+  <p>La pantalla <b>Cierre</b> reúne, para el turno elegido: el <b>resumen por categoría</b>, el
+  <b>Cuadre</b> (igual que en Resumen), la lista de <b>Descuadres</b> y el <b>Reinicio de saldos</b>.</p>
+  <h4>Lista de descuadres</h4>
+  <ol class="steps">
+    <li>Elige el <b>rango de fechas</b> y, si quieres, un <b>turno</b> específico.</li>
+    <li>Toca <b>Filtrar</b>. Verás una fila por cada turno <b>cerrado</b>: fecha, turno, esperado,
+      real, descuadre y quién cerró.</li>
+  </ol>
+  <div class="box exc avoid">
+    <span class="lbl">Comportamiento de los descuadres</span>
+    <ul style="margin:0">
+      <li>Solo aparecen turnos <b>ya cerrados</b>. Un turno abierto (o reabierto) no sale hasta
+        cerrarlo.</li>
+      <li>Los turnos cerrados <b>antes</b> de activar esta función aparecen con "—" (no tienen la foto
+        del esperado).</li>
+      <li>El descuadre <b>no se arrastra</b>: el siguiente turno siempre arranca con el saldo real.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="page break">
+  <h2>22 · Reinicio de saldos (para descuadres extremos)</h2>
+  <p>Si un turno queda muy descuadrado y quieres empezar el siguiente "desde cero", usa
+  <b>Ajustar saldos iniciales del próximo turno</b> (abajo en Cierre).</p>
+  <ol class="steps">
+    <li>Toca <b>Ajustar saldos iniciales del próximo turno</b>.</li>
+    <li>Escribe el <b>saldo Nequi inicial</b> con el que quieres que arranque el próximo turno.</li>
+    <li>Si quieres, ajusta también el valor de cada <b>bolsillo</b> (déjalos igual si no los tocas).</li>
+    <li>Confirma. El sistema te muestra un resumen antes de aplicar.</li>
+  </ol>
+  <div class="box warn avoid">
+    <span class="lbl">Qué hace y qué NO hace</span>
+    <ul style="margin:0">
+      <li><b>No borra</b> ningún movimiento del turno actual: solo redefine el punto de partida del
+        <b>siguiente</b> turno (Turno 1→Turno 2 del mismo día; Turno 2→Turno 1 del día siguiente).</li>
+      <li>Queda registrado como <b>"Reinició saldos del próximo turno"</b> en Cambios.</li>
+      <li><b>Protección:</b> una vez que haces el reinicio, si luego cierras el turno actual, el
+        reinicio <b>no se pisa</b> (tu valor manual manda).</li>
+    </ul>
+  </div>
+
+  <h2>23 · Configuración</h2>
+  <p>La pestaña <b>Configuración</b> reúne dos cosas (para no llenar el menú):</p>
+  <h4>23.1 · Saldos iniciales de los bolsillos</h4>
+  <ol class="steps">
+    <li>Escribe el <b>saldo inicial</b> de cada bolsillo (Comisiones, Licores, Fuxion, Base para
+      facturas, Pendiente/Otro).</li>
+    <li>Toca <b>Guardar</b> en ese bolsillo. Al lado ves el <b>Disponible actual</b> para confirmar el
+      efecto.</li>
+  </ol>
+  <div class="box note avoid">
+    <span class="lbl">Cómo se comporta</span>
+    El saldo inicial es una <b>base</b> que se <b>suma</b> a los movimientos del bolsillo (no crea
+    movimientos falsos). Ejemplo: si Comisiones tiene $42.960 de saldo inicial y luego entran/salen
+    comisiones, el disponible del bolsillo va cambiando sobre esa base.
+  </div>
+  <h4>23.2 · Horarios de los turnos</h4>
+  <ol class="steps">
+    <li>Define la hora de <b>inicio</b> y <b>fin</b> de cada turno.</li>
+    <li>Toca <b>Guardar</b>.</li>
+  </ol>
+  <div class="box exc avoid">
+    <span class="lbl">Excepciones de los horarios</span>
+    <ul style="margin:0">
+      <li>La hora de inicio debe ser <b>anterior</b> a la de fin.</li>
+      <li>Los horarios <b>solo</b> definen qué turno se <b>sugiere</b> según la hora al registrar;
+        siempre se puede cambiar a mano.</li>
+      <li>Cambiar los horarios <b>no mueve</b> los movimientos ya registrados de turno.</li>
+    </ul>
+  </div>
+
+  <h2>24 · Cambios (auditoría)</h2>
+  <p>La pestaña <b>Cambios</b> es el registro de todo lo que pasó: quién creó, editó, borró, cerró,
+  reabrió, movió la base, transfirió, ajustó bolsillos, cambió horarios o reinició saldos, con la
+  fecha, la hora y el antes → después. Es tu herramienta para revisar cualquier movimiento raro.</p>
+
+  <h2>25 · Exportar a Excel</h2>
+  <ol class="steps">
+    <li>Ve a <b>Exportar</b>, elige el rango de fechas y descarga.</li>
+    <li>El archivo trae dos hojas: <b>Movimientos</b> (detalle, con columna de <b>Turno</b>) y
+      <b>Resumen diario</b> (totales, saldos y descuadre por turno).</li>
+  </ol>
+
+  <h2>26 · Usuarios</h2>
+  <p>En <b>Usuarios</b> administras las cuentas de las vendedoras: cambiar nombre, cambiar contraseña
+  y activar/desactivar. Cada cambio queda en "Cambios".</p>
+</div>
+
+<!-- ========================================================= -->
+<!-- ================== PARTE 4 · REFERENCIA ================== -->
+<!-- ========================================================= -->
+<div class="page break">
+  <div class="divider">
+    <h2>Parte 4 · Referencia rápida</h2>
+    <p>Excepciones, preguntas frecuentes y seguridad.</p>
+  </div>
+
+  <h2>27 · Tabla de excepciones y casos límite</h2>
+  <table>
+    <tr><th style="width:210px">Situación</th><th>Cómo se comporta el sistema</th></tr>
+    <tr><td>Registrar en un turno cerrado</td><td>No deja; pide reabrir. El botón del turno sale gris
+      con "(cerrado)".</td></tr>
+    <tr><td>Los dos turnos cerrados</td><td>La vendedora no puede registrar; aparece aviso. El admin
+      debe reabrir uno.</td></tr>
+    <tr><td>Editar/borrar con el turno cerrado</td><td>Bloqueado hasta que el administrador reabra el
+      turno.</td></tr>
+    <tr><td>Vendedora intenta editar de otra persona o de otro día</td><td>Bloqueado con mensaje.</td></tr>
+    <tr><td>Impuesto 4x1000</td><td>Se crea, recalcula o borra <b>solo</b> junto con el movimiento que
+      lo origina. Nunca se toca a mano.</td></tr>
+    <tr><td>Venta farmacia / Abono a crédito repetido en el mismo turno</td><td>No se duplica: se
+      <b>actualiza</b> el total de ese turno.</td></tr>
+    <tr><td>Cambiar el tipo de un movimiento a/desde Venta o Abono</td><td>No se permite desde el
+      Historial (son totales del turno).</td></tr>
+    <tr><td>Saldo esperado negativo</td><td>Se permite; es solo un cálculo.</td></tr>
+    <tr><td>Cerrar con descuadre</td><td>Pide confirmación; el descuadre queda registrado; el
+      siguiente turno arranca con el saldo real.</td></tr>
+    <tr><td>Reabrir un turno cerrado</td><td>Sale de la lista de descuadres hasta cerrarlo de nuevo;
+      queda en Cambios.</td></tr>
+    <tr><td>Reinicio de saldos</td><td>No borra movimientos; redefine el arranque del próximo turno;
+      no se pisa al cerrar el turno actual.</td></tr>
+    <tr><td>Mover la base</td><td>Solo cambia el reparto efectivo↔Nequi; no toca el total ni el
+      Disponible; valida contra la parte de origen.</td></tr>
+    <tr><td>Transferir más de lo disponible</td><td>Se rechaza con un aviso del saldo disponible.</td></tr>
+    <tr><td>Primer turno de la historia</td><td>No hereda saldo: hay que escribir el saldo inicial a
+      mano.</td></tr>
+    <tr><td>Se cerró la sesión</td><td>Aparece "No autorizado"; hay que volver a iniciar sesión.</td></tr>
+  </table>
+
+  <h2>28 · Preguntas frecuentes</h2>
+  <h4>¿El efectivo afecta el saldo de Nequi?</h4>
+  <p>No. Solo los movimientos por <b>Nequi</b> afectan el cuadre. El efectivo se anota para el
+  control, pero no mueve el saldo de la cuenta Nequi.</p>
+  <h4>¿Los bolsillos cambian el cuadre?</h4>
+  <p>No. Los bolsillos solo <b>organizan</b> el dinero. El cuadre de Nequi es independiente.</p>
+  <h4>Cerré el turno y me equivoqué en el saldo real, ¿qué hago?</h4>
+  <p><b>Reabre</b> el turno, corrige y vuelve a cerrar. Todo queda registrado.</p>
+  <h4>¿Por qué el Disponible aparece en rojo (negativo)?</h4>
+  <p>Porque lo apartado en bolsillos superó el saldo esperado. Es una señal para revisar, no un error.</p>
+  <h4>¿Puedo trabajar los dos turnos a la vez?</h4>
+  <p>Sí. Puedes registrar en Turno 1 o Turno 2 según lo elijas; el sistema los mantiene separados.</p>
+  <h4>¿Qué pasa si registro una recarga en efectivo?</h4>
+  <p>No se genera 4x1000 (el impuesto solo aplica a lo que sale por <b>Nequi</b>).</p>
+
+  <h2>29 · Recomendaciones de seguridad</h2>
+  <ul>
+    <li>Cada persona usa <b>su</b> usuario. No compartan contraseñas.</li>
+    <li>Cambien las <b>contraseñas iniciales</b> desde <b>Usuarios</b> apenas empiecen a usar el
+      sistema de verdad.</li>
+    <li>En equipos compartidos, usen <b>Salir</b> al terminar.</li>
+    <li>Revisen <b>Cambios</b> de vez en cuando para detectar errores o movimientos raros.</li>
+    <li>Ante la duda, es mejor registrar como <b>Pendiente/Otro</b> con una nota que dejar de anotar
+      algo.</li>
+  </ul>
+  <div class="box tip avoid" style="margin-top:14px">
+    <span class="lbl">En una frase</span>
+    Tú registras; el sistema calcula, cuadra y deja constancia. Si algo se ve raro, "Cambios" y los
+    "Descuadres" te dicen exactamente qué pasó.
+  </div>
+</div>
+
+</body>
+</html>

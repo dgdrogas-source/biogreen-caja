@@ -2,31 +2,43 @@ import { requireAdmin } from "@/lib/permissions";
 import { formatDateCo, formatTimeCo, todayBogota } from "@/lib/dates";
 import { MovementForm } from "@/modules/nequi/components/MovementForm";
 import { MovementList } from "@/modules/nequi/components/MovementList";
-import { getDaySummary } from "@/modules/nequi/queries";
-import { ADMIN_TYPES } from "@/modules/nequi/types";
+import { getMovementsRange, getTodayShiftInfo } from "@/modules/nequi/queries";
+import { ADMIN_TYPES, SHIFT_LABELS, type Shift } from "@/modules/nequi/types";
 
 export default async function MovimientosPage() {
   await requireAdmin();
   const date = todayBogota();
-  const { day, movements } = await getDaySummary(date);
+  const [movements, shiftInfo] = await Promise.all([
+    getMovementsRange(date, date),
+    getTodayShiftInfo(),
+  ]);
+
+  const closedShifts = ([1, 2] as Shift[]).filter((s) => shiftInfo.shiftStatus[s] === "CLOSED");
 
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-bold capitalize text-gray-800">{formatDateCo(date)}</h1>
 
-      {day.status === "CLOSED" && (
+      {closedShifts.length > 0 && (
         <p className="rounded-xl bg-amber-50 p-3 text-center text-sm font-medium text-amber-700">
-          El día está cerrado. Reábrelo desde el Resumen para registrar o editar.
+          {closedShifts.length === 2
+            ? "Los dos turnos de hoy están cerrados. Reábrelos desde el Cierre para registrar o editar."
+            : `El ${SHIFT_LABELS[closedShifts[0]]} está cerrado — puedes registrar en el otro turno.`}
         </p>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div>
           <p className="mb-2 text-sm text-gray-500">
-            Ventas farmacia y abonos se guardan como <strong>un total del día</strong>: si ya
-            registraste uno, al guardarlo de nuevo se actualiza el valor.
+            Ventas farmacia y abonos se guardan como <strong>un total del turno</strong>: si ya
+            registraste uno en ese turno, al guardarlo de nuevo se actualiza el valor.
           </p>
-          <MovementForm types={ADMIN_TYPES} commissionSources={[]} />
+          <MovementForm
+            types={ADMIN_TYPES}
+            commissionSources={[]}
+            defaultShift={shiftInfo.defaultShift}
+            shiftStatus={shiftInfo.shiftStatus}
+          />
         </div>
 
         <div className="rounded-2xl bg-white p-4 shadow-sm">
@@ -43,7 +55,7 @@ export default async function MovimientosPage() {
               paymentMethod: m.paymentMethod,
               note: m.note,
               isSystemGenerated: m.isSystemGenerated,
-              registeredAt: formatTimeCo(m.registeredAt),
+              registeredAt: `T${m.businessDay.shift} · ${formatTimeCo(m.registeredAt)}`,
               registeredByName: m.registeredBy.name,
             }))}
           />

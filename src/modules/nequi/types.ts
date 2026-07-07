@@ -19,6 +19,12 @@ export type PaymentMethod = "NEQUI" | "EFECTIVO";
 export type Direction = "INCOME" | "EXPENSE";
 export type Role = "ADMIN" | "WORKER";
 
+// Turnos de caja: 2 por día (lunes-sábado). Cada turno tiene su propio
+// BusinessDay, cuadre y cierre; los horarios se configuran en /configuracion.
+export const SHIFTS = [1, 2] as const;
+export type Shift = (typeof SHIFTS)[number];
+export const SHIFT_LABELS: Record<Shift, string> = { 1: "Turno 1", 2: "Turno 2" };
+
 export const MOVEMENT_LABELS: Record<MovementType, string> = {
   VENTA_FARMACIA: "Venta farmacia",
   ABONO_CREDITO: "Abono a crédito",

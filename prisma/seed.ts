@@ -64,7 +64,20 @@ async function main() {
     create: { bucket: "COMISION", openingBalance: 42_960 },
   });
 
-  console.log("Seed listo: administrador + vendedora1..4 + base $1.110.000");
+  // Horarios por defecto de los 2 turnos (editables desde Configuración).
+  // update: {} para no pisar horarios ya ajustados por el administrador.
+  await prisma.shiftConfig.upsert({
+    where: { shift: 1 },
+    update: {},
+    create: { shift: 1, startTime: "06:00", endTime: "13:00" },
+  });
+  await prisma.shiftConfig.upsert({
+    where: { shift: 2 },
+    update: {},
+    create: { shift: 2, startTime: "13:00", endTime: "20:00" },
+  });
+
+  console.log("Seed listo: administrador + vendedora1..4 + base $1.110.000 + horarios de turnos");
 }
 
 main()

@@ -1,16 +1,52 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { todayBogota } from "@/lib/dates";
+import { nowBogotaHHMM, todayBogota } from "@/lib/dates";
 import { calcularSaldoEsperado } from "../calculations/cuadre";
 import {
   aplicarTransferencias,
   calcularSaldoPorBolsillo,
   type PocketResumen,
 } from "../calculations/pockets";
-import { POCKET_BUCKETS, type Direction, type MovementType, type PaymentMethod, type PocketBucket } from "../types";
+import { DEFAULT_SHIFT_CONFIGS, turnoPorHora } from "../calculations/turnos";
+import {
+  POCKET_BUCKETS,
+  type Direction,
+  type MovementType,
+  type PaymentMethod,
+  type PocketBucket,
+  type Shift,
+} from "../types";
 import { getOrCreateDay } from "../server/businessDay";
 
 export type MovementWithUser = Awaited<ReturnType<typeof getDayMovements>>[number];
+
+// Horarios de los turnos (con respaldo a los valores por defecto si falta el seed).
+export async function getShiftConfigs() {
+  const rows = await prisma.shiftConfig.findMany({ orderBy: { shift: "asc" } });
+  if (rows.length > 0) return rows;
+  return DEFAULT_SHIFT_CONFIGS.map((c) => ({ ...c, updatedAt: new Date() }));
+}
+
+// Turno POR DEFECTO según la hora actual de Bogotá y los horarios configurados.
+export async function getCurrentShift(): Promise<Shift> {
+  const configs = await getShiftConfigs();
+  return turnoPorHora(nowBogotaHHMM(), configs);
+}
+
+// Estado de los dos turnos de hoy + turno sugerido (para los formularios de registro).
+export async function getTodayShiftInfo() {
+  const date = todayBogota();
+  const [defaultShift, t1, t2] = await Promise.all([
+    getCurrentShift(),
+    getOrCreateDay(date, 1),
+    getOrCreateDay(date, 2),
+  ]);
+  return {
+    date,
+    defaultShift,
+    shiftStatus: { 1: t1.status, 2: t2.status } as Record<Shift, string>,
+  };
+}
 
 export async function getDayMovements(businessDayId: string) {
   return prisma.movement.findMany({
@@ -20,8 +56,8 @@ export async function getDayMovements(businessDayId: string) {
   });
 }
 
-export async function getDaySummary(date?: string) {
-  const day = await getOrCreateDay(date ?? todayBogota());
+export async function getDaySummary(date?: string, shift?: Shift) {
+  const day = await getOrCreateDay(date ?? todayBogota(), shift ?? (await getCurrentShift()));
   const movements = await getDayMovements(day.id);
 
   const totals = new Map<MovementType, { nequi: number; efectivo: number }>();
@@ -49,22 +85,25 @@ export async function getDaySummary(date?: string) {
   return { day, movements, totals, saldoEsperado, pendingCount };
 }
 
-// Movimientos propios del día actual (vista de las trabajadoras).
+// Movimientos propios del día actual, de ambos turnos (vista de las trabajadoras).
 export async function getMyTodayMovements(userId: string) {
-  const day = await getOrCreateDay(todayBogota());
   const movements = await prisma.movement.findMany({
-    where: { businessDayId: day.id, registeredById: userId, deletedAt: null },
+    where: {
+      businessDay: { date: todayBogota() },
+      registeredById: userId,
+      deletedAt: null,
+    },
+    include: { businessDay: { select: { shift: true } } },
     orderBy: { registeredAt: "desc" },
   });
-  return { day, movements };
+  return { movements };
 }
 
-// Retiros/consignaciones propios de hoy, para enlazar una comisión.
+// Retiros/consignaciones propios de hoy (ambos turnos), para enlazar una comisión.
 export async function getMyCommissionSources(userId: string) {
-  const day = await getOrCreateDay(todayBogota());
   return prisma.movement.findMany({
     where: {
-      businessDayId: day.id,
+      businessDay: { date: todayBogota() },
       registeredById: userId,
       deletedAt: null,
       type: { in: ["RETIRO_CLIENTE", "CONSIGNACION_CLIENTE"] },
@@ -73,15 +112,15 @@ export async function getMyCommissionSources(userId: string) {
   });
 }
 
-export async function getMovementsRange(from: string, to: string) {
+export async function getMovementsRange(from: string, to: string, shift?: Shift) {
   return prisma.movement.findMany({
     where: {
       deletedAt: null,
-      businessDay: { date: { gte: from, lte: to } },
+      businessDay: { date: { gte: from, lte: to }, ...(shift ? { shift } : {}) },
     },
     include: {
       registeredBy: { select: { name: true } },
-      businessDay: { select: { date: true } },
+      businessDay: { select: { date: true, shift: true } },
     },
     orderBy: [{ businessDay: { date: "desc" } }, { registeredAt: "desc" }],
   });
@@ -92,10 +131,26 @@ export async function getAuditLog(limit = 100) {
     include: {
       changedBy: { select: { name: true } },
       movement: { select: { type: true, amount: true, note: true } },
-      businessDay: { select: { date: true } },
+      businessDay: { select: { date: true, shift: true } },
     },
     orderBy: { changedAt: "desc" },
     take: limit,
+  });
+}
+
+// Cambio #5 — turnos cerrados del rango, para la lista de descuadres del Cierre.
+// El descuadre es DERIVADO: closingRealBalance − closingExpectedBalance (el
+// snapshot del esperado se guarda al cerrar). Cierres previos a esta mejora no
+// tienen snapshot (null) y se muestran sin descuadre calculable.
+export async function getDiscrepancies(from: string, to: string, shift?: Shift) {
+  return prisma.businessDay.findMany({
+    where: {
+      status: "CLOSED",
+      date: { gte: from, lte: to },
+      ...(shift ? { shift } : {}),
+    },
+    include: { closedBy: { select: { name: true } } },
+    orderBy: [{ date: "desc" }, { shift: "desc" }],
   });
 }
 
@@ -150,7 +205,7 @@ export async function getBaseFund() {
 export async function getDaysRange(from: string, to: string) {
   return prisma.businessDay.findMany({
     where: { date: { gte: from, lte: to } },
-    orderBy: { date: "asc" },
+    orderBy: [{ date: "asc" }, { shift: "asc" }],
     include: {
       movements: {
         where: { deletedAt: null },

@@ -9,9 +9,12 @@ import {
   MOVEMENT_LABELS,
   POCKET_BUCKETS,
   POCKET_LABELS,
+  SHIFTS,
+  SHIFT_LABELS,
   type MovementType,
   type PaymentMethod,
   type PocketBucket,
+  type Shift,
 } from "../types";
 import { MoneyInput } from "./MoneyInput";
 
@@ -45,12 +48,23 @@ function typeButtonClass(type: MovementType, selected: boolean): string {
 export function MovementForm({
   types,
   commissionSources,
+  defaultShift,
+  shiftStatus,
 }: {
   types: MovementType[];
   commissionSources: CommissionSource[];
+  defaultShift: Shift;
+  shiftStatus: Record<Shift, string>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  // Turno sugerido por la hora; si ese ya está cerrado y el otro no, arranca en el abierto.
+  const otherShift: Shift = defaultShift === 1 ? 2 : 1;
+  const initialShift: Shift =
+    shiftStatus[defaultShift] === "CLOSED" && shiftStatus[otherShift] !== "CLOSED"
+      ? otherShift
+      : defaultShift;
+  const [shift, setShift] = useState<Shift>(initialShift);
   const [type, setType] = useState<MovementType | null>(null);
   const [amount, setAmount] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("NEQUI");
@@ -86,6 +100,7 @@ export function MovementForm({
         direction: isPending ? direction : undefined,
         sourceMovementId: isCommission && sourceId ? sourceId : undefined,
         pettyCashBucket: canChooseBucket && pettyCashBucket ? pettyCashBucket : undefined,
+        shift,
       });
       if (result.ok) {
         setType(null);
@@ -115,6 +130,31 @@ export function MovementForm({
       {error && (
         <p className="mb-3 rounded-lg bg-red-50 p-2 text-center text-sm text-red-600">{error}</p>
       )}
+
+      <div className="mb-4">
+        <label className="mb-1 block text-sm font-medium text-gray-700">¿En cuál turno?</label>
+        <div className="grid grid-cols-2 gap-2">
+          {SHIFTS.map((s) => {
+            const closed = shiftStatus[s] === "CLOSED";
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setShift(s)}
+                disabled={closed}
+                className={`rounded-lg border-2 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                  shift === s
+                    ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+                    : "border-gray-200 text-gray-600"
+                }`}
+              >
+                {SHIFT_LABELS[s]}
+                {closed && " (cerrado)"}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="mb-4 grid grid-cols-2 gap-2">
         {types.map((t) => (

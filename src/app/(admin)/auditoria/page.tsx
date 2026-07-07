@@ -7,14 +7,17 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   CREATE: { label: "Creó", style: "bg-emerald-50 text-emerald-700" },
   UPDATE: { label: "Editó", style: "bg-blue-50 text-blue-700" },
   DELETE: { label: "Borró", style: "bg-red-50 text-red-600" },
-  CLOSE_DAY: { label: "Cerró el día", style: "bg-gray-100 text-gray-700" },
-  REOPEN_DAY: { label: "Reabrió el día", style: "bg-amber-50 text-amber-700" },
+  CLOSE_DAY: { label: "Cerró el turno", style: "bg-gray-100 text-gray-700" },
+  REOPEN_DAY: { label: "Reabrió el turno", style: "bg-amber-50 text-amber-700" },
   SET_BASE: { label: "Ajustó la base", style: "bg-purple-50 text-purple-700" },
+  REBALANCE_BASE: { label: "Movió el reparto de la base", style: "bg-purple-50 text-purple-700" },
   USER_PROFILE: { label: "Editó una vendedora", style: "bg-blue-50 text-blue-700" },
   USER_PASSWORD: { label: "Cambió una contraseña", style: "bg-blue-50 text-blue-700" },
   POCKET: { label: "Asignó bolsillo", style: "bg-amber-50 text-amber-700" },
   TRANSFER_POCKETS: { label: "Transfirió entre bolsillos", style: "bg-pink-50 text-pink-700" },
   SET_POCKET_BALANCE: { label: "Ajustó el saldo inicial de un bolsillo", style: "bg-purple-50 text-purple-700" },
+  SET_SHIFT_CONFIG: { label: "Cambió los horarios de turnos", style: "bg-indigo-50 text-indigo-700" },
+  RESET_BALANCES: { label: "Reinició saldos del próximo turno", style: "bg-amber-50 text-amber-700" },
 };
 
 function formatValue(v: unknown): string {
@@ -69,7 +72,9 @@ export default async function AuditoriaPage() {
                     </span>
                   )}
                   {!log.movement && log.businessDay && (
-                    <span className="text-sm text-gray-500">· día {log.businessDay.date}</span>
+                    <span className="text-sm text-gray-500">
+                      · {log.businessDay.date} (T{log.businessDay.shift})
+                    </span>
                   )}
                 </div>
                 <span className="text-xs text-gray-400">{formatDateTimeCo(log.changedAt)}</span>

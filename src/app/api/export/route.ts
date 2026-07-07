@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
   const detail = workbook.addWorksheet("Movimientos");
   detail.columns = [
     { header: "Fecha", key: "fecha", width: 12 },
+    { header: "Turno", key: "turno", width: 8 },
     { header: "Hora", key: "hora", width: 10 },
     { header: "Tipo", key: "tipo", width: 26 },
     { header: "Entrada/Salida", key: "dir", width: 14 },
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
     for (const m of day.movements) {
       detail.addRow({
         fecha: day.date,
+        turno: day.shift,
         hora: formatTimeCo(m.registeredAt),
         tipo: MOVEMENT_LABELS[m.type as MovementType] ?? m.type,
         dir: m.direction === "INCOME" ? "Entrada" : "Salida",
@@ -71,6 +73,7 @@ export async function GET(request: NextRequest) {
   }));
   summary.columns = [
     { header: "Fecha", key: "date", width: 12 },
+    { header: "Turno", key: "turno", width: 8 },
     ...typeColumns,
     { header: "Saldo inicial", key: "opening", width: 14, style: { numFmt: COP_FMT } },
     { header: "Saldo esperado", key: "expected", width: 15, style: { numFmt: COP_FMT } },
@@ -81,7 +84,7 @@ export async function GET(request: NextRequest) {
   summary.getRow(1).font = { bold: true };
 
   for (const day of days) {
-    const row: Record<string, string | number | null> = { date: day.date };
+    const row: Record<string, string | number | null> = { date: day.date, turno: day.shift };
     // Totales por tipo: solo lo que pasó por Nequi (el cuadre es contra Nequi).
     for (const key of Object.keys(MOVEMENT_LABELS)) row[key] = 0;
     for (const m of day.movements) {
