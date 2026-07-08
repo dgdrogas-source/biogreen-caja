@@ -1,4 +1,4 @@
-import type { Direction } from "../types";
+import type { Direction, PaymentMethod } from "../types";
 
 export interface PocketRow {
   amount: number;
@@ -11,6 +11,10 @@ export interface PocketResumen {
   egresos: number; // acumulado pagado/extraído desde este bolsillo
   openingBalance: number; // saldo inicial manual (ajuste puntual, no proviene de movimientos)
   disponible: number; // openingBalance + ingresos − egresos
+  // Reparto visual por medio de pago (hoy solo se calcula para Comisiones).
+  // nequi + efectivo = disponible. Puramente informativo, no participa en ningún cálculo.
+  nequi?: number;
+  efectivo?: number;
 }
 
 // Bolsillo organizativo ("Tus Bolsillos"): acumula todo lo etiquetado con ese bucket.
@@ -32,6 +36,31 @@ export function calcularSaldoPorBolsillo(
     else egresos += r.amount;
   }
   return { ingresos, egresos, openingBalance, disponible: openingBalance + ingresos - egresos };
+}
+
+export interface PocketRowConMedio extends PocketRow {
+  paymentMethod: PaymentMethod;
+}
+
+// Reparto VISUAL de un bolsillo por medio de pago: cuánto de su disponible está en Nequi
+// y cuánto en efectivo. Puramente informativo (control del dueño), no participa en ningún
+// cálculo. El saldo inicial manual cuenta como Nequi (las comisiones se cobran sobre
+// operaciones Nequi y el sistema ya las trata como plata Nequi dentro del Disponible).
+// Invariante: nequi + efectivo = disponible del bolsillo.
+export function calcularRepartoPorMedio(
+  bucket: string,
+  rows: PocketRowConMedio[],
+  openingBalance: number = 0
+): { nequi: number; efectivo: number } {
+  let nequi = openingBalance;
+  let efectivo = 0;
+  for (const r of rows) {
+    if (r.pettyCashBucket !== bucket) continue;
+    const delta = r.direction === "INCOME" ? r.amount : -r.amount;
+    if (r.paymentMethod === "NEQUI") nequi += delta;
+    else efectivo += delta;
+  }
+  return { nequi, efectivo };
 }
 
 // Resumen de dinero apartado en bolsillos. Comisiones NO aporta al total apartado: su dinero
@@ -66,14 +95,20 @@ export function calcularApartadoEnBolsillos(pockets: Record<string, PocketResume
 
 // Dinero libre y usable de la cuenta Nequi.
 // El saldo esperado es el total real de Nequi (el saldo inicial debe incluir TODO lo que hay
-// en la cuenta, también la porción Nequi de la base para consignaciones). De ese total, lo
-// apartado en bolsillos está comprometido; el resto es disponible. La base NO se suma aparte
-// (ya vive dentro del saldo) ni se resta (no está apartada): cuenta como disponible por estar
-// dentro del total sin estar en ningún bolsillo. Las Comisiones reciben el mismo trato: su
-// dinero queda dentro del Disponible (no se resta), aunque se muestre como bolsillo aparte.
-//   Disponible = Saldo Nequi − Apartado en bolsillos
-export function calcularDisponible(saldoEsperado: number, totalApartado: number): number {
-  return saldoEsperado - totalApartado;
+// en la cuenta, también la porción Nequi de la base para consignaciones). De ese total están
+// comprometidos: lo apartado en bolsillos y la porción en Nequi de la base para consignaciones.
+// Lo que queda es el Disponible. Así los tres valores son la misma bolsa vista distinto y siempre
+// cuadran:  Saldo esperado = Disponible + Base (Nequi) + Comisiones + Bolsillos.
+// Solo se resta la porción de la base que vive en Nequi (baseNequiPortion): la parte en efectivo
+// no está dentro del saldo esperado, así que no se resta. Las Comisiones NO se restan: su dinero
+// queda dentro del Disponible (se muestran como renglón aparte, pero suman al total disponible).
+//   Disponible = Saldo Nequi − Apartado en bolsillos − Base en Nequi
+export function calcularDisponible(
+  saldoEsperado: number,
+  totalApartado: number,
+  baseNequiPortion: number = 0
+): number {
+  return saldoEsperado - totalApartado - baseNequiPortion;
 }
 
 // Aplica el historial de transferencias entre bolsillos sobre los saldos ya calculados

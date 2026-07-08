@@ -132,8 +132,8 @@ export function BaseFundCard({
             <MoneyInput value={moveAmount} onChange={setMoveAmount} />
           </div>
           <p className="text-xs text-gray-400">
-            Solo cambia el reparto: el total de la base y el Disponible no se mueven. Queda
-            registrado en Cambios.
+            Cambia solo el reparto entre Nequi y efectivo de la base (el total no cambia). El
+            Disponible se ajusta según la parte que quede en Nequi. Queda registrado en Cambios.
           </p>
           <div className="flex gap-2">
             <button

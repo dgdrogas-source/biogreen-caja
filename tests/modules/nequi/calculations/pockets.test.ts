@@ -3,6 +3,7 @@ import {
   aplicarTransferencias,
   calcularApartadoEnBolsillos,
   calcularDisponible,
+  calcularRepartoPorMedio,
   calcularSaldoPorBolsillo,
   type PocketResumen,
 } from "@/modules/nequi/calculations/pockets";
@@ -74,6 +75,36 @@ describe("calcularSaldoPorBolsillo", () => {
   });
 });
 
+describe("calcularRepartoPorMedio", () => {
+  const rows = [
+    { amount: 5_000, direction: "INCOME" as const, pettyCashBucket: "COMISION", paymentMethod: "NEQUI" as const },
+    { amount: 4_000, direction: "INCOME" as const, pettyCashBucket: "COMISION", paymentMethod: "EFECTIVO" as const },
+    { amount: 3_904, direction: "EXPENSE" as const, pettyCashBucket: "COMISION", paymentMethod: "NEQUI" as const },
+    { amount: 1_000, direction: "INCOME" as const, pettyCashBucket: "FUXION", paymentMethod: "EFECTIVO" as const },
+  ];
+
+  it("separa el disponible del bolsillo por medio de pago (saldo inicial cuenta como Nequi)", () => {
+    const r = calcularRepartoPorMedio("COMISION", rows, 69_962);
+    expect(r.nequi).toBe(71_058); // 69.962 + 5.000 − 3.904
+    expect(r.efectivo).toBe(4_000);
+  });
+
+  it("invariante: nequi + efectivo = disponible del bolsillo", () => {
+    const reparto = calcularRepartoPorMedio("COMISION", rows, 69_962);
+    const resumen = calcularSaldoPorBolsillo("COMISION", rows, 69_962);
+    expect(reparto.nequi + reparto.efectivo).toBe(resumen.disponible);
+  });
+
+  it("un lado puede quedar negativo si se pagó más de lo que entró por ese medio", () => {
+    const r = calcularRepartoPorMedio("COMISION", [
+      { amount: 2_000, direction: "INCOME", pettyCashBucket: "COMISION", paymentMethod: "NEQUI" },
+      { amount: 5_000, direction: "EXPENSE", pettyCashBucket: "COMISION", paymentMethod: "EFECTIVO" },
+    ]);
+    expect(r.nequi).toBe(2_000);
+    expect(r.efectivo).toBe(-5_000);
+  });
+});
+
 function pocket(disponible: number): PocketResumen {
   return { ingresos: Math.max(disponible, 0), egresos: 0, openingBalance: 0, disponible };
 }
@@ -123,19 +154,68 @@ describe("calcularApartadoEnBolsillos", () => {
 });
 
 describe("calcularDisponible", () => {
-  it("es el saldo de Nequi menos lo apartado en bolsillos", () => {
-    // Caso real: saldo 4.753.645 con 4.028.906 apartados → 724.739 libres.
-    // La base para consignaciones ya está dentro del saldo (no se suma ni se resta):
-    // al no estar apartada, queda contada dentro del disponible.
+  it("resta lo apartado en bolsillos Y la porción en Nequi de la base para consignaciones", () => {
+    // Saldo 5.000.000, con 3.000.000 apartados en bolsillos y 1.000.000 de base en Nequi
+    // → quedan 1.000.000 disponibles (que aún incluyen las comisiones).
+    expect(calcularDisponible(5_000_000, 3_000_000, 1_000_000)).toBe(1_000_000);
+  });
+
+  it("sin base (default 0), el disponible es solo saldo − bolsillos", () => {
+    expect(calcularDisponible(500_000, 0)).toBe(500_000);
     expect(calcularDisponible(4_753_645, 4_028_906)).toBe(724_739);
   });
 
-  it("sin nada apartado, el disponible es todo el saldo de Nequi", () => {
-    expect(calcularDisponible(500_000, 0)).toBe(500_000);
+  it("puede quedar negativo si lo apartado + la base superan el saldo de Nequi", () => {
+    expect(calcularDisponible(500_000, 0, 2_000_000)).toBe(-1_500_000);
+  });
+});
+
+// Escenario del dueño: los tres valores son la misma bolsa (Nequi) y siempre cuadran.
+//   Saldo esperado = Disponible(puro) + Base(Nequi) + Comisiones + Bolsillos
+// El "Disponible" que se muestra en pantalla incluye las comisiones (no las resta),
+// por eso se ve mayor que el disponible puro.
+describe("acople esperado ↔ disponible ↔ base (escenario del dueño)", () => {
+  // Suma de los cuatro términos independientes; debe dar siempre el saldo esperado.
+  function invariante(
+    esperado: number,
+    baseNequi: number,
+    pockets: Record<string, PocketResumen>
+  ) {
+    const apartado = calcularApartadoEnBolsillos(pockets);
+    const disponibleMostrado = calcularDisponible(esperado, apartado.totalApartado, baseNequi);
+    const comisiones = apartado.comisionesDisponible;
+    const disponiblePuro = disponibleMostrado - comisiones;
+    const suma = disponiblePuro + baseNequi + comisiones + apartado.totalApartado;
+    return { disponibleMostrado, disponiblePuro, comisiones, apartado, suma };
+  }
+
+  it("inicio del día: 5.000.000 = 950.000 disp + 1.000.000 base + 50.000 comis + 3.000.000 bolsillos", () => {
+    const r = invariante(5_000_000, 1_000_000, {
+      COMISION: pocket(50_000),
+      LICORES_JHOANN: pocket(1_000_000),
+      FUXION: pocket(1_000_000),
+      BASE_FACTURAS: pocket(1_000_000),
+      PENDIENTE_OTRO: pocket(0),
+    });
+    expect(r.apartado.totalApartado).toBe(3_000_000);
+    expect(r.disponiblePuro).toBe(950_000);
+    expect(r.disponibleMostrado).toBe(1_000_000); // incluye las comisiones
+    expect(r.suma).toBe(5_000_000); // los cuatro términos cuadran con el esperado
   });
 
-  it("puede quedar negativo si lo apartado supera el saldo de Nequi", () => {
-    expect(calcularDisponible(10_000, 100_000)).toBe(-90_000);
+  it("tras un retiro de 50.000 (comisión 1.000): el disponible mostrado es 1.001.000 y todo cuadra", () => {
+    // El retiro sube el saldo esperado (+50.000) y la base en Nequi (+50.000): se cancelan,
+    // el disponible no se mueve. La comisión (+1.000) sube el esperado y las comisiones.
+    const r = invariante(5_051_000, 1_050_000, {
+      COMISION: pocket(51_000),
+      LICORES_JHOANN: pocket(1_000_000),
+      FUXION: pocket(1_000_000),
+      BASE_FACTURAS: pocket(1_000_000),
+      PENDIENTE_OTRO: pocket(0),
+    });
+    expect(r.disponibleMostrado).toBe(1_001_000); // ← lo que el dueño espera ver
+    expect(r.disponiblePuro).toBe(950_000); // no se movió respecto al inicio
+    expect(r.suma).toBe(5_051_000); // 950.000 + 1.050.000 + 51.000 + 3.000.000
   });
 });
 

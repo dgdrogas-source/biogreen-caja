@@ -41,6 +41,17 @@ export function PocketsCard({ pockets }: { pockets: Record<PocketBucket, PocketR
               <p className="text-[11px] text-gray-400">
                 +${r.ingresos.toLocaleString("es-CO")} · −${r.egresos.toLocaleString("es-CO")}
               </p>
+              {r.nequi !== undefined && r.efectivo !== undefined && (
+                <p className="text-[11px]">
+                  <span className="font-medium text-purple-600">
+                    Nequi ${r.nequi.toLocaleString("es-CO")}
+                  </span>{" "}
+                  <span className="text-gray-300">·</span>{" "}
+                  <span className="font-medium text-amber-600">
+                    Efectivo ${r.efectivo.toLocaleString("es-CO")}
+                  </span>
+                </p>
+              )}
               {r.openingBalance !== 0 && (
                 <p className="text-[11px] text-gray-400">
                   Saldo inicial: ${r.openingBalance.toLocaleString("es-CO")}

@@ -26,7 +26,7 @@ import {
   type TransferBucket,
 } from "../types";
 import { getOrCreateDay } from "../server/businessDay";
-import { getCurrentShift, getDaySummary, getPockets } from "../queries";
+import { getBaseFund, getCurrentShift, getDaySummary, getPockets } from "../queries";
 
 // Desplaza el reparto de la base: la porción Nequi cambia y la de efectivo va al revés.
 async function adjustBase(tx: Prisma.TransactionClient, deltaNequi: number) {
@@ -537,11 +537,19 @@ export async function transferPocketFunds(
 
     const data = transferSchema.parse({ fromBucket, toBucket, amount });
 
-    const [pockets, { saldoEsperado }] = await Promise.all([getPockets(), getDaySummary()]);
+    const [pockets, { saldoEsperado }, baseFund] = await Promise.all([
+      getPockets(),
+      getDaySummary(),
+      getBaseFund(),
+    ]);
 
     const disponibleOrigen =
       data.fromBucket === "DISPONIBLE"
-        ? calcularDisponible(saldoEsperado ?? 0, calcularApartadoEnBolsillos(pockets).totalApartado)
+        ? calcularDisponible(
+            saldoEsperado ?? 0,
+            calcularApartadoEnBolsillos(pockets).totalApartado,
+            baseFund.nequiPortion
+          )
         : pockets[data.fromBucket].disponible;
 
     if (data.amount > disponibleOrigen) {

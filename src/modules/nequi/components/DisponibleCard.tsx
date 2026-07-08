@@ -45,7 +45,10 @@ export function DisponibleCard({
     );
   }
 
-  const disponible = calcularDisponible(saldoEsperado, totalApartado);
+  const disponible = calcularDisponible(saldoEsperado, totalApartado, baseFundNequiPortion);
+  // "Plataforma": disponible + base en Nequi, tal como se ven juntas en la app de Nequi.
+  // Solo informativo (control visual del dueño); no participa en ningún cálculo.
+  const plataforma = disponible + baseFundNequiPortion;
 
   function submit() {
     if (!amount) {
@@ -85,19 +88,32 @@ export function DisponibleCard({
         </button>
       </div>
 
-      <p className={`text-2xl font-bold ${disponible < 0 ? "text-red-600" : "text-gray-800"}`}>
-        ${disponible.toLocaleString("es-CO")}
-      </p>
-      <p className="mt-1 text-xs text-gray-400">
-        Saldo Nequi ${saldoEsperado.toLocaleString("es-CO")} − apartado en bolsillos $
-        {totalApartado.toLocaleString("es-CO")}
-      </p>
-      {baseFundNequiPortion > 0 && (
-        <p className="mt-0.5 text-xs text-gray-400">
-          De este disponible, ${baseFundNequiPortion.toLocaleString("es-CO")} son la base para
-          consignaciones.
+      <div className="flex items-end justify-between gap-3">
+        <p className={`text-2xl font-bold ${disponible < 0 ? "text-red-600" : "text-gray-800"}`}>
+          ${disponible.toLocaleString("es-CO")}
         </p>
-      )}
+        <div className="text-right">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-purple-600">
+            Plataforma
+          </p>
+          <p className={`text-lg font-bold ${plataforma < 0 ? "text-red-600" : "text-purple-700"}`}>
+            ${plataforma.toLocaleString("es-CO")}
+          </p>
+        </div>
+      </div>
+      <p className="mt-1 text-xs text-gray-400">
+        Saldo Nequi ${saldoEsperado.toLocaleString("es-CO")}
+        {baseFundNequiPortion > 0 && (
+          <> − base en Nequi ${baseFundNequiPortion.toLocaleString("es-CO")}</>
+        )}{" "}
+        − apartado en bolsillos ${totalApartado.toLocaleString("es-CO")}
+      </p>
+      <p className="mt-0.5 text-xs text-gray-400">
+        Incluye las comisiones; la base para consignaciones y los bolsillos ya están descontados.{" "}
+        <span className="text-purple-500">
+          Plataforma = disponible + base en Nequi (lo que ves junto en la app).
+        </span>
+      </p>
 
       <div className="mt-3 space-y-1 border-t border-gray-50 pt-3 text-xs text-gray-500">
         <div className="flex justify-between">

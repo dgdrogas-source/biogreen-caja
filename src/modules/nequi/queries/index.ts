@@ -4,6 +4,7 @@ import { nowBogotaHHMM, todayBogota } from "@/lib/dates";
 import { calcularSaldoEsperado } from "../calculations/cuadre";
 import {
   aplicarTransferencias,
+  calcularRepartoPorMedio,
   calcularSaldoPorBolsillo,
   type PocketResumen,
 } from "../calculations/pockets";
@@ -160,24 +161,28 @@ export async function getPockets(): Promise<Record<PocketBucket, PocketResumen>>
   const [rows, transfers, balances] = await Promise.all([
     prisma.movement.findMany({
       where: { deletedAt: null, pettyCashBucket: { not: null } },
-      select: { amount: true, direction: true, pettyCashBucket: true },
+      select: { amount: true, direction: true, pettyCashBucket: true, paymentMethod: true },
     }),
     prisma.pocketTransfer.findMany({ select: { fromBucket: true, toBucket: true, amount: true } }),
     prisma.pocketBalance.findMany({ select: { bucket: true, openingBalance: true } }),
   ]);
   const openingByBucket = new Map(balances.map((b) => [b.bucket, b.openingBalance]));
+  const mapped = rows.map((r) => ({
+    amount: r.amount,
+    direction: r.direction as Direction,
+    pettyCashBucket: r.pettyCashBucket,
+    paymentMethod: r.paymentMethod as PaymentMethod,
+  }));
   const result = {} as Record<PocketBucket, PocketResumen>;
   for (const bucket of POCKET_BUCKETS) {
-    result[bucket] = calcularSaldoPorBolsillo(
-      bucket,
-      rows.map((r) => ({
-        amount: r.amount,
-        direction: r.direction as Direction,
-        pettyCashBucket: r.pettyCashBucket,
-      })),
-      openingByBucket.get(bucket) ?? 0
-    );
+    result[bucket] = calcularSaldoPorBolsillo(bucket, mapped, openingByBucket.get(bucket) ?? 0);
   }
+  // Reparto visual Nequi/efectivo solo para Comisiones (no participa en transferencias,
+  // así que se calcula antes de aplicarlas sin riesgo de desfase).
+  result.COMISION = {
+    ...result.COMISION,
+    ...calcularRepartoPorMedio("COMISION", mapped, openingByBucket.get("COMISION") ?? 0),
+  };
   return aplicarTransferencias(result, transfers) as Record<PocketBucket, PocketResumen>;
 }
 
