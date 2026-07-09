@@ -135,6 +135,11 @@ export function BaseFundCard({
             Cambia solo el reparto entre Nequi y efectivo de la base (el total no cambia). El
             Disponible se ajusta según la parte que quede en Nequi. Queda registrado en Cambios.
           </p>
+          {moveDir === "EFECTIVO" && (
+            <p className="text-xs text-amber-600">
+              Además, ese monto se suma al bolsillo &ldquo;Base para facturas&rdquo;.
+            </p>
+          )}
           <div className="flex gap-2">
             <button
               type="button"

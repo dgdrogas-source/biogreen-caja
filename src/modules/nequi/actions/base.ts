@@ -62,6 +62,13 @@ const rebalanceSchema = z.object({
 // base para consignaciones. NO cambia el total de la base ni el Disponible: es
 // solo el reparto interno (la base y el Disponible son independientes, decisión
 // del administrador). Valida contra la porción de ORIGEN. Auditado como REBALANCE_BASE.
+//
+// Cuando el movimiento es Nequi → Efectivo, ese mismo monto se suma además al
+// bolsillo "Base para facturas" (decisión del dueño: ese efectivo que sale de la
+// base queda apartado para facturas). El sentido contrario (Efectivo → Nequi) NO
+// toca ningún bolsillo. Es un ajuste silencioso del saldo inicial del bolsillo
+// (mismo patrón que resetNextShiftBalances): sube el total mostrado, sin crear una
+// fila nueva en Historial de movimientos; queda trazado en el mismo audit REBALANCE_BASE.
 export async function rebalanceBase(
   hacia: "NEQUI" | "EFECTIVO",
   amount: number
@@ -91,6 +98,21 @@ export async function rebalanceBase(
     const delta = data.hacia === "NEQUI" ? data.amount : -data.amount;
     const newCash = current.cashPortion - delta;
     const newNequi = current.nequiPortion + delta;
+    const aBaseFacturas = data.hacia === "EFECTIVO"; // Nequi → Efectivo
+
+    const currentPocket = aBaseFacturas
+      ? await prisma.pocketBalance.findUnique({ where: { bucket: "BASE_FACTURAS" } })
+      : null;
+    const pocketBefore = currentPocket?.openingBalance ?? 0;
+    const pocketAfter = pocketBefore + data.amount;
+
+    const fieldChanges: Record<string, { before: unknown; after: unknown }> = {
+      efectivo: { before: current.cashPortion, after: newCash },
+      nequi: { before: current.nequiPortion, after: newNequi },
+    };
+    if (aBaseFacturas) {
+      fieldChanges["Base para facturas"] = { before: pocketBefore, after: pocketAfter };
+    }
 
     await prisma.$transaction([
       prisma.baseFund.upsert({
@@ -98,14 +120,20 @@ export async function rebalanceBase(
         update: { cashPortion: newCash, nequiPortion: newNequi },
         create: { id: 1, cashPortion: newCash, nequiPortion: newNequi },
       }),
+      ...(aBaseFacturas
+        ? [
+            prisma.pocketBalance.upsert({
+              where: { bucket: "BASE_FACTURAS" },
+              update: { openingBalance: { increment: data.amount } },
+              create: { bucket: "BASE_FACTURAS", openingBalance: data.amount },
+            }),
+          ]
+        : []),
       prisma.auditLog.create({
         data: {
           action: "REBALANCE_BASE",
           changedById: session.user.id,
-          fieldChanges: JSON.stringify({
-            efectivo: { before: current.cashPortion, after: newCash },
-            nequi: { before: current.nequiPortion, after: newNequi },
-          }),
+          fieldChanges: JSON.stringify(fieldChanges),
         },
       }),
     ]);
