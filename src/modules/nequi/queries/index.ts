@@ -57,8 +57,52 @@ export async function getDayMovements(businessDayId: string) {
   });
 }
 
+// Saldo real del último turno CERRADO anterior en el calendario (…T2 ayer → T1 hoy → T2 hoy).
+async function saldoInicialHeredado(date: string, shift: Shift): Promise<number | null> {
+  const lastClosed = await prisma.businessDay.findFirst({
+    where: {
+      status: "CLOSED",
+      OR: [{ date: { lt: date } }, { date, shift: { lt: shift } }],
+    },
+    orderBy: [{ date: "desc" }, { shift: "desc" }],
+    select: { closingRealBalance: true },
+  });
+  return lastClosed?.closingRealBalance ?? null;
+}
+
+// ¿Alguien fijó/editó a mano el saldo inicial de este turno? (así la herencia
+// automática no pisa una corrección manual ni un reset del próximo turno).
+async function saldoInicialEsManual(businessDayId: string): Promise<boolean> {
+  const manual = await prisma.auditLog.findFirst({
+    where: {
+      businessDayId,
+      OR: [
+        { action: "RESET_BALANCES" },
+        { action: "UPDATE", fieldChanges: { contains: "saldoInicial" } },
+      ],
+    },
+    select: { id: true },
+  });
+  return manual !== null;
+}
+
 export async function getDaySummary(date?: string, shift?: Shift) {
   const day = await getOrCreateDay(date ?? todayBogota(), shift ?? (await getCurrentShift()));
+
+  // Herencia VIVA del saldo inicial: si el turno está abierto y nadie lo fijó a mano,
+  // siempre refleja el saldo real del último turno cerrado anterior (no una foto que
+  // se congeló al crear el turno). Se persiste para que el cierre y el esperado cuadren.
+  if (day.status === "OPEN" && !(await saldoInicialEsManual(day.id))) {
+    const heredado = await saldoInicialHeredado(day.date, day.shift as Shift);
+    if (heredado !== null && heredado !== day.openingBalance) {
+      await prisma.businessDay.update({
+        where: { id: day.id },
+        data: { openingBalance: heredado },
+      });
+      day.openingBalance = heredado;
+    }
+  }
+
   const movements = await getDayMovements(day.id);
 
   const totals = new Map<MovementType, { nequi: number; efectivo: number }>();

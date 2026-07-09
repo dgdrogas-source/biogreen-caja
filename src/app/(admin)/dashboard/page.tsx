@@ -1,13 +1,21 @@
 import Link from "next/link";
 import { formatDateCo, todayBogota } from "@/lib/dates";
 import { BaseFundCard } from "@/modules/nequi/components/BaseFundCard";
+import { CierreDesgloseCard } from "@/modules/nequi/components/CierreDesgloseCard";
 import { CuadreBlock } from "@/modules/nequi/components/CuadreBlock";
 import { DisponibleCard } from "@/modules/nequi/components/DisponibleCard";
 import { PocketsCard } from "@/modules/nequi/components/PocketsCard";
 import { TurnoTabs } from "@/modules/nequi/components/TurnoTabs";
+import { desglosarCuadre } from "@/modules/nequi/calculations/cuadre";
 import { calcularApartadoEnBolsillos } from "@/modules/nequi/calculations/pockets";
 import { getBaseFund, getCurrentShift, getDaySummary, getPockets } from "@/modules/nequi/queries";
-import { MOVEMENT_LABELS, type MovementType, type Shift } from "@/modules/nequi/types";
+import {
+  MOVEMENT_LABELS,
+  type Direction,
+  type MovementType,
+  type PaymentMethod,
+  type Shift,
+} from "@/modules/nequi/types";
 
 const INCOME_CARDS: { type: MovementType; icon: string }[] = [
   { type: "VENTA_FARMACIA", icon: "💊" },
@@ -33,10 +41,25 @@ export default async function DashboardPage({
   const { fecha, turno } = await searchParams;
   const date = fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : todayBogota();
   const shift: Shift = turno === "1" ? 1 : turno === "2" ? 2 : await getCurrentShift();
-  const { day, totals, saldoEsperado, pendingCount } = await getDaySummary(date, shift);
+  const { day, movements, totals, saldoEsperado, pendingCount } = await getDaySummary(date, shift);
   const baseFund = await getBaseFund();
   const pockets = await getPockets();
   const apartado = calcularApartadoEnBolsillos(pockets);
+
+  // Desglose del cierre (solo si ya hay saldo inicial): explica el saldo esperado
+  // renglón por renglón. Usa la dirección real de cada movimiento.
+  const desglose =
+    day.openingBalance === null
+      ? null
+      : desglosarCuadre(
+          day.openingBalance,
+          movements.map((m) => ({
+            type: m.type as MovementType,
+            amount: m.amount,
+            direction: m.direction as Direction,
+            paymentMethod: m.paymentMethod as PaymentMethod,
+          }))
+        );
 
   const cardTotal = (type: MovementType) => totals.get(type) ?? { nequi: 0, efectivo: 0 };
 
@@ -135,6 +158,7 @@ export default async function DashboardPage({
             saldoEsperado={saldoEsperado}
             closingRealBalance={day.closingRealBalance}
           />
+          {desglose && <CierreDesgloseCard desglose={desglose} />}
           <BaseFundCard
             cashPortion={baseFund.cashPortion}
             nequiPortion={baseFund.nequiPortion}
