@@ -56,6 +56,7 @@ const movementSchema = z.object({
   sourceMovementId: z.string().optional(), // solo para COMISION
   pettyCashBucket: z.enum(POCKET_BUCKETS).optional(), // solo para GASTO_FARMACIA / PAGO_FACTURA
   shift: z.union([z.literal(1), z.literal(2)]).optional(), // turno elegido; sin él, se deduce de la hora
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida").optional(), // solo admin; sin ella = hoy
 });
 
 // Solo gastos y facturas eligen bolsillo al registrarse (los demás se auto-asignan o se
@@ -104,9 +105,19 @@ export async function createMovement(input: MovementInput): Promise<ActionResult
     }
 
     const shift = data.shift ?? (await getCurrentShift());
-    const day = await getOrCreateDay(todayBogota(), shift);
+    // La fecha solo la puede fijar el ADMIN (registrar un día anterior que no se cerró).
+    // Se ignora una fecha futura o de un no-admin: en esos casos se usa hoy.
+    const hoy = todayBogota();
+    const targetDate = data.date && user.role === "ADMIN" && data.date <= hoy ? data.date : hoy;
+    const day = await getOrCreateDay(targetDate, shift);
     if (day.status === "CLOSED") {
-      return { ok: false, error: `El turno ${shift} ya fue cerrado. Pide al administrador que lo reabra.` };
+      return {
+        ok: false,
+        error:
+          targetDate === hoy
+            ? `El turno ${shift} ya fue cerrado. Pide al administrador que lo reabra.`
+            : `El turno ${shift} del ${targetDate} está cerrado. Reábrelo desde el Cierre para registrar ahí.`,
+      };
     }
 
     const direction = resolveDirection(data.type, data.direction);

@@ -38,6 +38,8 @@ export default async function MovimientosPage() {
             commissionSources={[]}
             defaultShift={shiftInfo.defaultShift}
             shiftStatus={shiftInfo.shiftStatus}
+            allowDateChange
+            today={date}
           />
         </div>
 

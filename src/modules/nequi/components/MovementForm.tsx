@@ -50,11 +50,15 @@ export function MovementForm({
   commissionSources,
   defaultShift,
   shiftStatus,
+  allowDateChange = false,
+  today,
 }: {
   types: MovementType[];
   commissionSources: CommissionSource[];
   defaultShift: Shift;
   shiftStatus: Record<Shift, string>;
+  allowDateChange?: boolean; // solo admin: permite elegir la fecha del movimiento
+  today?: string; // YYYY-MM-DD en Bogotá; requerido si allowDateChange
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -65,6 +69,9 @@ export function MovementForm({
       ? otherShift
       : defaultShift;
   const [shift, setShift] = useState<Shift>(initialShift);
+  const [date, setDate] = useState<string>(today ?? "");
+  // ¿Se está registrando en una fecha distinta a hoy? (solo aplica en modo admin)
+  const backdated = allowDateChange && !!today && date !== today;
   const [type, setType] = useState<MovementType | null>(null);
   const [amount, setAmount] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("NEQUI");
@@ -101,6 +108,7 @@ export function MovementForm({
         sourceMovementId: isCommission && sourceId ? sourceId : undefined,
         pettyCashBucket: canChooseBucket && pettyCashBucket ? pettyCashBucket : undefined,
         shift,
+        date: allowDateChange && date ? date : undefined,
       });
       if (result.ok) {
         setType(null);
@@ -124,18 +132,39 @@ export function MovementForm({
 
       {success && (
         <p className="mb-3 rounded-lg bg-emerald-50 p-2 text-center text-sm font-medium text-emerald-700">
-          ✓ Movimiento guardado
+          ✓ Movimiento guardado{backdated && ` en ${date}`}
         </p>
       )}
       {error && (
         <p className="mb-3 rounded-lg bg-red-50 p-2 text-center text-sm text-red-600">{error}</p>
       )}
 
+      {allowDateChange && (
+        <div className="mb-4">
+          <label className="mb-1 block text-sm font-medium text-gray-700">¿En cuál fecha?</label>
+          <input
+            type="date"
+            value={date}
+            max={today}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:border-emerald-500 focus:outline-none"
+          />
+          {backdated && (
+            <p className="mt-1 rounded-lg bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-700">
+              ⚠️ Vas a registrar en <strong>{date}</strong>, no en hoy. Útil para cargar la noche
+              anterior en la mañana.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="mb-4">
         <label className="mb-1 block text-sm font-medium text-gray-700">¿En cuál turno?</label>
         <div className="grid grid-cols-2 gap-2">
           {SHIFTS.map((s) => {
-            const closed = shiftStatus[s] === "CLOSED";
+            // Al fechar en el pasado, el estado de los turnos de HOY no aplica: el
+            // servidor valida el cierre real de esa fecha.
+            const closed = !backdated && shiftStatus[s] === "CLOSED";
             return (
               <button
                 key={s}
