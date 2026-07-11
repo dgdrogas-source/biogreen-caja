@@ -204,6 +204,9 @@ const resetSchema = z.object({
       })
     )
     .optional(),
+  // Reparto de la base para consignaciones (opcional): cuánto en Nequi y cuánto en efectivo.
+  baseNequi: z.number().int().nonnegative("El saldo no puede ser negativo").optional(),
+  baseEfectivo: z.number().int().nonnegative("El saldo no puede ser negativo").optional(),
 });
 
 export type ResetBalancesInput = z.infer<typeof resetSchema>;
@@ -254,6 +257,24 @@ export async function resetNextShiftBalances(input: ResetBalancesInput): Promise
           })
         );
         changes[POCKET_LABELS[bucket]] = { before: current.disponible, after: target };
+      }
+    }
+
+    // Base para consignaciones: fijar su reparto Nequi/efectivo (solo si cambió).
+    if (data.baseNequi !== undefined && data.baseEfectivo !== undefined) {
+      const base = await prisma.baseFund.findUnique({ where: { id: 1 } });
+      const beforeNequi = base?.nequiPortion ?? 0;
+      const beforeEfectivo = base?.cashPortion ?? 0;
+      if (data.baseNequi !== beforeNequi || data.baseEfectivo !== beforeEfectivo) {
+        ops.push(
+          prisma.baseFund.upsert({
+            where: { id: 1 },
+            update: { nequiPortion: data.baseNequi, cashPortion: data.baseEfectivo },
+            create: { id: 1, nequiPortion: data.baseNequi, cashPortion: data.baseEfectivo },
+          })
+        );
+        changes["Base para consignaciones · Nequi"] = { before: beforeNequi, after: data.baseNequi };
+        changes["Base para consignaciones · efectivo"] = { before: beforeEfectivo, after: data.baseEfectivo };
       }
     }
 

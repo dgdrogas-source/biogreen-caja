@@ -19,10 +19,14 @@ export function ResetSaldosButton({
   date,
   shift,
   pockets,
+  baseNequi,
+  baseEfectivo,
 }: {
   date: string;
   shift: Shift;
   pockets: PocketForReset[];
+  baseNequi: number;
+  baseEfectivo: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -31,9 +35,12 @@ export function ResetSaldosButton({
   const [targets, setTargets] = useState<Record<string, number | null>>(
     Object.fromEntries(pockets.map((p) => [p.bucket, p.disponible]))
   );
+  const [bNequi, setBNequi] = useState<number | null>(baseNequi);
+  const [bEfectivo, setBEfectivo] = useState<number | null>(baseEfectivo);
   const [error, setError] = useState<string | null>(null);
 
   const next = turnoSiguiente(date, shift);
+  const baseCambio = (bNequi ?? baseNequi) !== baseNequi || (bEfectivo ?? baseEfectivo) !== baseEfectivo;
 
   function setTarget(bucket: string, value: number | null) {
     setTargets((prev) => ({ ...prev, [bucket]: value }));
@@ -53,6 +60,13 @@ export function ResetSaldosButton({
       ...pocketTargets.map(
         (t) => `${POCKET_LABELS[t.bucket]}: $${t.target.toLocaleString("es-CO")}`
       ),
+      ...(baseCambio
+        ? [
+            `Base para consignaciones → Nequi $${(bNequi ?? baseNequi).toLocaleString(
+              "es-CO"
+            )} · efectivo $${(bEfectivo ?? baseEfectivo).toLocaleString("es-CO")}`,
+          ]
+        : []),
     ].join("\n");
     if (
       !confirm(
@@ -68,6 +82,8 @@ export function ResetSaldosButton({
         shift,
         nequiOpening,
         pocketTargets: pocketTargets.length > 0 ? pocketTargets : undefined,
+        baseNequi: bNequi ?? baseNequi,
+        baseEfectivo: bEfectivo ?? baseEfectivo,
       });
       if (r.ok) {
         setOpen(false);
@@ -137,6 +153,28 @@ export function ResetSaldosButton({
                   />
                 </div>
               ))}
+            </div>
+
+            <p className="mb-2 text-sm font-medium text-gray-700">Base para consignaciones</p>
+            <div className="mb-4 space-y-2 rounded-xl bg-gray-50 p-3">
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-500">
+                  En Nequi — hoy: ${baseNequi.toLocaleString("es-CO")}
+                </label>
+                <MoneyInput value={bNequi} onChange={setBNequi} />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-500">
+                  En efectivo — hoy: ${baseEfectivo.toLocaleString("es-CO")}
+                </label>
+                <MoneyInput value={bEfectivo} onChange={setBEfectivo} />
+              </div>
+              <p className="text-right text-xs text-gray-500">
+                Base total:{" "}
+                <span className="font-semibold text-gray-800">
+                  ${((bNequi ?? 0) + (bEfectivo ?? 0)).toLocaleString("es-CO")}
+                </span>
+              </p>
             </div>
 
             <div className="flex gap-2">

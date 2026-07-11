@@ -3,7 +3,13 @@ import { addDays, formatDateCo, todayBogota } from "@/lib/dates";
 import { CuadreBlock } from "@/modules/nequi/components/CuadreBlock";
 import { ResetSaldosButton } from "@/modules/nequi/components/ResetSaldosButton";
 import { TurnoTabs } from "@/modules/nequi/components/TurnoTabs";
-import { getCurrentShift, getDaySummary, getDiscrepancies, getPockets } from "@/modules/nequi/queries";
+import {
+  getBaseFund,
+  getCurrentShift,
+  getDaySummary,
+  getDiscrepancies,
+  getPockets,
+} from "@/modules/nequi/queries";
 import {
   MOVEMENT_LABELS,
   POCKET_BUCKETS,
@@ -37,10 +43,11 @@ export default async function CierrePage({
   const dTurno: Shift | undefined =
     params.dTurno === "1" ? 1 : params.dTurno === "2" ? 2 : undefined;
 
-  const [{ day, totals, saldoEsperado }, discrepancies, pockets] = await Promise.all([
+  const [{ day, totals, saldoEsperado }, discrepancies, pockets, baseFund] = await Promise.all([
     getDaySummary(date, shift),
     getDiscrepancies(dDesde, dHasta, dTurno),
     getPockets(),
+    getBaseFund(),
   ]);
 
   const rows = [...totals.entries()].filter(([, t]) => t.nequi > 0 || t.efectivo > 0);
@@ -206,6 +213,8 @@ export default async function CierrePage({
         date={date}
         shift={shift}
         pockets={POCKET_BUCKETS.map((b) => ({ bucket: b, disponible: pockets[b].disponible }))}
+        baseNequi={baseFund.nequiPortion}
+        baseEfectivo={baseFund.cashPortion}
       />
     </div>
   );
