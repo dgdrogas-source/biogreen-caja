@@ -21,12 +21,16 @@ export function ResetSaldosButton({
   pockets,
   baseNequi,
   baseEfectivo,
+  comisionNequi,
+  comisionEfectivo,
 }: {
   date: string;
   shift: Shift;
   pockets: PocketForReset[];
   baseNequi: number;
   baseEfectivo: number;
+  comisionNequi: number;
+  comisionEfectivo: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -37,10 +41,17 @@ export function ResetSaldosButton({
   );
   const [bNequi, setBNequi] = useState<number | null>(baseNequi);
   const [bEfectivo, setBEfectivo] = useState<number | null>(baseEfectivo);
+  const [comNequi, setComNequi] = useState<number | null>(comisionNequi);
+  const [comEfectivo, setComEfectivo] = useState<number | null>(comisionEfectivo);
   const [error, setError] = useState<string | null>(null);
 
+  // Comisiones tiene su propio reparto Nequi/efectivo; los demás bolsillos son un solo número.
+  const otrosBolsillos = pockets.filter((p) => p.bucket !== "COMISION");
   const next = turnoSiguiente(date, shift);
   const baseCambio = (bNequi ?? baseNequi) !== baseNequi || (bEfectivo ?? baseEfectivo) !== baseEfectivo;
+  const comisionCambio =
+    (comNequi ?? comisionNequi) !== comisionNequi ||
+    (comEfectivo ?? comisionEfectivo) !== comisionEfectivo;
 
   function setTarget(bucket: string, value: number | null) {
     setTargets((prev) => ({ ...prev, [bucket]: value }));
@@ -51,7 +62,7 @@ export function ResetSaldosButton({
       setError("Escribe el saldo Nequi inicial del próximo turno");
       return;
     }
-    const pocketTargets = pockets
+    const pocketTargets = otrosBolsillos
       .filter((p) => targets[p.bucket] !== null && targets[p.bucket] !== p.disponible)
       .map((p) => ({ bucket: p.bucket, target: targets[p.bucket] as number }));
 
@@ -60,6 +71,13 @@ export function ResetSaldosButton({
       ...pocketTargets.map(
         (t) => `${POCKET_LABELS[t.bucket]}: $${t.target.toLocaleString("es-CO")}`
       ),
+      ...(comisionCambio
+        ? [
+            `Comisiones → Nequi $${(comNequi ?? comisionNequi).toLocaleString(
+              "es-CO"
+            )} · efectivo $${(comEfectivo ?? comisionEfectivo).toLocaleString("es-CO")}`,
+          ]
+        : []),
       ...(baseCambio
         ? [
             `Base para consignaciones → Nequi $${(bNequi ?? baseNequi).toLocaleString(
@@ -84,6 +102,8 @@ export function ResetSaldosButton({
         pocketTargets: pocketTargets.length > 0 ? pocketTargets : undefined,
         baseNequi: bNequi ?? baseNequi,
         baseEfectivo: bEfectivo ?? baseEfectivo,
+        comisionNequi: comNequi ?? comisionNequi,
+        comisionEfectivo: comEfectivo ?? comisionEfectivo,
       });
       if (r.ok) {
         setOpen(false);
@@ -142,7 +162,7 @@ export function ResetSaldosButton({
               Bolsillos (déjalos igual si no quieres tocarlos)
             </p>
             <div className="mb-4 space-y-2">
-              {pockets.map((p) => (
+              {otrosBolsillos.map((p) => (
                 <div key={p.bucket}>
                   <label className="mb-0.5 block text-xs text-gray-500">
                     {POCKET_LABELS[p.bucket]} — hoy: ${p.disponible.toLocaleString("es-CO")}
@@ -153,6 +173,28 @@ export function ResetSaldosButton({
                   />
                 </div>
               ))}
+            </div>
+
+            <p className="mb-2 text-sm font-medium text-gray-700">Comisiones</p>
+            <div className="mb-4 space-y-2 rounded-xl bg-gray-50 p-3">
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-500">
+                  En Nequi — hoy: ${comisionNequi.toLocaleString("es-CO")}
+                </label>
+                <MoneyInput value={comNequi} onChange={setComNequi} />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-xs text-gray-500">
+                  En efectivo — hoy: ${comisionEfectivo.toLocaleString("es-CO")}
+                </label>
+                <MoneyInput value={comEfectivo} onChange={setComEfectivo} />
+              </div>
+              <p className="text-right text-xs text-gray-500">
+                Comisiones total:{" "}
+                <span className="font-semibold text-gray-800">
+                  ${((comNequi ?? 0) + (comEfectivo ?? 0)).toLocaleString("es-CO")}
+                </span>
+              </p>
             </div>
 
             <p className="mb-2 text-sm font-medium text-gray-700">Base para consignaciones</p>

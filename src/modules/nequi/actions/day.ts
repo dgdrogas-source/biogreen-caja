@@ -207,6 +207,9 @@ const resetSchema = z.object({
   // Reparto de la base para consignaciones (opcional): cuánto en Nequi y cuánto en efectivo.
   baseNequi: z.number().int().nonnegative("El saldo no puede ser negativo").optional(),
   baseEfectivo: z.number().int().nonnegative("El saldo no puede ser negativo").optional(),
+  // Reparto del bolsillo Comisiones (opcional): cuánto en Nequi y cuánto en efectivo.
+  comisionNequi: z.number().int().nonnegative("El saldo no puede ser negativo").optional(),
+  comisionEfectivo: z.number().int().nonnegative("El saldo no puede ser negativo").optional(),
 });
 
 export type ResetBalancesInput = z.infer<typeof resetSchema>;
@@ -239,9 +242,14 @@ export async function resetNextShiftBalances(input: ResetBalancesInput): Promise
       }),
     ];
 
-    if (data.pocketTargets && data.pocketTargets.length > 0) {
-      const pockets = await getPockets();
+    const comisionSplit =
+      data.comisionNequi !== undefined && data.comisionEfectivo !== undefined;
+    const necesitaPockets = (data.pocketTargets && data.pocketTargets.length > 0) || comisionSplit;
+    const pockets = necesitaPockets ? await getPockets() : null;
+
+    if (pockets && data.pocketTargets && data.pocketTargets.length > 0) {
       for (const { bucket, target } of data.pocketTargets) {
+        if (bucket === "COMISION") continue; // Comisiones se maneja con su reparto abajo
         const current = pockets[bucket];
         // disponible = saldoInicial + neto(movimientos + transferencias) →
         // para que quede exactamente en `target` sin tocar movimientos, el
@@ -257,6 +265,34 @@ export async function resetNextShiftBalances(input: ResetBalancesInput): Promise
           })
         );
         changes[POCKET_LABELS[bucket]] = { before: current.disponible, after: target };
+      }
+    }
+
+    // Comisiones: fijar su reparto Nequi/efectivo. El saldo inicial de cada lado absorbe
+    // el neto de movimientos de ese medio, para que el mostrado quede exacto sin tocar movimientos.
+    if (pockets && comisionSplit) {
+      const c = pockets.COMISION;
+      const beforeNequi = c.nequi ?? c.disponible;
+      const beforeEfectivo = c.efectivo ?? 0;
+      if (data.comisionNequi !== beforeNequi || data.comisionEfectivo !== beforeEfectivo) {
+        const netoNequi = beforeNequi - c.openingBalance; // Σ movimientos Nequi de comisiones
+        const netoEfectivo = beforeEfectivo - c.openingEfectivo; // Σ movimientos efectivo
+        ops.push(
+          prisma.pocketBalance.upsert({
+            where: { bucket: "COMISION" },
+            update: {
+              openingBalance: (data.comisionNequi as number) - netoNequi,
+              openingEfectivo: (data.comisionEfectivo as number) - netoEfectivo,
+            },
+            create: {
+              bucket: "COMISION",
+              openingBalance: (data.comisionNequi as number) - netoNequi,
+              openingEfectivo: (data.comisionEfectivo as number) - netoEfectivo,
+            },
+          })
+        );
+        changes["Comisiones · Nequi"] = { before: beforeNequi, after: data.comisionNequi };
+        changes["Comisiones · efectivo"] = { before: beforeEfectivo, after: data.comisionEfectivo };
       }
     }
 

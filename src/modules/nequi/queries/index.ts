@@ -208,9 +208,12 @@ export async function getPockets(): Promise<Record<PocketBucket, PocketResumen>>
       select: { amount: true, direction: true, pettyCashBucket: true, paymentMethod: true },
     }),
     prisma.pocketTransfer.findMany({ select: { fromBucket: true, toBucket: true, amount: true } }),
-    prisma.pocketBalance.findMany({ select: { bucket: true, openingBalance: true } }),
+    prisma.pocketBalance.findMany({
+      select: { bucket: true, openingBalance: true, openingEfectivo: true },
+    }),
   ]);
   const openingByBucket = new Map(balances.map((b) => [b.bucket, b.openingBalance]));
+  const openingEfectivoByBucket = new Map(balances.map((b) => [b.bucket, b.openingEfectivo]));
   const mapped = rows.map((r) => ({
     amount: r.amount,
     direction: r.direction as Direction,
@@ -219,13 +222,23 @@ export async function getPockets(): Promise<Record<PocketBucket, PocketResumen>>
   }));
   const result = {} as Record<PocketBucket, PocketResumen>;
   for (const bucket of POCKET_BUCKETS) {
-    result[bucket] = calcularSaldoPorBolsillo(bucket, mapped, openingByBucket.get(bucket) ?? 0);
+    result[bucket] = calcularSaldoPorBolsillo(
+      bucket,
+      mapped,
+      openingByBucket.get(bucket) ?? 0,
+      openingEfectivoByBucket.get(bucket) ?? 0
+    );
   }
   // Reparto visual Nequi/efectivo solo para Comisiones (no participa en transferencias,
   // así que se calcula antes de aplicarlas sin riesgo de desfase).
   result.COMISION = {
     ...result.COMISION,
-    ...calcularRepartoPorMedio("COMISION", mapped, openingByBucket.get("COMISION") ?? 0),
+    ...calcularRepartoPorMedio(
+      "COMISION",
+      mapped,
+      openingByBucket.get("COMISION") ?? 0,
+      openingEfectivoByBucket.get("COMISION") ?? 0
+    ),
   };
   return aplicarTransferencias(result, transfers) as Record<PocketBucket, PocketResumen>;
 }

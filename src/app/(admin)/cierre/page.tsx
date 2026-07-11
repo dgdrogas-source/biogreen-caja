@@ -215,6 +215,8 @@ export default async function CierrePage({
         pockets={POCKET_BUCKETS.map((b) => ({ bucket: b, disponible: pockets[b].disponible }))}
         baseNequi={baseFund.nequiPortion}
         baseEfectivo={baseFund.cashPortion}
+        comisionNequi={pockets.COMISION.nequi ?? pockets.COMISION.disponible}
+        comisionEfectivo={pockets.COMISION.efectivo ?? 0}
       />
     </div>
   );

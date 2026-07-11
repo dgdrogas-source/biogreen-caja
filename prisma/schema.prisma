@@ -139,7 +139,8 @@ model BaseFund {
 // Movement/PocketTransfer). Solo existe fila para los bolsillos ajustados;
 // los demás se tratan como 0 (ver getPockets()).
 model PocketBalance {
-  bucket         String   @id // COMISION | LICORES_JHOANN | FUXION | BASE_FACTURAS | PENDIENTE_OTRO
-  openingBalance Int      @default(0)
-  updatedAt      DateTime @updatedAt
+  bucket          String   @id // COMISION | LICORES_JHOANN | FUXION | BASE_FACTURAS | PENDIENTE_OTRO
+  openingBalance  Int      @default(0) // saldo inicial que cuenta como Nequi en el reparto por medio
+  openingEfectivo Int      @default(0) // saldo inicial en efectivo (hoy solo lo usa Comisiones)
+  updatedAt       DateTime @updatedAt
 }

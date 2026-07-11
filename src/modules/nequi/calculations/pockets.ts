@@ -9,8 +9,9 @@ export interface PocketRow {
 export interface PocketResumen {
   ingresos: number; // acumulado que entró a este bolsillo (solo movimientos)
   egresos: number; // acumulado pagado/extraído desde este bolsillo
-  openingBalance: number; // saldo inicial manual (ajuste puntual, no proviene de movimientos)
-  disponible: number; // openingBalance + ingresos − egresos
+  openingBalance: number; // saldo inicial en Nequi (ajuste puntual, no proviene de movimientos)
+  openingEfectivo: number; // saldo inicial en efectivo (hoy solo lo usa Comisiones)
+  disponible: number; // openingBalance + openingEfectivo + ingresos − egresos
   // Reparto visual por medio de pago (hoy solo se calcula para Comisiones).
   // nequi + efectivo = disponible. Puramente informativo, no participa en ningún cálculo.
   nequi?: number;
@@ -26,7 +27,8 @@ export interface PocketResumen {
 export function calcularSaldoPorBolsillo(
   bucket: string,
   rows: PocketRow[],
-  openingBalance: number = 0
+  openingBalance: number = 0,
+  openingEfectivo: number = 0
 ): PocketResumen {
   let ingresos = 0;
   let egresos = 0;
@@ -35,7 +37,13 @@ export function calcularSaldoPorBolsillo(
     if (r.direction === "INCOME") ingresos += r.amount;
     else egresos += r.amount;
   }
-  return { ingresos, egresos, openingBalance, disponible: openingBalance + ingresos - egresos };
+  return {
+    ingresos,
+    egresos,
+    openingBalance,
+    openingEfectivo,
+    disponible: openingBalance + openingEfectivo + ingresos - egresos,
+  };
 }
 
 export interface PocketRowConMedio extends PocketRow {
@@ -44,16 +52,17 @@ export interface PocketRowConMedio extends PocketRow {
 
 // Reparto VISUAL de un bolsillo por medio de pago: cuánto de su disponible está en Nequi
 // y cuánto en efectivo. Puramente informativo (control del dueño), no participa en ningún
-// cálculo. El saldo inicial manual cuenta como Nequi (las comisiones se cobran sobre
-// operaciones Nequi y el sistema ya las trata como plata Nequi dentro del Disponible).
+// cálculo. Cada saldo inicial arranca su lado (Nequi/efectivo); el reparto real lo terminan
+// de mover los movimientos según su medio de pago.
 // Invariante: nequi + efectivo = disponible del bolsillo.
 export function calcularRepartoPorMedio(
   bucket: string,
   rows: PocketRowConMedio[],
-  openingBalance: number = 0
+  openingBalance: number = 0,
+  openingEfectivo: number = 0
 ): { nequi: number; efectivo: number } {
   let nequi = openingBalance;
-  let efectivo = 0;
+  let efectivo = openingEfectivo;
   for (const r of rows) {
     if (r.pettyCashBucket !== bucket) continue;
     const delta = r.direction === "INCOME" ? r.amount : -r.amount;

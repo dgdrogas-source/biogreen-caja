@@ -103,10 +103,27 @@ describe("calcularRepartoPorMedio", () => {
     expect(r.nequi).toBe(2_000);
     expect(r.efectivo).toBe(-5_000);
   });
+
+  it("el saldo inicial en efectivo arranca el lado del efectivo", () => {
+    // opening Nequi 69.962, opening efectivo 30.000
+    const r = calcularRepartoPorMedio("COMISION", rows, 69_962, 30_000);
+    expect(r.nequi).toBe(71_058); // 69.962 + 5.000 − 3.904
+    expect(r.efectivo).toBe(34_000); // 30.000 + 4.000
+    // el disponible incluye ambos saldos iniciales y sigue cuadrando con el reparto
+    const resumen = calcularSaldoPorBolsillo("COMISION", rows, 69_962, 30_000);
+    expect(resumen.disponible).toBe(105_058);
+    expect(r.nequi + r.efectivo).toBe(resumen.disponible);
+  });
 });
 
 function pocket(disponible: number): PocketResumen {
-  return { ingresos: Math.max(disponible, 0), egresos: 0, openingBalance: 0, disponible };
+  return {
+    ingresos: Math.max(disponible, 0),
+    egresos: 0,
+    openingBalance: 0,
+    openingEfectivo: 0,
+    disponible,
+  };
 }
 
 describe("calcularApartadoEnBolsillos", () => {
