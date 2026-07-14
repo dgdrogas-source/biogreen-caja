@@ -24,6 +24,7 @@ model User {
   auditLogs        AuditLog[]
   closedDays       BusinessDay[]
   pocketTransfers  PocketTransfer[]
+  cierresGenerales CierreGeneral[]
 }
 
 // Un registro por TURNO de caja (2 turnos por día, lunes-sábado). Las filas
@@ -42,8 +43,9 @@ model BusinessDay {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  movements Movement[]
-  auditLogs AuditLog[]
+  movements     Movement[]
+  auditLogs     AuditLog[]
+  cierreGeneral CierreGeneral?
 
   @@unique([date, shift])
 }
@@ -143,4 +145,39 @@ model PocketBalance {
   openingBalance  Int      @default(0) // saldo inicial que cuenta como Nequi en el reparto por medio
   openingEfectivo Int      @default(0) // saldo inicial en efectivo (hoy solo lo usa Comisiones)
   updatedAt       DateTime @updatedAt
+}
+
+// "Cierre general" de la farmacia: un registro por turno (BusinessDay). Guarda la venta
+// desglosada por medio de pago (de Dominium) y los flujos del cierre (facturas, gastos,
+// retiro, consignación). El reparto 70/30, la utilidad y el cuadre se calculan en caliente
+// (ver calculations/cierreGeneral.ts). No toca el módulo Nequi.
+model CierreGeneral {
+  id            String      @id @default(cuid())
+  businessDayId String      @unique
+  businessDay   BusinessDay @relation(fields: [businessDayId], references: [id])
+
+  // Venta por medio de pago (esperado, de Dominium)
+  ventaEfectivo      Int @default(0)
+  ventaNequi         Int @default(0)
+  ventaTarjeta       Int @default(0)
+  ventaDaviplata     Int @default(0)
+  ventaTransferencia Int @default(0)
+  ventaCredito       Int @default(0)
+  ventaOtro          Int @default(0)
+  ventaSinFactura    Int @default(0)
+
+  // Real (para el cuadre): por ahora el crítico es el efectivo contado
+  realEfectivo Int?
+
+  // Flujos del cierre
+  facturasPagadas Int     @default(0) // facturas de proveedor pagadas hoy
+  gastosVarios    Int     @default(0)
+  retiroCierre    Int     @default(0) // efectivo retirado al cerrar
+  descuadre       Int? // sobra/falta observado (manual)
+  nota            String?
+
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

@@ -1,10 +1,14 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/permissions";
 import { addDays, formatDateCo, todayBogota } from "@/lib/dates";
+import { CierreGeneralForm } from "@/modules/nequi/components/CierreGeneralForm";
 import { CuadreBlock } from "@/modules/nequi/components/CuadreBlock";
+import { ReiniciarModuloButton } from "@/modules/nequi/components/ReiniciarModuloButton";
 import { ResetSaldosButton } from "@/modules/nequi/components/ResetSaldosButton";
 import { TurnoTabs } from "@/modules/nequi/components/TurnoTabs";
 import {
   getBaseFund,
+  getCierreGeneral,
   getCurrentShift,
   getDaySummary,
   getDiscrepancies,
@@ -19,6 +23,7 @@ import {
 } from "@/modules/nequi/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+type Vista = "nequi" | "general" | "mes";
 
 export default async function CierrePage({
   searchParams,
@@ -26,6 +31,7 @@ export default async function CierrePage({
   searchParams: Promise<{
     fecha?: string;
     turno?: string;
+    vista?: string;
     dDesde?: string;
     dHasta?: string;
     dTurno?: string;
@@ -36,8 +42,115 @@ export default async function CierrePage({
   const today = todayBogota();
   const date = params.fecha && DATE_RE.test(params.fecha) ? params.fecha : today;
   const shift: Shift = params.turno === "1" ? 1 : params.turno === "2" ? 2 : await getCurrentShift();
+  const vista: Vista =
+    params.vista === "general" ? "general" : params.vista === "mes" ? "mes" : "nequi";
 
-  // Filtros de la lista de descuadres (cambio #5): últimos 14 días por defecto.
+  const tabHref = (v: Vista) => `/cierre?fecha=${date}&turno=${shift}&vista=${v}`;
+  const TABS: { v: Vista; label: string }[] = [
+    { v: "nequi", label: "Cierre Nequi" },
+    { v: "general", label: "Cierre general" },
+    { v: "mes", label: "Cierre de mes" },
+  ];
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-lg font-bold capitalize text-gray-800">
+          Cierre Biogreen — {formatDateCo(date)}
+        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <TurnoTabs date={date} shift={shift} basePath="/cierre" />
+          <form className="flex items-center gap-2">
+            <input type="hidden" name="turno" value={shift} />
+            <input type="hidden" name="vista" value={vista} />
+            <input
+              type="date"
+              name="fecha"
+              defaultValue={date}
+              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+            />
+            <button className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-white">
+              Ver
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Pestañas del Cierre Biogreen */}
+      <div className="flex gap-1 rounded-xl bg-gray-100 p-1">
+        {TABS.map((t) => (
+          <Link
+            key={t.v}
+            href={tabHref(t.v)}
+            className={`flex-1 rounded-lg px-3 py-2 text-center text-sm font-medium ${
+              vista === t.v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </div>
+
+      {vista === "nequi" && <CierreNequi date={date} shift={shift} params={params} today={today} />}
+      {vista === "general" && <CierreGeneral date={date} shift={shift} />}
+      {vista === "mes" && (
+        <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
+          <p className="text-sm font-medium text-gray-600">Cierre de mes</p>
+          <p className="mt-1 text-xs text-gray-400">Próximamente: consolidado mensual del negocio.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Pestaña: Cierre general ----------
+async function CierreGeneral({ date, shift }: { date: string; shift: Shift }) {
+  const { cierre } = await getCierreGeneral(date, shift);
+  const inicial = cierre
+    ? {
+        ventas: {
+          EFECTIVO: cierre.ventaEfectivo,
+          NEQUI: cierre.ventaNequi,
+          TARJETA: cierre.ventaTarjeta,
+          DAVIPLATA: cierre.ventaDaviplata,
+          TRANSFERENCIA: cierre.ventaTransferencia,
+          CREDITO: cierre.ventaCredito,
+          OTRO: cierre.ventaOtro,
+        },
+        ventaSinFactura: cierre.ventaSinFactura,
+        realEfectivo: cierre.realEfectivo,
+        facturasPagadas: cierre.facturasPagadas,
+        gastosVarios: cierre.gastosVarios,
+        retiroCierre: cierre.retiroCierre,
+        descuadre: cierre.descuadre,
+        nota: cierre.nota ?? "",
+      }
+    : null;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-gray-500">
+        Cierre completo de la farmacia del {SHIFT_LABELS[shift]}. La venta por medio de pago viene de
+        Dominium. El Nequi ya lo cuadras en la pestaña Cierre Nequi.
+      </p>
+      <CierreGeneralForm date={date} shift={shift} inicial={inicial} />
+      <ReiniciarModuloButton />
+    </div>
+  );
+}
+
+// ---------- Pestaña: Cierre Nequi (lo existente) ----------
+async function CierreNequi({
+  date,
+  shift,
+  params,
+  today,
+}: {
+  date: string;
+  shift: Shift;
+  params: { dDesde?: string; dHasta?: string; dTurno?: string };
+  today: string;
+}) {
   const dDesde = params.dDesde && DATE_RE.test(params.dDesde) ? params.dDesde : addDays(today, -13);
   const dHasta = params.dHasta && DATE_RE.test(params.dHasta) ? params.dHasta : today;
   const dTurno: Shift | undefined =
@@ -53,26 +166,7 @@ export default async function CierrePage({
   const rows = [...totals.entries()].filter(([, t]) => t.nequi > 0 || t.efectivo > 0);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-bold capitalize text-gray-800">Cierre — {formatDateCo(date)}</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <TurnoTabs date={date} shift={shift} basePath="/cierre" />
-          <form className="flex items-center gap-2">
-            <input type="hidden" name="turno" value={shift} />
-            <input
-              type="date"
-              name="fecha"
-              defaultValue={date}
-              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-            />
-            <button className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-white">
-              Ver
-            </button>
-          </form>
-        </div>
-      </div>
-
+    <div className="space-y-4">
       <div className="rounded-2xl bg-white p-4 shadow-sm">
         <h2 className="mb-3 text-base font-semibold text-gray-800">
           Resumen por categoría — {SHIFT_LABELS[shift]}
@@ -116,6 +210,7 @@ export default async function CierrePage({
           <form className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="fecha" value={date} />
             <input type="hidden" name="turno" value={shift} />
+            <input type="hidden" name="vista" value="nequi" />
             <input
               type="date"
               name="dDesde"
@@ -145,9 +240,7 @@ export default async function CierrePage({
         </div>
 
         {discrepancies.length === 0 ? (
-          <p className="py-4 text-center text-sm text-gray-400">
-            Sin cierres en este rango
-          </p>
+          <p className="py-4 text-center text-sm text-gray-400">Sin cierres en este rango</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -201,8 +294,8 @@ export default async function CierrePage({
               </tbody>
             </table>
             <p className="mt-2 text-xs text-gray-400">
-              El siguiente turno siempre arranca con el saldo REAL del cierre anterior: el
-              descuadre queda registrado aquí y no se arrastra al cálculo.
+              El siguiente turno siempre arranca con el saldo REAL del cierre anterior: el descuadre
+              queda registrado aquí y no se arrastra al cálculo.
             </p>
           </div>
         )}

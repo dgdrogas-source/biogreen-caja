@@ -18,6 +18,8 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   SET_POCKET_BALANCE: { label: "Ajustó el saldo inicial de un bolsillo", style: "bg-purple-50 text-purple-700" },
   SET_SHIFT_CONFIG: { label: "Cambió los horarios de turnos", style: "bg-indigo-50 text-indigo-700" },
   RESET_BALANCES: { label: "Reinició saldos del próximo turno", style: "bg-amber-50 text-amber-700" },
+  CIERRE_GENERAL: { label: "Guardó el cierre general", style: "bg-indigo-50 text-indigo-700" },
+  RESET_CIERRE_GENERAL: { label: "Reinició el módulo de cierre general", style: "bg-red-50 text-red-600" },
 };
 
 function formatValue(v: unknown): string {

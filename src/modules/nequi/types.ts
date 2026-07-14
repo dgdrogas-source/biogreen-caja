@@ -19,6 +19,34 @@ export type PaymentMethod = "NEQUI" | "EFECTIVO";
 export type Direction = "INCOME" | "EXPENSE";
 export type Role = "ADMIN" | "WORKER";
 
+// Medios de pago del "Cierre general" (venta de la farmacia desglosada, de Dominium).
+// Es más amplio que PaymentMethod (que solo distingue Nequi/Efectivo para el cuadre Nequi);
+// aquí se captura la venta por cada medio, sin tocar el enum de Movement.
+export const MEDIOS_PAGO = [
+  "EFECTIVO",
+  "NEQUI",
+  "TARJETA",
+  "DAVIPLATA",
+  "TRANSFERENCIA",
+  "CREDITO",
+  "OTRO",
+] as const;
+export type MedioPago = (typeof MEDIOS_PAGO)[number];
+
+export const MEDIO_PAGO_LABELS: Record<MedioPago, string> = {
+  EFECTIVO: "Efectivo",
+  NEQUI: "Nequi",
+  TARJETA: "Tarjeta",
+  DAVIPLATA: "Daviplata",
+  TRANSFERENCIA: "Transferencia",
+  CREDITO: "Crédito (fiado)",
+  OTRO: "Otro",
+};
+
+// Porcentaje de la venta que se aparta para reponer inventario (política del dueño).
+// El resto (1 − 0.7 = 30%) es el sobre de gastos/utilidad.
+export const PORCENTAJE_REPOSICION = 0.7;
+
 // Turnos de caja: 2 por día (lunes-sábado). Cada turno tiene su propio
 // BusinessDay, cuadre y cierre; los horarios se configuran en /configuracion.
 export const SHIFTS = [1, 2] as const;

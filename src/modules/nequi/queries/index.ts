@@ -243,6 +243,17 @@ export async function getPockets(): Promise<Record<PocketBucket, PocketResumen>>
   return aplicarTransferencias(result, transfers) as Record<PocketBucket, PocketResumen>;
 }
 
+// Cierre general del turno (date, shift): el registro guardado (o null) + el saldo Nequi
+// esperado del turno, para mostrar la columna Nequi conectada al Cierre Nequi.
+export async function getCierreGeneral(date: string, shift: Shift) {
+  const day = await getOrCreateDay(date, shift);
+  const [cierre, { saldoEsperado }] = await Promise.all([
+    prisma.cierreGeneral.findUnique({ where: { businessDayId: day.id } }),
+    getDaySummary(date, shift),
+  ]);
+  return { day, cierre, saldoNequiEsperado: saldoEsperado };
+}
+
 export async function getPocketTransfers(limit = 50) {
   return prisma.pocketTransfer.findMany({
     include: { createdBy: { select: { name: true } } },
