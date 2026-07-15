@@ -6,7 +6,8 @@ import { LogoutButton } from "@/components/LogoutButton";
 // (admin) y (worker), que exigen un rol específico.
 export default async function SharedLayout({ children }: { children: React.ReactNode }) {
   const user = await requireWorkerOrAdmin();
-  const home = user.role === "ADMIN" ? "/dashboard" : "/registrar";
+  // Para el admin, Clientes pertenece al Cierre general; para vendedoras, a su registro.
+  const home = user.role === "ADMIN" ? "/cierre/general" : "/registrar";
 
   return (
     <div className="flex min-h-screen flex-col">

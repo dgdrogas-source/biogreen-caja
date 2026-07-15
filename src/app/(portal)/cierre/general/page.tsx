@@ -96,8 +96,8 @@ export default async function CierreGeneralPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <Link href="/cierre" className="text-sm text-emerald-700 hover:underline">
-        ← Cierre Biogreen
+      <Link href="/inicio" className="text-sm text-emerald-700 hover:underline">
+        ← Inicio
       </Link>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -134,6 +134,17 @@ export default async function CierreGeneralPage({
       />
 
       <CierreGeneralFacturasList date={date} shift={shift} items={cierre?.facturaItems ?? []} />
+
+      {/* Cartera: los clientes/créditos pertenecen al Cierre general (decisión del dueño, 2026-07-15) */}
+      <Link
+        href="/clientes"
+        className="block rounded-2xl bg-white p-5 shadow-sm transition hover:shadow-md"
+      >
+        <h2 className="text-base font-semibold text-gray-800">Clientes y cartera →</h2>
+        <p className="mt-1 text-sm text-gray-500">
+          Cuentas por cobrar: ventas a crédito, abonos y saldo por cliente.
+        </p>
+      </Link>
 
       <BolsasGeneralesCard reposicion={bolsas.reposicion} gastosUtilidad={bolsas.gastosUtilidad} />
 

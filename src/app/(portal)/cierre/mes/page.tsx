@@ -6,8 +6,8 @@ export default async function CierreMesPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <Link href="/cierre" className="text-sm text-emerald-700 hover:underline">
-        ← Cierre Biogreen
+      <Link href="/inicio" className="text-sm text-emerald-700 hover:underline">
+        ← Inicio
       </Link>
       <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
         <p className="text-sm font-medium text-gray-600">Cierre de mes</p>

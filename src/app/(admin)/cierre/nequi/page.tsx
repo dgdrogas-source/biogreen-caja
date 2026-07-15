@@ -34,8 +34,8 @@ export default async function CierreNequiPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <Link href="/cierre" className="text-sm text-emerald-700 hover:underline">
-        ← Cierre Biogreen
+      <Link href="/inicio" className="text-sm text-emerald-700 hover:underline">
+        ← Inicio
       </Link>
 
       <div className="flex flex-wrap items-center justify-between gap-2">

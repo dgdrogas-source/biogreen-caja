@@ -2,11 +2,13 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/permissions";
 import { LogoutButton } from "@/components/LogoutButton";
 
+// Menú del programa Caja Nequi (vive detrás del botón "Cierre Nequi" de /inicio).
+// "Clientes" se movió al Cierre general (decisión del dueño, 2026-07-15).
 const NAV = [
+  { href: "/inicio", label: "← Inicio" },
   { href: "/dashboard", label: "Resumen" },
   { href: "/movimientos", label: "Movimientos" },
-  { href: "/cierre", label: "Cierre" },
-  { href: "/clientes", label: "Clientes" },
+  { href: "/cierre/nequi", label: "Cierre" },
   { href: "/historial", label: "Historial" },
   { href: "/auditoria", label: "Cambios" },
   { href: "/exportar", label: "Exportar" },
