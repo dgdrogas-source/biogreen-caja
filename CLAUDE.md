@@ -47,7 +47,7 @@ Usa la Skill /NotebookLMSkill para analizar el contexto directamente en notebook
 Next.js 16 (App Router, Server Actions, Server Components) · TypeScript · Prisma 6.19.3 · **PostgreSQL en Neon** (2 proyectos: PROD `ep-nameless-firefly-attmc074`, DEV `ep-flat-water-atg9yzzc`; `url` pooled + `directUrl`) · Auth.js v5 beta (Credentials, sesión JWT, roles ADMIN/WORKER) · Zod 4 · Tailwind 4 · Vitest 4 · exceljs · Vercel (Hobby, auto-deploy).
 
 ## Arquitectura y convenciones
-- **Rutas** (`src/app/`): route groups `(admin)` (dueño), `(worker)` (vendedoras, `/registrar`), `(shared)` (ambos; `/clientes`). Permisos en `src/lib/permissions.ts`: `requireAdmin` / `requireUser` / `requireWorkerOrAdmin`.
+- **Rutas** (`src/app/`): route groups `(portal)` (puerta de entrada del admin: `/inicio` con 3 botones + `/cierre/general` y `/cierre/mes`, layout minimal SIN menú Nequi), `(admin)` (programa Caja Nequi completo: dashboard, movimientos, `/cierre/nequi`…; vive detrás del botón "Cierre Nequi"), `(worker)` (vendedoras, `/registrar`), `(shared)` (ambos; `/clientes` — para el admin pertenece al Cierre general). Permisos en `src/lib/permissions.ts`: `requireAdmin` / `requireUser` / `requireWorkerOrAdmin`.
 - **Lógica** en `src/modules/nequi/`:
   - `calculations/` — **funciones puras + tests** (patrón obligatorio para toda regla de negocio). Archivos: `cuadre`, `comision`, `impuesto4x1000`, `pockets`, `cierreGeneral`, `cierreGeneralItems`, `bolsas`, `clientes`, `alertas`, `tendencias`.
   - `actions/` — **Server Actions** (`"use server"`). Patrón: `requireAdmin()`/`requireWorkerOrAdmin()` → `zod.parse` → `prisma.$transaction([...upsert/create/delete, auditLog.create])` → `revalidatePath("/", "layout")`. Devuelven `{ ok: true } | { ok: false, error }`.
@@ -88,12 +88,16 @@ Next.js 16 (App Router, Server Actions, Server Components) · TypeScript · Pris
 
 ## Estado actual
 - ✅ **Módulo Nequi** completo, en PROD.
-- ✅ **Cierre general Fase 1** (`18831a8`) y **Fase 2** (`1f537e2`) en PROD. `tsc` limpio, **100/100 tests**. Verificación funcional en navegador **pendiente** por el dueño.
+- ✅ **Cierre general Fase 1** (`18831a8`) y **Fase 2** (`1f537e2`) en PROD. `tsc` limpio, **100/100 tests**.
+- ✅ **Navegación aprobada por el dueño** (2026-07-15, tras entrevista de procesos): al entrar como admin ve `/inicio` con **3 botones** — "Cierre Nequi" (→ `/dashboard`, TODO el programa Caja Nequi), "Cierre general" (→ `/cierre/general`, módulo aparte sin menú Nequi) y "Cierre mensual" (→ `/cierre/mes`, placeholder). Deploy `8cc3b07` verificado (307 en rutas nuevas).
+- ✅ **Fase 3 BD aplicada** (`560843c`): tablas `ClosureDifference` + `ClosureDifferenceResolution` (sobrante/faltante con razón y resolución) y columna `metodoPago` en `CierreGeneralGasto`/`CierreGeneralFactura`. **Aún sin UI ni Server Actions.**
 
 ## 🔴 Pendiente / por dónde seguir
-1. **Navegación del Cierre: el dueño NO aprobó el diseño actual** (hub `/cierre` con 3 botones → `/cierre/nequi|general|mes`). Mandó un boceto y dijo: *"al ingresar me deben aparecer los 3 botones enseguida, no los quiero juntos, SEPARA TODO"*. **Aún no está claro qué quiere exactamente** — pidió **entrevista de procesos (una pregunta a la vez) ANTES de rehacer**. No reconstruir a ciegas.
-2. Verificación funcional de Fase 2 en la web por el dueño.
-3. Futuro: Fase 3 (gráficas/tendencias visuales), Cierre de mes (hoy placeholder), cambiar contraseñas del seed (admin2026/ventas1-4), definir módulos 2 y 3.
+1. **UI + actions de diferencias**: registrar sobrante/faltante con razón (enum: cliente pagó por método incorrecto, olvidó abono a crédito, error de facturación, pago mal recibido, otro), resolverlas moviendo el monto entre medios de pago, con historial de cambios comentado. Sin umbral tolerable (toda diferencia se registra). BD ya lista.
+2. **Selector de método de pago** al agregar gastos/facturas (columna `metodoPago` ya existe; hoy null = EFECTIVO). Importa para calcular cuánto efectivo debería quedar en caja.
+3. Verificación funcional del dueño en la web: nueva navegación + formulario de 7 pasos del Cierre general.
+4. Futuro: análisis (ingresos día/semana/mes, cartera, 70/30, gastos y costos por proveedor, estado de resultados), maestro de proveedores, Cierre de mes, cambiar contraseñas del seed, definir módulos 2 y 3.
+- Contexto de decisiones del Cierre general (entrevista 2026-07-15): el dueño copia el recibo del POS (Dominium) a mano; orden real del cierre = fecha → venta → facturas → retiro → gastos → nº cuadre → sobrante/faltante; facturas se pagan completas (de caja o del "sobre blanco" = caja menor aparte, NO entra al cierre general); el cierre general es SOLO caja principal; 70/30 fijo.
 
 ## Referencias
 - Historial detallado: memoria del asistente en `~/.claude/projects/…/memory/proyecto-caja-nequi-biogreen.md` y plan en `~/.claude/plans/en-la-misma-pagina-quiet-eich.md`.
