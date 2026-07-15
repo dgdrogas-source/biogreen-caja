@@ -3,13 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { agregarGastoCierre, eliminarGastoCierre } from "../actions/cierreGeneral";
-import type { Shift } from "../types";
+import { METODOS_PAGO_ITEM, METODO_PAGO_ITEM_LABELS, type MetodoPagoItem, type Shift } from "../types";
 import { MoneyInput } from "./MoneyInput";
 
 export interface GastoItem {
   id: string;
   monto: number;
   descripcion: string | null;
+  metodoPago: string | null;
   categoria: { id: string; nombre: string };
 }
 
@@ -35,6 +36,7 @@ export function CierreGeneralGastosList({
   const [pending, startTransition] = useTransition();
   const [categoriaId, setCategoriaId] = useState(categorias[0]?.id ?? "");
   const [monto, setMonto] = useState<number | null>(null);
+  const [metodoPago, setMetodoPago] = useState<MetodoPagoItem>("EFECTIVO_CAJA");
   const [descripcion, setDescripcion] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
@@ -58,10 +60,12 @@ export function CierreGeneralGastosList({
         categoriaId,
         monto,
         descripcion: descripcion || undefined,
+        metodoPago,
       });
       if (r.ok) {
         setMonto(null);
         setDescripcion("");
+        setMetodoPago("EFECTIVO_CAJA");
         router.refresh();
       } else setError(r.error);
     });
@@ -95,7 +99,14 @@ export function CierreGeneralGastosList({
           {items.map((g) => (
             <div key={g.id} className="flex items-center justify-between py-2 text-sm">
               <div>
-                <p className="text-gray-700">{g.categoria.nombre}</p>
+                <p className="text-gray-700">
+                  {g.categoria.nombre}
+                  {g.metodoPago && g.metodoPago !== "EFECTIVO_CAJA" && (
+                    <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                      {METODO_PAGO_ITEM_LABELS[g.metodoPago as MetodoPagoItem] ?? g.metodoPago}
+                    </span>
+                  )}
+                </p>
                 {g.descripcion && <p className="text-xs text-gray-400">{g.descripcion}</p>}
               </div>
               <div className="flex items-center gap-2">
@@ -132,6 +143,17 @@ export function CierreGeneralGastosList({
             ))}
           </select>
           <MoneyInput value={monto} onChange={setMonto} />
+          <select
+            value={metodoPago}
+            onChange={(e) => setMetodoPago(e.target.value as MetodoPagoItem)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          >
+            {METODOS_PAGO_ITEM.map((m) => (
+              <option key={m} value={m}>
+                {METODO_PAGO_ITEM_LABELS[m]}
+              </option>
+            ))}
+          </select>
           <input
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}

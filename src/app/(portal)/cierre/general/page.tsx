@@ -3,7 +3,8 @@ import { requireAdmin } from "@/lib/permissions";
 import { formatDateCo, todayBogota } from "@/lib/dates";
 import { detectarAlertasCierre } from "@/modules/nequi/calculations/alertas";
 import { calcularCierreGeneral } from "@/modules/nequi/calculations/cierreGeneral";
-import { sumarConFallback } from "@/modules/nequi/calculations/cierreGeneralItems";
+import { sumarConFallback, sumarEfectivoCaja } from "@/modules/nequi/calculations/cierreGeneralItems";
+import { calcularCuadreCaja } from "@/modules/nequi/calculations/cuadreCajaCierreGeneral";
 import { AlertaBanner } from "@/modules/nequi/components/AlertaBanner";
 import { BolsasGeneralesCard } from "@/modules/nequi/components/BolsasGeneralesCard";
 import { CierreGeneralFacturasList } from "@/modules/nequi/components/CierreGeneralFacturasList";
@@ -19,7 +20,7 @@ import {
   getCurrentShift,
   getTendenciasCierreGeneral,
 } from "@/modules/nequi/queries";
-import { SHIFT_LABELS, type Shift } from "@/modules/nequi/types";
+import { BASE_FIJA_EFECTIVO_CAJA, SHIFT_LABELS, type Shift } from "@/modules/nequi/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -43,6 +44,8 @@ export default async function CierreGeneralPage({
 
   const facturasPagadasTotal = sumarConFallback(cierre?.facturasPagadas ?? 0, cierre?.facturaItems ?? []);
   const gastosVariosTotal = sumarConFallback(cierre?.gastosVarios ?? 0, cierre?.gastoItems ?? []);
+  const facturasEfectivoCajaTotal = sumarEfectivoCaja(cierre?.facturaItems ?? []);
+  const gastosEfectivoCajaTotal = sumarEfectivoCaja(cierre?.gastoItems ?? []);
 
   const inicial = cierre
     ? {
@@ -59,8 +62,9 @@ export default async function CierreGeneralPage({
         realEfectivo: cierre.realEfectivo,
         facturasPagadasTotal,
         gastosVariosTotal,
+        facturasEfectivoCajaTotal,
+        gastosEfectivoCajaTotal,
         retiroCierre: cierre.retiroCierre,
-        descuadre: cierre.descuadre,
         nota: cierre.nota ?? "",
         consignado: cierre.consignado,
       }
@@ -84,10 +88,20 @@ export default async function CierreGeneralPage({
       })
     : null;
 
+  const cuadreCajaGuardado = cierre
+    ? calcularCuadreCaja({
+        baseFija: BASE_FIJA_EFECTIVO_CAJA,
+        ventaEfectivo: cierre.ventaEfectivo,
+        facturasEnEfectivoCaja: facturasEfectivoCajaTotal,
+        gastosEnEfectivoCaja: gastosEfectivoCajaTotal,
+        realEfectivo: cierre.realEfectivo,
+      })
+    : null;
+
   const alertas =
     cierre && resumenGuardado
       ? detectarAlertasCierre({
-          descuadreEfectivo: cierre.realEfectivo != null ? cierre.realEfectivo - cierre.ventaEfectivo : null,
+          descuadreEfectivo: cuadreCajaGuardado?.descuadre ?? null,
           utilidadDia: resumenGuardado.utilidadDia,
           consignar: resumenGuardado.consignar,
           consignado: cierre.consignado,
@@ -124,16 +138,22 @@ export default async function CierreGeneralPage({
         Dominium. El Nequi ya lo cuadras en Cierre Nequi.
       </p>
 
-      <CierreGeneralForm date={date} shift={shift} inicial={inicial} />
-
-      <CierreGeneralGastosList
+      <CierreGeneralForm
         date={date}
         shift={shift}
-        items={cierre?.gastoItems ?? []}
-        categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
+        inicial={inicial}
+        slotFacturas={
+          <CierreGeneralFacturasList date={date} shift={shift} items={cierre?.facturaItems ?? []} />
+        }
+        slotGastos={
+          <CierreGeneralGastosList
+            date={date}
+            shift={shift}
+            items={cierre?.gastoItems ?? []}
+            categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
+          />
+        }
       />
-
-      <CierreGeneralFacturasList date={date} shift={shift} items={cierre?.facturaItems ?? []} />
 
       {/* Cartera: los clientes/créditos pertenecen al Cierre general (decisión del dueño, 2026-07-15) */}
       <Link

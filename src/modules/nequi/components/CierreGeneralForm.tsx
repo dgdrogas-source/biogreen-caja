@@ -1,41 +1,71 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { guardarCierreGeneral } from "../actions/cierreGeneral";
 import { calcularCierreGeneral } from "../calculations/cierreGeneral";
-import { MEDIOS_PAGO, MEDIO_PAGO_LABELS, type MedioPago, type Shift } from "../types";
+import { calcularCuadreCaja, type EstadoCuadreCaja } from "../calculations/cuadreCajaCierreGeneral";
+import { BASE_FIJA_EFECTIVO_CAJA, MEDIOS_PAGO, MEDIO_PAGO_LABELS, type MedioPago, type Shift } from "../types";
+import { ConsignadoToggle } from "./ConsignadoToggle";
 import { MoneyInput } from "./MoneyInput";
 
 export interface CierreGeneralInicial {
   ventas: Record<MedioPago, number>;
   ventaSinFactura: number;
   realEfectivo: number | null;
-  facturasPagadasTotal: number;
-  gastosVariosTotal: number;
+  facturasPagadasTotal: number; // todos los métodos (para el 70/30)
+  gastosVariosTotal: number; // todos los métodos (para el 70/30)
+  facturasEfectivoCajaTotal: number; // solo caja principal (para el cuadre físico)
+  gastosEfectivoCajaTotal: number; // solo caja principal
   retiroCierre: number;
-  descuadre: number | null;
   nota: string;
   consignado: boolean;
 }
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
 
+const ESTADO_LABEL: Record<EstadoCuadreCaja, string> = {
+  PENDIENTE: "Falta contar el efectivo",
+  CUADRO: "Cuadró",
+  SOBRO: "Sobró",
+  FALTO: "Faltó",
+};
+
+function EstadoPill({ estado, monto }: { estado: EstadoCuadreCaja; monto: number | null }) {
+  const styles: Record<EstadoCuadreCaja, string> = {
+    PENDIENTE: "bg-gray-100 text-gray-500",
+    CUADRO: "bg-emerald-50 text-emerald-700",
+    SOBRO: "bg-blue-50 text-blue-700",
+    FALTO: "bg-red-50 text-red-700",
+  };
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[estado]}`}>
+      {ESTADO_LABEL[estado]}
+      {monto != null && monto !== 0 && ` · ${money(Math.abs(monto))}`}
+    </span>
+  );
+}
+
 export function CierreGeneralForm({
   date,
   shift,
   inicial,
+  slotFacturas,
+  slotGastos,
 }: {
   date: string;
   shift: Shift;
   inicial: CierreGeneralInicial | null;
+  slotFacturas: ReactNode;
+  slotGastos: ReactNode;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
-  // 7 campos principales (flujo del usuario)
   const [ventas, setVentas] = useState<Record<MedioPago, number | null>>(
     () =>
       inicial
@@ -45,10 +75,28 @@ export function CierreGeneralForm({
   const [ventaSinFactura, setVentaSinFactura] = useState<number | null>(inicial?.ventaSinFactura ?? null);
   const [realEfectivo, setRealEfectivo] = useState<number | null>(inicial?.realEfectivo ?? null);
   const [retiroCierre, setRetiroCierre] = useState<number | null>(inicial?.retiroCierre ?? null);
-  const [descuadre, setDescuadre] = useState<number | null>(inicial?.descuadre ?? null);
   const [nota, setNota] = useState(inicial?.nota ?? "");
 
-  const setVenta = (m: MedioPago, v: number | null) => setVentas((p) => ({ ...p, [m]: v }));
+  const setVenta = (m: MedioPago, v: number | null) => {
+    setVentas((p) => ({ ...p, [m]: v }));
+    setDirty(true);
+  };
+  const setRealEfectivoD = (v: number | null) => {
+    setRealEfectivo(v);
+    setDirty(true);
+  };
+  const setRetiroCierreD = (v: number | null) => {
+    setRetiroCierre(v);
+    setDirty(true);
+  };
+  const setNotaD = (v: string) => {
+    setNota(v);
+    setDirty(true);
+  };
+  const setVentaSinFacturaD = (v: number | null) => {
+    setVentaSinFactura(v);
+    setDirty(true);
+  };
 
   const resumen = calcularCierreGeneral({
     ventasPorMedio: Object.fromEntries(MEDIOS_PAGO.map((m) => [m, ventas[m] ?? 0])),
@@ -56,7 +104,14 @@ export function CierreGeneralForm({
     facturasPagadas: inicial?.facturasPagadasTotal ?? 0,
     gastosVarios: inicial?.gastosVariosTotal ?? 0,
     retiroCierre: retiroCierre ?? 0,
-    realPorMedio: realEfectivo != null ? { EFECTIVO: realEfectivo } : undefined,
+  });
+
+  const cuadreCaja = calcularCuadreCaja({
+    baseFija: BASE_FIJA_EFECTIVO_CAJA,
+    ventaEfectivo: ventas.EFECTIVO ?? 0,
+    facturasEnEfectivoCaja: inicial?.facturasEfectivoCajaTotal ?? 0,
+    gastosEnEfectivoCaja: inicial?.gastosEfectivoCajaTotal ?? 0,
+    realEfectivo,
   });
 
   function guardar() {
@@ -76,11 +131,12 @@ export function CierreGeneralForm({
         ventaSinFactura: ventaSinFactura ?? 0,
         realEfectivo: realEfectivo,
         retiroCierre: retiroCierre ?? 0,
-        descuadre: descuadre,
+        descuadre: cuadreCaja.descuadre,
         nota: nota || undefined,
       });
       if (r.ok) {
         setOk(true);
+        setDirty(false);
         router.refresh();
       } else setError(r.error);
     });
@@ -101,7 +157,7 @@ export function CierreGeneralForm({
           ))}
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-700">Venta sin factura</label>
-            <MoneyInput value={ventaSinFactura} onChange={setVentaSinFactura} />
+            <MoneyInput value={ventaSinFactura} onChange={setVentaSinFacturaD} />
           </div>
         </div>
         <div className="mt-3 border-t border-gray-200 pt-3 text-sm font-medium">
@@ -109,69 +165,58 @@ export function CierreGeneralForm({
         </div>
       </div>
 
-      {/* 2. FACTURAS PAGADAS (lista separada abajo) */}
-      <div className="rounded-2xl bg-blue-50 p-4 shadow-sm border border-blue-100">
-        <p className="text-xs text-blue-700">
-          ℹ️ <strong>Facturas pagadas:</strong> Agrégalas en la sección "Facturas pagadas" abajo. El total se calcula automático.
-        </p>
+      {/* 2. FACTURAS PAGADAS (en su posición real del flujo) */}
+      <div>
+        <h2 className="mb-2 text-sm font-medium text-gray-500">2. Facturas pagadas</h2>
+        {slotFacturas}
       </div>
 
       {/* 3. RETIRO DEL CIERRE */}
       <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-gray-800">3. Retiro del cierre (efectivo a sobre blanco)</h2>
-        <p className="mb-3 text-xs text-gray-500">Cuánto efectivo sacas de caja para dejar la base.</p>
-        <MoneyInput value={retiroCierre} onChange={setRetiroCierre} />
-      </div>
-
-      {/* 4. GASTOS (lista separada abajo) */}
-      <div className="rounded-2xl bg-blue-50 p-4 shadow-sm border border-blue-100">
-        <p className="text-xs text-blue-700">
-          ℹ️ <strong>Gastos del turno:</strong> Agrégalos en la sección "Gastos" abajo. El total se calcula automático.
+        <h2 className="mb-3 text-base font-semibold text-gray-800">3. Retiro del cierre (a sobre blanco)</h2>
+        <p className="mb-3 text-xs text-gray-500">
+          Efectivo que sacas de la caja principal al sobre blanco para dejar la base de{" "}
+          {money(BASE_FIJA_EFECTIVO_CAJA)}.
         </p>
+        <MoneyInput value={retiroCierre} onChange={setRetiroCierreD} />
       </div>
 
-      {/* 5. NÚMERO DEL CUADRE (del POS) */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-gray-800">5. Conteo físico de efectivo</h2>
-        <p className="mb-3 text-xs text-gray-500">Dinero contado en caja (después de retirar el sobre blanco).</p>
-        <MoneyInput value={realEfectivo} onChange={setRealEfectivo} />
+      {/* 4. GASTOS (en su posición real del flujo) */}
+      <div>
+        <h2 className="mb-2 text-sm font-medium text-gray-500">4. Gastos del turno</h2>
+        {slotGastos}
       </div>
 
-      {/* 6. SOBRANTE / FALTANTE */}
+      {/* 5. CUADRE: conteo físico + resultado + nota */}
       <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-gray-800">6. Cuadre: Sobrante o Faltante</h2>
-        <p className="mb-3 text-xs text-gray-500">¿Sobró o faltó dinero?</p>
-        <div className="flex gap-3 items-end">
-          <div className="flex-1">
-            <label className="mb-1 block text-xs font-medium text-gray-700">Monto</label>
-            <MoneyInput value={descuadre} onChange={setDescuadre} />
-          </div>
-          <div className="text-xs text-gray-600 pb-2">
-            {descuadre != null && (descuadre > 0 ? "📈 Sobrante" : "📉 Faltante")}
-          </div>
+        <h2 className="mb-1 text-base font-semibold text-gray-800">5. Cuadre de caja</h2>
+        <p className="mb-3 text-xs text-gray-500">
+          Efectivo contado en caja principal, ANTES de sacar el retiro.
+        </p>
+        <MoneyInput value={realEfectivo} onChange={setRealEfectivoD} />
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+          <span>Efectivo esperado en caja</span>
+          <span className="font-medium text-gray-700">{money(cuadreCaja.efectivoEsperado)}</span>
         </div>
-      </div>
 
-      {/* 7. NOTAS / OBSERVACIONES */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-gray-800">7. Notas (opcional)</h2>
+        <div className="mt-3">
+          <EstadoPill estado={cuadreCaja.estado} monto={cuadreCaja.descuadre} />
+        </div>
+
         <textarea
           value={nota}
-          onChange={(e) => setNota(e.target.value)}
-          placeholder="Ej: Error en conteo, cliente pagó por método incorrecto, etc."
-          className="w-full rounded-lg border border-gray-300 p-3 text-sm"
-          rows={3}
+          onChange={(e) => setNotaD(e.target.value)}
+          placeholder="Nota (opcional): ej. cliente pagó por método incorrecto, falta revisar…"
+          className="mt-3 w-full rounded-lg border border-gray-300 p-3 text-sm"
+          rows={2}
         />
       </div>
 
-      {/* RESUMEN (solo lectura) */}
+      {/* RESUMEN (solo lectura) + consignación */}
       <div className="rounded-2xl bg-emerald-50 p-5 shadow-sm border border-emerald-200">
-        <h2 className="mb-3 text-base font-semibold text-gray-800">Resumen del cierre</h2>
+        <h2 className="mb-3 text-base font-semibold text-gray-800">Resumen del turno</h2>
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Venta total</span>
-            <span className="font-medium">{money(resumen.base)}</span>
-          </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Reposición (70%)</span>
             <span className="font-medium">{money(resumen.reposicionNeta)}</span>
@@ -187,14 +232,20 @@ export function CierreGeneralForm({
             <span className="font-bold text-emerald-700">{money(resumen.consignar)}</span>
           </div>
         </div>
+        <div className="mt-3 border-t border-emerald-200 pt-3">
+          <ConsignadoToggle date={date} shift={shift} consignado={inicial?.consignado ?? false} />
+        </div>
       </div>
 
-      {/* BOTONES Y ESTADO */}
-      <div className="flex gap-3">
+      {/* GUARDAR */}
+      <div className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm">
+        {dirty && !pending && (
+          <span className="text-xs font-medium text-amber-600">Tienes cambios sin guardar</span>
+        )}
         <button
           onClick={guardar}
           disabled={pending}
-          className="flex-1 rounded-lg bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+          className="ml-auto rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
         >
           {pending ? "Guardando..." : "Guardar cierre"}
         </button>

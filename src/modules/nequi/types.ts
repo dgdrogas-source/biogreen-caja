@@ -60,6 +60,32 @@ export const BOLSA_GENERAL_LABELS: Record<BolsaGeneralBucket, string> = {
 // El resto (1 − 0.7 = 30%) es el sobre de gastos/utilidad.
 export const PORCENTAJE_REPOSICION = 0.7;
 
+// Base fija de efectivo con la que arranca la caja principal cada turno (política del
+// dueño, confirmada 2026-07-15). El "sobre blanco" es una caja menor aparte que se cuenta
+// por separado — no entra en el cuadre de la caja principal.
+export const BASE_FIJA_EFECTIVO_CAJA = 200_000;
+
+// Medio de pago de un gasto o factura del Cierre general (de dónde salió la plata).
+// Distinto de MEDIOS_PAGO (que describe la VENTA): aquí importa diferenciar caja principal
+// vs sobre blanco, porque solo la caja principal se cuadra contra el conteo físico.
+export const METODOS_PAGO_ITEM = [
+  "EFECTIVO_CAJA",
+  "EFECTIVO_SOBRE",
+  "NEQUI",
+  "DATAFONO",
+  "TRANSFERENCIA",
+  "OTRO",
+] as const;
+export type MetodoPagoItem = (typeof METODOS_PAGO_ITEM)[number];
+export const METODO_PAGO_ITEM_LABELS: Record<MetodoPagoItem, string> = {
+  EFECTIVO_CAJA: "Efectivo (caja)",
+  EFECTIVO_SOBRE: "Efectivo (sobre blanco)",
+  NEQUI: "Nequi",
+  DATAFONO: "Datáfono",
+  TRANSFERENCIA: "Transferencia",
+  OTRO: "Otro",
+};
+
 // Turnos de caja: 2 por día (lunes-sábado). Cada turno tiene su propio
 // BusinessDay, cuadre y cierre; los horarios se configuran en /configuracion.
 export const SHIFTS = [1, 2] as const;

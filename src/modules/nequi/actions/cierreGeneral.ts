@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOrCreateDay } from "../server/businessDay";
+import { METODOS_PAGO_ITEM } from "../types";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -132,6 +133,7 @@ const agregarGastoSchema = turnoSchema.extend({
   categoriaId: z.string(),
   monto: z.number().int().positive("El monto debe ser mayor a cero"),
   descripcion: z.string().max(300).optional(),
+  metodoPago: z.enum(METODOS_PAGO_ITEM).optional(),
 });
 
 // Agrega un gasto itemizado (categoría + monto) al cierre del turno. Reemplaza el input
@@ -155,6 +157,7 @@ export async function agregarGastoCierre(
           categoriaId: d.categoriaId,
           monto: d.monto,
           descripcion: d.descripcion,
+          metodoPago: d.metodoPago,
         },
       });
       await tx.auditLog.create({
@@ -213,6 +216,7 @@ const agregarFacturaSchema = turnoSchema.extend({
   proveedor: z.string().max(120).optional(),
   monto: z.number().int().positive("El monto debe ser mayor a cero"),
   descripcion: z.string().max(300).optional(),
+  metodoPago: z.enum(METODOS_PAGO_ITEM).optional(),
 });
 
 // Agrega una factura de proveedor pagada (itemizada) al cierre del turno. Reemplaza el
@@ -233,6 +237,7 @@ export async function agregarFacturaCierre(
           proveedor: d.proveedor,
           monto: d.monto,
           descripcion: d.descripcion,
+          metodoPago: d.metodoPago,
         },
       });
       await tx.auditLog.create({
