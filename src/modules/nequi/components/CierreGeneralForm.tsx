@@ -5,17 +5,21 @@ import { useState, useTransition } from "react";
 import { guardarCierreGeneral } from "../actions/cierreGeneral";
 import { calcularCierreGeneral } from "../calculations/cierreGeneral";
 import { MEDIOS_PAGO, MEDIO_PAGO_LABELS, type MedioPago, type Shift } from "../types";
+import { ConsignadoToggle } from "./ConsignadoToggle";
 import { MoneyInput } from "./MoneyInput";
 
 export interface CierreGeneralInicial {
   ventas: Record<MedioPago, number>;
   ventaSinFactura: number;
   realEfectivo: number | null;
-  facturasPagadas: number;
-  gastosVarios: number;
+  // Fase 2: ya no son editables aquí (se resuelven de las listas itemizadas en
+  // CierreGeneralGastosList/FacturasList — solo lectura).
+  facturasPagadasTotal: number;
+  gastosVariosTotal: number;
   retiroCierre: number;
   descuadre: number | null;
   nota: string;
+  consignado: boolean;
 }
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
@@ -42,8 +46,6 @@ export function CierreGeneralForm({
   );
   const [ventaSinFactura, setVentaSinFactura] = useState<number | null>(inicial?.ventaSinFactura ?? null);
   const [realEfectivo, setRealEfectivo] = useState<number | null>(inicial?.realEfectivo ?? null);
-  const [facturasPagadas, setFacturasPagadas] = useState<number | null>(inicial?.facturasPagadas ?? null);
-  const [gastosVarios, setGastosVarios] = useState<number | null>(inicial?.gastosVarios ?? null);
   const [retiroCierre, setRetiroCierre] = useState<number | null>(inicial?.retiroCierre ?? null);
   const [descuadre, setDescuadre] = useState<number | null>(inicial?.descuadre ?? null);
   const [nota, setNota] = useState(inicial?.nota ?? "");
@@ -53,8 +55,8 @@ export function CierreGeneralForm({
   const resumen = calcularCierreGeneral({
     ventasPorMedio: Object.fromEntries(MEDIOS_PAGO.map((m) => [m, ventas[m] ?? 0])),
     ventaSinFactura: ventaSinFactura ?? 0,
-    facturasPagadas: facturasPagadas ?? 0,
-    gastosVarios: gastosVarios ?? 0,
+    facturasPagadas: inicial?.facturasPagadasTotal ?? 0,
+    gastosVarios: inicial?.gastosVariosTotal ?? 0,
     retiroCierre: retiroCierre ?? 0,
     realPorMedio: realEfectivo != null ? { EFECTIVO: realEfectivo } : undefined,
   });
@@ -76,8 +78,6 @@ export function CierreGeneralForm({
         ventaOtro: ventas.OTRO ?? 0,
         ventaSinFactura: ventaSinFactura ?? 0,
         realEfectivo: realEfectivo,
-        facturasPagadas: facturasPagadas ?? 0,
-        gastosVarios: gastosVarios ?? 0,
         retiroCierre: retiroCierre ?? 0,
         descuadre: descuadre,
         nota: nota || undefined,
@@ -141,6 +141,9 @@ export function CierreGeneralForm({
         <p className="mt-2 text-[11px] text-gray-400">
           La utilidad es una estimación por tu política 70/30, no la contable exacta.
         </p>
+        <div className="mt-3 border-t border-gray-100 pt-3">
+          <ConsignadoToggle date={date} shift={shift} consignado={inicial?.consignado ?? false} />
+        </div>
       </div>
 
       {/* Cuadre del efectivo + flujos */}
@@ -155,15 +158,10 @@ export function CierreGeneralForm({
             <label className="mb-0.5 block text-xs text-gray-500">Retiro de efectivo al cerrar</label>
             <MoneyInput value={retiroCierre} onChange={setRetiroCierre} />
           </div>
-          <div>
-            <label className="mb-0.5 block text-xs text-gray-500">Facturas de proveedor pagadas</label>
-            <MoneyInput value={facturasPagadas} onChange={setFacturasPagadas} />
-          </div>
-          <div>
-            <label className="mb-0.5 block text-xs text-gray-500">Gastos varios</label>
-            <MoneyInput value={gastosVarios} onChange={setGastosVarios} />
-          </div>
         </div>
+        <p className="mt-2 text-[11px] text-gray-400">
+          Facturas y gastos se registran abajo, ítem por ítem (con categoría).
+        </p>
         {descuadreEfectivo != null && (
           <div
             className={`mt-3 rounded-xl p-2.5 text-center text-sm font-semibold ${

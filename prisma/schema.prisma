@@ -25,6 +25,8 @@ model User {
   closedDays       BusinessDay[]
   pocketTransfers  PocketTransfer[]
   cierresGenerales CierreGeneral[]
+  ventasCredito    VentaCredito[]
+  abonosCredito    AbonoCredito[]
 }
 
 // Un registro por TURNO de caja (2 turnos por día, lunes-sábado). Las filas
@@ -170,14 +172,126 @@ model CierreGeneral {
   realEfectivo Int?
 
   // Flujos del cierre
-  facturasPagadas Int     @default(0) // facturas de proveedor pagadas hoy
-  gastosVarios    Int     @default(0)
+  // DEPRECADOS (Fase 2): ya no se escriben desde guardarCierreGeneral. Se conservan en la BD
+  // para no perder el histórico de cierres guardados en Fase 1 (fallback de lectura, ver
+  // calculations/cierreGeneralItems.ts → sumarConFallback). La fuente de verdad ahora son
+  // gastoItems/facturaItems (itemizados, con categoría).
+  facturasPagadas Int     @default(0) // @deprecated — usar facturaItems
+  gastosVarios    Int     @default(0) // @deprecated — usar gastoItems
   retiroCierre    Int     @default(0) // efectivo retirado al cerrar
   descuadre       Int? // sobra/falta observado (manual)
   nota            String?
+  consignado      Boolean @default(false) // marcado manual: ¿ya se hizo la consignación pendiente?
 
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  gastoItems   CierreGeneralGasto[]
+  facturaItems CierreGeneralFactura[]
+}
+
+// ---------- Bolsas acumuladas 70/30 ----------
+// Saldo inicial manual por bolsa (mismo patrón que PocketBalance.openingBalance, pero en
+// tabla propia y aislada: NO reutiliza pockets.ts/POCKET_BUCKETS ni Movement, a propósito,
+// para no arriesgar el módulo Nequi). El acumulado NO se persiste aquí: se calcula en caliente
+// sumando reposicionNeta/utilidadDia de TODOS los CierreGeneral (ver calculations/bolsas.ts)
+// más este openingBalance.
+model BolsaGeneral {
+  bucket         String   @id // REPOSICION | GASTOS_UTILIDAD
+  openingBalance Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+// ---------- Gastos clasificados por categoría (editable por el admin) ----------
+model CategoriaGasto {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  // "Eliminar" desactiva si la categoría ya tiene gastos asociados (protege el histórico);
+  // se borra físicamente solo si nunca se usó.
+  activa    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  gastos CierreGeneralGasto[]
+}
+
+// Gasto individual del turno. Reemplaza el input directo CierreGeneral.gastosVarios (deprecado).
+// El total del turno = suma de estos items.
+model CierreGeneralGasto {
+  id              String         @id @default(cuid())
+  cierreGeneralId String
+  cierreGeneral   CierreGeneral  @relation(fields: [cierreGeneralId], references: [id], onDelete: Cascade)
+  categoriaId     String
+  categoria       CategoriaGasto @relation(fields: [categoriaId], references: [id])
+  monto           Int
+  descripcion     String?
+  createdAt       DateTime       @default(now())
+
+  @@index([cierreGeneralId])
+}
+
+// Factura de proveedor pagada, itemizada. Reemplaza CierreGeneral.facturasPagadas (deprecado).
+model CierreGeneralFactura {
+  id              String        @id @default(cuid())
+  cierreGeneralId String
+  cierreGeneral   CierreGeneral @relation(fields: [cierreGeneralId], references: [id], onDelete: Cascade)
+  proveedor       String?
+  monto           Int
+  descripcion     String?
+  createdAt       DateTime      @default(now())
+
+  @@index([cierreGeneralId])
+}
+
+// ---------- Cuentas por cobrar por cliente ----------
+model Cliente {
+  id        String   @id @default(cuid())
+  nombre    String
+  telefono  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ventasCredito VentaCredito[]
+  abonosCredito AbonoCredito[]
+}
+
+// date/shift son columnas sueltas (NO FK a BusinessDay a propósito): una venta a crédito se
+// registra en cualquier momento del día, no atada al ciclo de apertura/cierre de turno de
+// Nequi. El campo "Crédito" de CierreGeneral (venta por medio, de Dominium) sigue siendo un
+// número de control aparte — no se fuerza a que cuadren exacto, son dos fuentes distintas.
+// deletedAt = soft delete (mismo patrón que Movement), para poder editar/borrar sin perder auditoría.
+model VentaCredito {
+  id          String    @id @default(cuid())
+  clienteId   String
+  cliente     Cliente   @relation(fields: [clienteId], references: [id])
+  monto       Int
+  date        String // YYYY-MM-DD
+  shift       Int // 1 | 2
+  nota        String?
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  @@index([clienteId])
+  @@index([date])
+}
+
+model AbonoCredito {
+  id          String    @id @default(cuid())
+  clienteId   String
+  cliente     Cliente   @relation(fields: [clienteId], references: [id])
+  monto       Int
+  medioPago   String // EFECTIVO | NEQUI | TARJETA | DAVIPLATA | TRANSFERENCIA | OTRO (nunca CREDITO)
+  date        String
+  shift       Int
+  nota        String?
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  @@index([clienteId])
+  @@index([date])
 }

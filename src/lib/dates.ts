@@ -27,6 +27,28 @@ export function addDays(dateStr: string, days: number): string {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
+// Lunes de la semana ISO (lunes-domingo) a la que pertenece la fecha. Ej: un domingo
+// devuelve el lunes 6 días antes (la semana "actual" incluye ese domingo).
+export function startOfIsoWeek(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dayOfWeek = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=domingo..6=sábado
+  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  return addDays(dateStr, -daysSinceMonday);
+}
+
+// Primer día (01) del mes de la fecha dada.
+export function startOfMonth(dateStr: string): string {
+  return dateStr.slice(0, 7) + "-01";
+}
+
+// Días de diferencia entre dos fechas YYYY-MM-DD (b − a). Positivo si b es posterior.
+export function diffDays(a: string, b: string): number {
+  const [ay, am, ad] = a.split("-").map(Number);
+  const [by, bm, bd] = b.split("-").map(Number);
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / msPerDay);
+}
+
 export function formatDateCo(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Intl.DateTimeFormat("es-CO", {

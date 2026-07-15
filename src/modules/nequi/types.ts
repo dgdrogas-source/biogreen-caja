@@ -43,6 +43,19 @@ export const MEDIO_PAGO_LABELS: Record<MedioPago, string> = {
   OTRO: "Otro",
 };
 
+// Medios de pago válidos para un ABONO a crédito (nunca "CREDITO": un abono siempre entra
+// por un medio real).
+export const MEDIOS_PAGO_ABONO = MEDIOS_PAGO.filter((m) => m !== "CREDITO");
+export type MedioPagoAbono = (typeof MEDIOS_PAGO_ABONO)[number];
+
+// Bolsas acumuladas 70/30 (Fase 2), aisladas de POCKET_BUCKETS/pockets.ts a propósito.
+export const BOLSA_GENERAL_BUCKETS = ["REPOSICION", "GASTOS_UTILIDAD"] as const;
+export type BolsaGeneralBucket = (typeof BOLSA_GENERAL_BUCKETS)[number];
+export const BOLSA_GENERAL_LABELS: Record<BolsaGeneralBucket, string> = {
+  REPOSICION: "Bolsa de reposición",
+  GASTOS_UTILIDAD: "Bolsa de gastos/utilidad",
+};
+
 // Porcentaje de la venta que se aparta para reponer inventario (política del dueño).
 // El resto (1 − 0.7 = 30%) es el sobre de gastos/utilidad.
 export const PORCENTAJE_REPOSICION = 0.7;

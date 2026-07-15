@@ -1,6 +1,11 @@
 import "server-only";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { nowBogotaHHMM, todayBogota } from "@/lib/dates";
+import { addDays, diffDays, nowBogotaHHMM, startOfIsoWeek, startOfMonth, todayBogota } from "@/lib/dates";
+import { calcularBolsasAcumuladas, type BolsaCierreInput } from "../calculations/bolsas";
+import { calcularSaldoCliente, calcularSaldosPorCliente } from "../calculations/clientes";
+import { calcularCierreGeneral } from "../calculations/cierreGeneral";
+import { sumarConFallback } from "../calculations/cierreGeneralItems";
 import { calcularSaldoEsperado } from "../calculations/cuadre";
 import {
   aplicarTransferencias,
@@ -8,6 +13,7 @@ import {
   calcularSaldoPorBolsillo,
   type PocketResumen,
 } from "../calculations/pockets";
+import { compararMetricas, promedioMensual, sumarMetricas, type MetricasPeriodo } from "../calculations/tendencias";
 import { DEFAULT_SHIFT_CONFIGS, turnoPorHora } from "../calculations/turnos";
 import {
   POCKET_BUCKETS,
@@ -243,15 +249,188 @@ export async function getPockets(): Promise<Record<PocketBucket, PocketResumen>>
   return aplicarTransferencias(result, transfers) as Record<PocketBucket, PocketResumen>;
 }
 
-// Cierre general del turno (date, shift): el registro guardado (o null) + el saldo Nequi
-// esperado del turno, para mostrar la columna Nequi conectada al Cierre Nequi.
+const cierreGeneralItemsInclude = {
+  gastoItems: { include: { categoria: true }, orderBy: { createdAt: "asc" as const } },
+  facturaItems: { orderBy: { createdAt: "asc" as const } },
+} satisfies Prisma.CierreGeneralInclude;
+
+type CierreGeneralConItems = Prisma.CierreGeneralGetPayload<{ include: typeof cierreGeneralItemsInclude }>;
+
+// Adapta un registro de CierreGeneral (con sus items) al input de la función pura
+// calcularCierreGeneral — usado por getBolsasGenerales y getTendenciasCierreGeneral para no
+// repetir la construcción de ventasPorMedio en cada query. facturasPagadas/gastosVarios
+// siempre quedan resueltos (números, nunca undefined), por eso también sirve como
+// BolsaCierreInput sin conversión adicional.
+function cierreInputFromRow(c: CierreGeneralConItems) {
+  return {
+    ventasPorMedio: {
+      EFECTIVO: c.ventaEfectivo,
+      NEQUI: c.ventaNequi,
+      TARJETA: c.ventaTarjeta,
+      DAVIPLATA: c.ventaDaviplata,
+      TRANSFERENCIA: c.ventaTransferencia,
+      CREDITO: c.ventaCredito,
+      OTRO: c.ventaOtro,
+    },
+    ventaSinFactura: c.ventaSinFactura,
+    facturasPagadas: sumarConFallback(c.facturasPagadas, c.facturaItems),
+    gastosVarios: sumarConFallback(c.gastosVarios, c.gastoItems),
+    realPorMedio: c.realEfectivo != null ? { EFECTIVO: c.realEfectivo } : undefined,
+  };
+}
+
+// Cierre general del turno (date, shift): el registro guardado (con sus gastos/facturas
+// itemizados) o null + el saldo Nequi esperado del turno, para la columna Nequi conectada
+// al Cierre Nequi.
 export async function getCierreGeneral(date: string, shift: Shift) {
   const day = await getOrCreateDay(date, shift);
   const [cierre, { saldoEsperado }] = await Promise.all([
-    prisma.cierreGeneral.findUnique({ where: { businessDayId: day.id } }),
+    prisma.cierreGeneral.findUnique({
+      where: { businessDayId: day.id },
+      include: cierreGeneralItemsInclude,
+    }),
     getDaySummary(date, shift),
   ]);
   return { day, cierre, saldoNequiEsperado: saldoEsperado };
+}
+
+// Categorías de gasto (editables por el admin). Por defecto solo las activas.
+export async function getCategoriasGasto(soloActivas = true) {
+  return prisma.categoriaGasto.findMany({
+    where: soloActivas ? { activa: true } : undefined,
+    orderBy: { nombre: "asc" },
+  });
+}
+
+// Bolsas acumuladas 70/30: suma reposicionNeta/utilidadDia de TODOS los CierreGeneral
+// guardados + el saldo inicial manual de cada bolsa. No toca Movement/pockets.
+export async function getBolsasGenerales() {
+  const [cierres, bolsas] = await Promise.all([
+    prisma.cierreGeneral.findMany({ include: cierreGeneralItemsInclude }),
+    prisma.bolsaGeneral.findMany(),
+  ]);
+  const openingByBucket = new Map(bolsas.map((b) => [b.bucket, b.openingBalance]));
+  const cierresInput: BolsaCierreInput[] = cierres.map((c) => cierreInputFromRow(c));
+  const { reposicion, gastosUtilidad } = calcularBolsasAcumuladas(
+    cierresInput,
+    openingByBucket.get("REPOSICION") ?? 0,
+    openingByBucket.get("GASTOS_UTILIDAD") ?? 0
+  );
+  return {
+    reposicion,
+    gastosUtilidad,
+    openingReposicion: openingByBucket.get("REPOSICION") ?? 0,
+    openingGastos: openingByBucket.get("GASTOS_UTILIDAD") ?? 0,
+  };
+}
+
+// Clientes con su saldo pendiente (Σ ventas a crédito − Σ abonos, excluye borrados).
+export async function getClientesConSaldo() {
+  const [clientes, ventas, abonos] = await Promise.all([
+    prisma.cliente.findMany({ orderBy: { nombre: "asc" } }),
+    prisma.ventaCredito.findMany({
+      where: { deletedAt: null },
+      select: { clienteId: true, monto: true },
+    }),
+    prisma.abonoCredito.findMany({
+      where: { deletedAt: null },
+      select: { clienteId: true, monto: true },
+    }),
+  ]);
+  const saldos = calcularSaldosPorCliente(ventas, abonos);
+  return clientes
+    .map((c) => ({ ...c, saldo: saldos.get(c.id) ?? 0 }))
+    .sort((a, b) => b.saldo - a.saldo);
+}
+
+// Historial de un cliente (ventas a crédito + abonos, más recientes primero) y su saldo.
+export async function getClienteDetalle(clienteId: string) {
+  const [cliente, ventas, abonos] = await Promise.all([
+    prisma.cliente.findUnique({ where: { id: clienteId } }),
+    prisma.ventaCredito.findMany({
+      where: { clienteId, deletedAt: null },
+      include: { createdBy: { select: { name: true } } },
+      orderBy: { date: "desc" },
+    }),
+    prisma.abonoCredito.findMany({
+      where: { clienteId, deletedAt: null },
+      include: { createdBy: { select: { name: true } } },
+      orderBy: { date: "desc" },
+    }),
+  ]);
+  const saldo = calcularSaldoCliente(ventas, abonos);
+  return { cliente, ventas, abonos, saldo };
+}
+
+// Turnos con Cierre general guardado en un rango de fechas (mismo patrón que
+// getDiscrepancies/getDaysRange), para tendencias.
+export async function getCierreGeneralRange(from: string, to: string, shift?: Shift) {
+  return prisma.businessDay.findMany({
+    where: {
+      date: { gte: from, lte: to },
+      ...(shift ? { shift } : {}),
+      cierreGeneral: { isNot: null },
+    },
+    include: { cierreGeneral: { include: cierreGeneralItemsInclude } },
+    orderBy: [{ date: "asc" }, { shift: "asc" }],
+  });
+}
+
+function metricasDeDay(day: { cierreGeneral: CierreGeneralConItems | null }): MetricasPeriodo {
+  if (!day.cierreGeneral) return { venta: 0, utilidadDia: 0, descuadreTotal: 0 };
+  const c = day.cierreGeneral;
+  const r = calcularCierreGeneral(cierreInputFromRow(c));
+  const descuadreTotal = c.realEfectivo != null ? c.realEfectivo - c.ventaEfectivo : 0;
+  return { venta: r.base, utilidadDia: r.utilidadDia, descuadreTotal };
+}
+
+// Comparativas de tendencia para el turno (date, shift): turno actual vs mismo turno
+// anterior (el más reciente con cierre guardado antes de esta fecha), semana actual
+// (lunes → date) vs semana anterior comparada a la misma altura (mismo número de días),
+// y el promedio mensual de venta (venta del mes ÷ días transcurridos).
+export async function getTendenciasCierreGeneral(date: string, shift: Shift) {
+  const [turnoActualDay, turnoAnteriorDay] = await Promise.all([
+    prisma.businessDay.findUnique({
+      where: { date_shift: { date, shift } },
+      include: { cierreGeneral: { include: cierreGeneralItemsInclude } },
+    }),
+    prisma.businessDay.findFirst({
+      where: { shift, date: { lt: date }, cierreGeneral: { isNot: null } },
+      include: { cierreGeneral: { include: cierreGeneralItemsInclude } },
+      orderBy: { date: "desc" },
+    }),
+  ]);
+  const turnoActual = turnoActualDay ? metricasDeDay(turnoActualDay) : { venta: 0, utilidadDia: 0, descuadreTotal: 0 };
+  const turnoAnterior = turnoAnteriorDay ? metricasDeDay(turnoAnteriorDay) : { venta: 0, utilidadDia: 0, descuadreTotal: 0 };
+
+  // Semana actual (lunes de esta semana → date) vs. la semana anterior, comparada a la
+  // misma altura (mismo número de días transcurridos), no la semana anterior completa.
+  const weekStart = startOfIsoWeek(date);
+  const diasIntoWeek = diffDays(weekStart, date) + 1;
+  const prevWeekStart = addDays(weekStart, -7);
+  const prevWeekEnd = addDays(prevWeekStart, diasIntoWeek - 1);
+
+  const [semanaActualDays, semanaAnteriorDays] = await Promise.all([
+    getCierreGeneralRange(weekStart, date, shift),
+    getCierreGeneralRange(prevWeekStart, prevWeekEnd, shift),
+  ]);
+  const semanaActual = sumarMetricas(semanaActualDays.map((d) => metricasDeDay(d)));
+  const semanaAnterior = sumarMetricas(semanaAnteriorDays.map((d) => metricasDeDay(d)));
+
+  // Promedio mensual: venta del mes hasta la fecha ÷ días transcurridos del mes.
+  const monthStart = startOfMonth(date);
+  const diasTranscurridos = Number(date.split("-")[2]);
+  const mesDays = await getCierreGeneralRange(monthStart, date);
+  const ventaMes = mesDays.reduce((sum, d) => sum + metricasDeDay(d).venta, 0);
+  const promedioMes = promedioMensual(ventaMes, diasTranscurridos);
+
+  return {
+    turno: { actual: turnoActual, anterior: turnoAnterior, comparacion: compararMetricas(turnoActual, turnoAnterior) },
+    semana: { actual: semanaActual, anterior: semanaAnterior, comparacion: compararMetricas(semanaActual, semanaAnterior) },
+    promedioMes,
+    ventaMes,
+    diasTranscurridos,
+  };
 }
 
 export async function getPocketTransfers(limit = 50) {

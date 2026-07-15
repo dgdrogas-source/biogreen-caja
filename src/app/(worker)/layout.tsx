@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/permissions";
 import { LogoutButton } from "@/components/LogoutButton";
 
@@ -12,7 +13,15 @@ export default async function WorkerLayout({ children }: { children: React.React
             <p className="text-sm font-semibold text-emerald-700">💊 Caja Nequi</p>
             <p className="text-xs text-gray-500">{user.name}</p>
           </div>
-          <LogoutButton />
+          <div className="flex items-center gap-3">
+            <Link
+              href="/clientes"
+              className="text-sm font-medium text-gray-600 hover:text-emerald-700"
+            >
+              Clientes
+            </Link>
+            <LogoutButton />
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 p-4">{children}</main>

@@ -29,8 +29,6 @@ const schema = z.object({
   ventaOtro: nonNeg,
   ventaSinFactura: nonNeg,
   realEfectivo: z.number().int().nonnegative().nullable().optional(),
-  facturasPagadas: nonNeg,
-  gastosVarios: nonNeg,
   retiroCierre: nonNeg,
   descuadre: z.number().int().nullable().optional(), // puede ser negativo (falta)
   nota: z.string().max(300).optional(),
@@ -39,6 +37,9 @@ const schema = z.object({
 export type CierreGeneralInputAction = z.infer<typeof schema>;
 
 // Guarda (crea o actualiza) el cierre general del turno. Solo admin, auditado.
+// facturasPagadas/gastosVarios (Fase 1) ya NO se escriben aquí: Fase 2 los reemplaza por
+// items itemizados (agregarGastoCierre/agregarFacturaCierre) — sus totales se calculan
+// leyendo esos items (ver getCierreGeneralItems/sumarConFallback).
 export async function guardarCierreGeneral(input: CierreGeneralInputAction): Promise<ActionResult> {
   try {
     const user = await requireAdmin();
@@ -55,8 +56,6 @@ export async function guardarCierreGeneral(input: CierreGeneralInputAction): Pro
       ventaOtro: d.ventaOtro,
       ventaSinFactura: d.ventaSinFactura,
       realEfectivo: d.realEfectivo ?? null,
-      facturasPagadas: d.facturasPagadas,
-      gastosVarios: d.gastosVarios,
       retiroCierre: d.retiroCierre,
       descuadre: d.descuadre ?? null,
       nota: d.nota ?? null,
@@ -104,6 +103,222 @@ export async function reiniciarCierreGeneral(): Promise<ActionResult> {
     revalidatePath("/", "layout");
     return { ok: true };
   } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
+const turnoSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+  shift: z.union([z.literal(1), z.literal(2)]),
+});
+
+// Crea el CierreGeneral "cascarón" del turno si aún no existe (mismo upsert vacío que
+// guardarCierreGeneral usa implícitamente), para poder colgarle un gasto/factura antes de
+// haber guardado el resto del formulario.
+async function ensureCierreGeneral(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  businessDayId: string,
+  createdById: string
+) {
+  await tx.cierreGeneral.upsert({
+    where: { businessDayId },
+    update: {},
+    create: { businessDayId, createdById },
+  });
+  return tx.cierreGeneral.findUniqueOrThrow({ where: { businessDayId } });
+}
+
+const agregarGastoSchema = turnoSchema.extend({
+  categoriaId: z.string(),
+  monto: z.number().int().positive("El monto debe ser mayor a cero"),
+  descripcion: z.string().max(300).optional(),
+});
+
+// Agrega un gasto itemizado (categoría + monto) al cierre del turno. Reemplaza el input
+// directo CierreGeneral.gastosVarios (deprecado). Solo admin, auditado.
+export async function agregarGastoCierre(
+  input: z.infer<typeof agregarGastoSchema>
+): Promise<ActionResult> {
+  try {
+    const user = await requireAdmin();
+    const d = agregarGastoSchema.parse(input);
+    const day = await getOrCreateDay(d.date, d.shift);
+
+    const categoria = await prisma.categoriaGasto.findUnique({ where: { id: d.categoriaId } });
+    if (!categoria) return { ok: false, error: "Categoría no encontrada" };
+
+    await prisma.$transaction(async (tx) => {
+      const cierre = await ensureCierreGeneral(tx, day.id, user.id);
+      await tx.cierreGeneralGasto.create({
+        data: {
+          cierreGeneralId: cierre.id,
+          categoriaId: d.categoriaId,
+          monto: d.monto,
+          descripcion: d.descripcion,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          businessDayId: day.id,
+          action: "CIERRE_GENERAL_GASTO_ADD",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({
+            categoria: { before: null, after: categoria.nombre },
+            monto: { before: null, after: d.monto },
+          }),
+        },
+      });
+    });
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof z.ZodError) return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" };
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
+export async function eliminarGastoCierre(gastoId: string): Promise<ActionResult> {
+  try {
+    const user = await requireAdmin();
+    const gasto = await prisma.cierreGeneralGasto.findUnique({
+      where: { id: gastoId },
+      include: { categoria: true, cierreGeneral: { select: { businessDayId: true } } },
+    });
+    if (!gasto) return { ok: false, error: "Gasto no encontrado" };
+
+    await prisma.$transaction([
+      prisma.cierreGeneralGasto.delete({ where: { id: gastoId } }),
+      prisma.auditLog.create({
+        data: {
+          businessDayId: gasto.cierreGeneral.businessDayId,
+          action: "CIERRE_GENERAL_GASTO_DELETE",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({
+            categoria: { before: gasto.categoria.nombre, after: null },
+            monto: { before: gasto.monto, after: null },
+          }),
+        },
+      }),
+    ]);
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
+const agregarFacturaSchema = turnoSchema.extend({
+  proveedor: z.string().max(120).optional(),
+  monto: z.number().int().positive("El monto debe ser mayor a cero"),
+  descripcion: z.string().max(300).optional(),
+});
+
+// Agrega una factura de proveedor pagada (itemizada) al cierre del turno. Reemplaza el
+// input directo CierreGeneral.facturasPagadas (deprecado). Solo admin, auditado.
+export async function agregarFacturaCierre(
+  input: z.infer<typeof agregarFacturaSchema>
+): Promise<ActionResult> {
+  try {
+    const user = await requireAdmin();
+    const d = agregarFacturaSchema.parse(input);
+    const day = await getOrCreateDay(d.date, d.shift);
+
+    await prisma.$transaction(async (tx) => {
+      const cierre = await ensureCierreGeneral(tx, day.id, user.id);
+      await tx.cierreGeneralFactura.create({
+        data: {
+          cierreGeneralId: cierre.id,
+          proveedor: d.proveedor,
+          monto: d.monto,
+          descripcion: d.descripcion,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          businessDayId: day.id,
+          action: "CIERRE_GENERAL_FACTURA_ADD",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({
+            proveedor: { before: null, after: d.proveedor ?? "—" },
+            monto: { before: null, after: d.monto },
+          }),
+        },
+      });
+    });
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof z.ZodError) return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" };
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
+export async function eliminarFacturaCierre(facturaId: string): Promise<ActionResult> {
+  try {
+    const user = await requireAdmin();
+    const factura = await prisma.cierreGeneralFactura.findUnique({
+      where: { id: facturaId },
+      include: { cierreGeneral: { select: { businessDayId: true } } },
+    });
+    if (!factura) return { ok: false, error: "Factura no encontrada" };
+
+    await prisma.$transaction([
+      prisma.cierreGeneralFactura.delete({ where: { id: facturaId } }),
+      prisma.auditLog.create({
+        data: {
+          businessDayId: factura.cierreGeneral.businessDayId,
+          action: "CIERRE_GENERAL_FACTURA_DELETE",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({
+            proveedor: { before: factura.proveedor ?? "—", after: null },
+            monto: { before: factura.monto, after: null },
+          }),
+        },
+      }),
+    ]);
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
+const consignadoSchema = turnoSchema.extend({ consignado: z.boolean() });
+
+// Marca/desmarca manualmente si ya se hizo la consignación pendiente del turno
+// (alimenta la alerta PENDIENTE_CONSIGNAR). Solo admin, auditado.
+export async function marcarConsignado(
+  input: z.infer<typeof consignadoSchema>
+): Promise<ActionResult> {
+  try {
+    const user = await requireAdmin();
+    const d = consignadoSchema.parse(input);
+    const day = await getOrCreateDay(d.date, d.shift);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.cierreGeneral.upsert({
+        where: { businessDayId: day.id },
+        update: { consignado: d.consignado },
+        create: { businessDayId: day.id, createdById: user.id, consignado: d.consignado },
+      });
+      await tx.auditLog.create({
+        data: {
+          businessDayId: day.id,
+          action: "CIERRE_GENERAL_CONSIGNADO",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({ consignado: { before: !d.consignado, after: d.consignado } }),
+        },
+      });
+    });
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof z.ZodError) return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" };
     return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
   }
 }
