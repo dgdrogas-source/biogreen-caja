@@ -5,15 +5,12 @@ import { useState, useTransition } from "react";
 import { guardarCierreGeneral } from "../actions/cierreGeneral";
 import { calcularCierreGeneral } from "../calculations/cierreGeneral";
 import { MEDIOS_PAGO, MEDIO_PAGO_LABELS, type MedioPago, type Shift } from "../types";
-import { ConsignadoToggle } from "./ConsignadoToggle";
 import { MoneyInput } from "./MoneyInput";
 
 export interface CierreGeneralInicial {
   ventas: Record<MedioPago, number>;
   ventaSinFactura: number;
   realEfectivo: number | null;
-  // Fase 2: ya no son editables aquí (se resuelven de las listas itemizadas en
-  // CierreGeneralGastosList/FacturasList — solo lectura).
   facturasPagadasTotal: number;
   gastosVariosTotal: number;
   retiroCierre: number;
@@ -38,6 +35,7 @@ export function CierreGeneralForm({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
 
+  // 7 campos principales (flujo del usuario)
   const [ventas, setVentas] = useState<Record<MedioPago, number | null>>(
     () =>
       inicial
@@ -60,7 +58,6 @@ export function CierreGeneralForm({
     retiroCierre: retiroCierre ?? 0,
     realPorMedio: realEfectivo != null ? { EFECTIVO: realEfectivo } : undefined,
   });
-  const descuadreEfectivo = realEfectivo != null ? realEfectivo - (ventas.EFECTIVO ?? 0) : null;
 
   function guardar() {
     setError(null);
@@ -91,121 +88,120 @@ export function CierreGeneralForm({
 
   return (
     <div className="space-y-4">
-      {/* Venta por medio de pago */}
+      {/* 1. VENTAS (del recibo del POS) */}
       <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-1 text-base font-semibold text-gray-800">Venta por medio de pago</h2>
-        <p className="mb-3 text-xs text-gray-400">Copia de Dominium cuánto entró por cada medio.</p>
+        <h2 className="mb-3 text-base font-semibold text-gray-800">1. Ventas del turno (de Dominium)</h2>
+        <p className="mb-3 text-xs text-gray-500">Copia los totales de cada medio de pago del recibo del POS.</p>
         <div className="grid grid-cols-2 gap-3">
           {MEDIOS_PAGO.map((m) => (
             <div key={m}>
-              <label className="mb-0.5 block text-xs text-gray-500">{MEDIO_PAGO_LABELS[m]}</label>
+              <label className="mb-1 block text-xs font-medium text-gray-700">{MEDIO_PAGO_LABELS[m]}</label>
               <MoneyInput value={ventas[m]} onChange={(v) => setVenta(m, v)} />
             </div>
           ))}
           <div>
-            <label className="mb-0.5 block text-xs text-gray-500">Venta sin factura</label>
+            <label className="mb-1 block text-xs font-medium text-gray-700">Venta sin factura</label>
             <MoneyInput value={ventaSinFactura} onChange={setVentaSinFactura} />
           </div>
         </div>
-        <div className="mt-3 flex justify-between border-t border-gray-100 pt-3 text-sm">
-          <span className="font-medium text-gray-600">Venta total del turno</span>
-          <span className="font-bold text-gray-900">{money(resumen.base)}</span>
+        <div className="mt-3 border-t border-gray-200 pt-3 text-sm font-medium">
+          Venta total: {money(resumen.base)}
         </div>
       </div>
 
-      {/* Reparto 70/30 y utilidad */}
+      {/* 2. FACTURAS PAGADAS (lista separada abajo) */}
+      <div className="rounded-2xl bg-blue-50 p-4 shadow-sm border border-blue-100">
+        <p className="text-xs text-blue-700">
+          ℹ️ <strong>Facturas pagadas:</strong> Agrégalas en la sección "Facturas pagadas" abajo. El total se calcula automático.
+        </p>
+      </div>
+
+      {/* 3. RETIRO DEL CIERRE */}
       <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-gray-800">Reparto y utilidad</h2>
-        <div className="space-y-1.5 text-sm">
+        <h2 className="mb-3 text-base font-semibold text-gray-800">3. Retiro del cierre (efectivo a sobre blanco)</h2>
+        <p className="mb-3 text-xs text-gray-500">Cuánto efectivo sacas de caja para dejar la base.</p>
+        <MoneyInput value={retiroCierre} onChange={setRetiroCierre} />
+      </div>
+
+      {/* 4. GASTOS (lista separada abajo) */}
+      <div className="rounded-2xl bg-blue-50 p-4 shadow-sm border border-blue-100">
+        <p className="text-xs text-blue-700">
+          ℹ️ <strong>Gastos del turno:</strong> Agrégalos en la sección "Gastos" abajo. El total se calcula automático.
+        </p>
+      </div>
+
+      {/* 5. NÚMERO DEL CUADRE (del POS) */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 className="mb-3 text-base font-semibold text-gray-800">5. Conteo físico de efectivo</h2>
+        <p className="mb-3 text-xs text-gray-500">Dinero contado en caja (después de retirar el sobre blanco).</p>
+        <MoneyInput value={realEfectivo} onChange={setRealEfectivo} />
+      </div>
+
+      {/* 6. SOBRANTE / FALTANTE */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 className="mb-3 text-base font-semibold text-gray-800">6. Cuadre: Sobrante o Faltante</h2>
+        <p className="mb-3 text-xs text-gray-500">¿Sobró o faltó dinero?</p>
+        <div className="flex gap-3 items-end">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-gray-700">Monto</label>
+            <MoneyInput value={descuadre} onChange={setDescuadre} />
+          </div>
+          <div className="text-xs text-gray-600 pb-2">
+            {descuadre != null && (descuadre > 0 ? "📈 Sobrante" : "📉 Faltante")}
+          </div>
+        </div>
+      </div>
+
+      {/* 7. NOTAS / OBSERVACIONES */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 className="mb-3 text-base font-semibold text-gray-800">7. Notas (opcional)</h2>
+        <textarea
+          value={nota}
+          onChange={(e) => setNota(e.target.value)}
+          placeholder="Ej: Error en conteo, cliente pagó por método incorrecto, etc."
+          className="w-full rounded-lg border border-gray-300 p-3 text-sm"
+          rows={3}
+        />
+      </div>
+
+      {/* RESUMEN (solo lectura) */}
+      <div className="rounded-2xl bg-emerald-50 p-5 shadow-sm border border-emerald-200">
+        <h2 className="mb-3 text-base font-semibold text-gray-800">Resumen del cierre</h2>
+        <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-500">Reposición (70% − facturas pagadas)</span>
-            <span className="font-medium text-gray-800">{money(resumen.reposicionNeta)}</span>
+            <span className="text-gray-600">Venta total</span>
+            <span className="font-medium">{money(resumen.base)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Sobre de gastos (30%)</span>
-            <span className="font-medium text-gray-800">{money(resumen.margenBruto)}</span>
+            <span className="text-gray-600">Reposición (70%)</span>
+            <span className="font-medium">{money(resumen.reposicionNeta)}</span>
           </div>
-          <div className="flex justify-between border-t border-gray-100 pt-1.5">
-            <span className="font-medium text-gray-700">Utilidad del turno (30% − gastos)</span>
+          <div className="flex justify-between">
+            <span className="text-gray-600">Utilidad (30% - gastos)</span>
             <span className={`font-bold ${resumen.utilidadDia < 0 ? "text-red-600" : "text-emerald-700"}`}>
               {money(resumen.utilidadDia)}
             </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">A consignar (retiro − reposición)</span>
-            <span className={`font-medium ${resumen.consignar < 0 ? "text-red-600" : "text-gray-800"}`}>
-              {money(resumen.consignar)}
-            </span>
+          <div className="border-t border-emerald-200 pt-2 flex justify-between">
+            <span className="font-medium text-gray-700">A consignar</span>
+            <span className="font-bold text-emerald-700">{money(resumen.consignar)}</span>
           </div>
-        </div>
-        <p className="mt-2 text-[11px] text-gray-400">
-          La utilidad es una estimación por tu política 70/30, no la contable exacta.
-        </p>
-        <div className="mt-3 border-t border-gray-100 pt-3">
-          <ConsignadoToggle date={date} shift={shift} consignado={inicial?.consignado ?? false} />
         </div>
       </div>
 
-      {/* Cuadre del efectivo + flujos */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-gray-800">Cuadre del efectivo y flujos</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-0.5 block text-xs text-gray-500">Efectivo contado (real)</label>
-            <MoneyInput value={realEfectivo} onChange={setRealEfectivo} />
-          </div>
-          <div>
-            <label className="mb-0.5 block text-xs text-gray-500">Retiro de efectivo al cerrar</label>
-            <MoneyInput value={retiroCierre} onChange={setRetiroCierre} />
-          </div>
-        </div>
-        <p className="mt-2 text-[11px] text-gray-400">
-          Facturas y gastos se registran abajo, ítem por ítem (con categoría).
-        </p>
-        {descuadreEfectivo != null && (
-          <div
-            className={`mt-3 rounded-xl p-2.5 text-center text-sm font-semibold ${
-              descuadreEfectivo === 0
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-red-50 text-red-600"
-            }`}
-          >
-            {descuadreEfectivo === 0
-              ? "✓ El efectivo cuadra"
-              : `Efectivo: ${descuadreEfectivo > 0 ? "sobran" : "faltan"} ${money(Math.abs(descuadreEfectivo))}`}
-          </div>
-        )}
-        <div className="mt-3">
-          <label className="mb-0.5 block text-xs text-gray-500">Sobra/falta observado (opcional)</label>
-          <MoneyInput value={descuadre} onChange={setDescuadre} />
-        </div>
-        <div className="mt-3">
-          <label className="mb-0.5 block text-xs text-gray-500">Nota (opcional)</label>
-          <input
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-            maxLength={300}
-          />
-        </div>
+      {/* BOTONES Y ESTADO */}
+      <div className="flex gap-3">
+        <button
+          onClick={guardar}
+          disabled={pending}
+          className="flex-1 rounded-lg bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+        >
+          {pending ? "Guardando..." : "Guardar cierre"}
+        </button>
       </div>
 
-      {error && (
-        <p className="rounded-lg bg-red-50 p-2 text-center text-sm text-red-600">{error}</p>
-      )}
-      {ok && (
-        <p className="rounded-lg bg-emerald-50 p-2 text-center text-sm text-emerald-700">
-          ✓ Cierre general guardado
-        </p>
-      )}
-      <button
-        type="button"
-        onClick={guardar}
-        disabled={pending}
-        className="w-full rounded-xl bg-gray-800 py-3 text-sm font-semibold text-white hover:bg-gray-900 disabled:opacity-50"
-      >
-        {pending ? "Guardando..." : inicial ? "Actualizar cierre general" : "Guardar cierre general"}
-      </button>
+      {ok && <div className="rounded-lg bg-green-100 p-3 text-sm text-green-800">✓ Cierre guardado correctamente.</div>}
+      {error && <div className="rounded-lg bg-red-100 p-3 text-sm text-red-800">✗ Error: {error}</div>}
     </div>
   );
 }

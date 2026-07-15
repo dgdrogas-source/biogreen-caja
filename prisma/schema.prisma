@@ -20,13 +20,15 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
-  movements        Movement[]
-  auditLogs        AuditLog[]
-  closedDays       BusinessDay[]
-  pocketTransfers  PocketTransfer[]
-  cierresGenerales CierreGeneral[]
-  ventasCredito    VentaCredito[]
-  abonosCredito    AbonoCredito[]
+  movements              Movement[]
+  auditLogs              AuditLog[]
+  closedDays             BusinessDay[]
+  pocketTransfers        PocketTransfer[]
+  cierresGenerales       CierreGeneral[]
+  ventasCredito          VentaCredito[]
+  abonosCredito          AbonoCredito[]
+  closureDifferences     ClosureDifference[]
+  closureDifferenceResoluciones ClosureDifferenceResolution[]
 }
 
 // Un registro por TURNO de caja (2 turnos por día, lunes-sábado). Las filas
@@ -188,8 +190,9 @@ model CierreGeneral {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  gastoItems   CierreGeneralGasto[]
-  facturaItems CierreGeneralFactura[]
+  gastoItems    CierreGeneralGasto[]
+  facturaItems  CierreGeneralFactura[]
+  diferencias   ClosureDifference[]
 }
 
 // ---------- Bolsas acumuladas 70/30 ----------
@@ -226,6 +229,7 @@ model CierreGeneralGasto {
   categoria       CategoriaGasto @relation(fields: [categoriaId], references: [id])
   monto           Int
   descripcion     String?
+  metodoPago      String? // EFECTIVO | NEQUI | DAVIPLATA | TRANSFERENCIA | OTRO (null = se asume EFECTIVO)
   createdAt       DateTime       @default(now())
 
   @@index([cierreGeneralId])
@@ -239,6 +243,7 @@ model CierreGeneralFactura {
   proveedor       String?
   monto           Int
   descripcion     String?
+  metodoPago      String? // EFECTIVO | NEQUI | DAVIPLATA | TRANSFERENCIA | OTRO (null = se asume EFECTIVO)
   createdAt       DateTime      @default(now())
 
   @@index([cierreGeneralId])
@@ -294,4 +299,41 @@ model AbonoCredito {
 
   @@index([clienteId])
   @@index([date])
+}
+
+// ---------- Registro de sobrante/faltante con resolución ----------
+// Cuando hay diferencia en el cierre, se registra aquí con la razón y cómo se resolvió.
+model ClosureDifference {
+  id              String                      @id @default(cuid())
+  cierreGeneralId String
+  cierreGeneral   CierreGeneral               @relation(fields: [cierreGeneralId], references: [id], onDelete: Cascade)
+  tipo            String // SOBRANTE | FALTANTE
+  monto           Int
+  razonProbable   String // enum: Cliente pagó por método incorrecto, Olvido abono crédito, Error facturación, Pago incorrecto, Otro
+  descripcion     String? // notas libres del admin
+  estado          String @default("PENDIENTE_RESOLUCION") // PENDIENTE_RESOLUCION | RESUELTO
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  resoluciones ClosureDifferenceResolution[]
+
+  @@index([cierreGeneralId])
+}
+
+// Cómo se resolvió una diferencia (ej: mover dinero de una plataforma a otra).
+model ClosureDifferenceResolution {
+  id          String             @id @default(cuid())
+  differenciaId String
+  diferencia  ClosureDifference  @relation(fields: [differenciaId], references: [id], onDelete: Cascade)
+  tipoAjuste  String // Transferencia entre métodos, Crear abono crédito, Registrar pago faltante, Otro
+  detalles    String? // ej: "Pasar $20k de datáfono a Nequi"
+  monto       Int
+  confirmado  Boolean @default(false)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([differenciaId])
 }
