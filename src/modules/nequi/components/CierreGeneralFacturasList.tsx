@@ -9,25 +9,34 @@ import { MoneyInput } from "./MoneyInput";
 export interface FacturaItem {
   id: string;
   monto: number;
-  proveedor: string | null;
+  proveedor: string | null; // @deprecated — texto libre legado (facturas guardadas antes de Proveedores)
+  proveedorRef: { id: string; nombre: string } | null;
   descripcion: string | null;
   metodoPago: string | null;
 }
 
+export interface ProveedorOption {
+  id: string;
+  nombre: string;
+}
+
 // Facturas de proveedor pagadas, itemizadas. Reemplaza el input directo de Fase 1
-// (facturasPagadas): el total del turno es la suma de esta lista.
+// (facturasPagadas): el total del turno es la suma de esta lista. El proveedor se elige de
+// la lista de Proveedores tipo COSTO (el texto libre queda solo para facturas antiguas).
 export function CierreGeneralFacturasList({
   date,
   shift,
   items,
+  proveedores,
 }: {
   date: string;
   shift: Shift;
   items: FacturaItem[];
+  proveedores: ProveedorOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [proveedor, setProveedor] = useState("");
+  const [proveedorId, setProveedorId] = useState("");
   const [monto, setMonto] = useState<number | null>(null);
   const [metodoPago, setMetodoPago] = useState<MetodoPagoItem>("EFECTIVO_CAJA");
   const [descripcion, setDescripcion] = useState("");
@@ -46,13 +55,13 @@ export function CierreGeneralFacturasList({
       const r = await agregarFacturaCierre({
         date,
         shift,
-        proveedor: proveedor || undefined,
+        proveedorId: proveedorId || undefined,
         monto,
         descripcion: descripcion || undefined,
         metodoPago,
       });
       if (r.ok) {
-        setProveedor("");
+        setProveedorId("");
         setMonto(null);
         setDescripcion("");
         setMetodoPago("EFECTIVO_CAJA");
@@ -90,7 +99,7 @@ export function CierreGeneralFacturasList({
             <div key={f.id} className="flex items-center justify-between py-2 text-sm">
               <div>
                 <p className="text-gray-700">
-                  {f.proveedor || "Proveedor sin especificar"}
+                  {f.proveedorRef?.nombre || f.proveedor || "Proveedor sin especificar"}
                   {f.metodoPago && f.metodoPago !== "EFECTIVO_CAJA" && (
                     <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
                       {METODO_PAGO_ITEM_LABELS[f.metodoPago as MetodoPagoItem] ?? f.metodoPago}
@@ -116,13 +125,24 @@ export function CierreGeneralFacturasList({
       )}
 
       <div className="space-y-2 border-t border-gray-100 pt-3">
-        <input
-          value={proveedor}
-          onChange={(e) => setProveedor(e.target.value)}
-          placeholder="Proveedor (opcional)"
-          maxLength={120}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-        />
+        {proveedores.length === 0 ? (
+          <p className="text-xs text-amber-600">
+            Crea un proveedor de Costo en la pestaña Proveedores para poder elegirlo aquí.
+          </p>
+        ) : (
+          <select
+            value={proveedorId}
+            onChange={(e) => setProveedorId(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          >
+            <option value="">Proveedor sin especificar</option>
+            {proveedores.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre}
+              </option>
+            ))}
+          </select>
+        )}
         <MoneyInput value={monto} onChange={setMonto} />
         <select
           value={metodoPago}

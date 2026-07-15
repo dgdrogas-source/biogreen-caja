@@ -12,6 +12,7 @@ export interface GastoItem {
   descripcion: string | null;
   metodoPago: string | null;
   categoria: { id: string; nombre: string };
+  proveedorRef: { id: string; nombre: string } | null;
 }
 
 export interface CategoriaOption {
@@ -19,22 +20,31 @@ export interface CategoriaOption {
   nombre: string;
 }
 
-// Gastos itemizados del turno (categoría + monto + descripción opcional). Reemplaza el
-// input directo de Fase 1 (gastosVarios): el total del turno es la suma de esta lista.
+export interface ProveedorOption {
+  id: string;
+  nombre: string;
+}
+
+// Gastos itemizados del turno (categoría + monto + proveedor opcional + descripción).
+// Reemplaza el input directo de Fase 1 (gastosVarios): el total del turno es la suma de
+// esta lista.
 export function CierreGeneralGastosList({
   date,
   shift,
   items,
   categorias,
+  proveedores,
 }: {
   date: string;
   shift: Shift;
   items: GastoItem[];
   categorias: CategoriaOption[];
+  proveedores: ProveedorOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [categoriaId, setCategoriaId] = useState(categorias[0]?.id ?? "");
+  const [proveedorId, setProveedorId] = useState("");
   const [monto, setMonto] = useState<number | null>(null);
   const [metodoPago, setMetodoPago] = useState<MetodoPagoItem>("EFECTIVO_CAJA");
   const [descripcion, setDescripcion] = useState("");
@@ -61,11 +71,13 @@ export function CierreGeneralGastosList({
         monto,
         descripcion: descripcion || undefined,
         metodoPago,
+        proveedorId: proveedorId || undefined,
       });
       if (r.ok) {
         setMonto(null);
         setDescripcion("");
         setMetodoPago("EFECTIVO_CAJA");
+        setProveedorId("");
         router.refresh();
       } else setError(r.error);
     });
@@ -101,6 +113,7 @@ export function CierreGeneralGastosList({
               <div>
                 <p className="text-gray-700">
                   {g.categoria.nombre}
+                  {g.proveedorRef && <span className="text-gray-400"> · {g.proveedorRef.nombre}</span>}
                   {g.metodoPago && g.metodoPago !== "EFECTIVO_CAJA" && (
                     <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
                       {METODO_PAGO_ITEM_LABELS[g.metodoPago as MetodoPagoItem] ?? g.metodoPago}
@@ -143,6 +156,18 @@ export function CierreGeneralGastosList({
             ))}
           </select>
           <MoneyInput value={monto} onChange={setMonto} />
+          <select
+            value={proveedorId}
+            onChange={(e) => setProveedorId(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          >
+            <option value="">Sin proveedor</option>
+            {proveedores.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre}
+              </option>
+            ))}
+          </select>
           <select
             value={metodoPago}
             onChange={(e) => setMetodoPago(e.target.value as MetodoPagoItem)}

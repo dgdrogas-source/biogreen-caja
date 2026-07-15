@@ -134,6 +134,7 @@ const agregarGastoSchema = turnoSchema.extend({
   monto: z.number().int().positive("El monto debe ser mayor a cero"),
   descripcion: z.string().max(300).optional(),
   metodoPago: z.enum(METODOS_PAGO_ITEM).optional(),
+  proveedorId: z.string().optional(),
 });
 
 // Agrega un gasto itemizado (categoría + monto) al cierre del turno. Reemplaza el input
@@ -149,6 +150,11 @@ export async function agregarGastoCierre(
     const categoria = await prisma.categoriaGasto.findUnique({ where: { id: d.categoriaId } });
     if (!categoria) return { ok: false, error: "Categoría no encontrada" };
 
+    if (d.proveedorId) {
+      const proveedor = await prisma.proveedor.findUnique({ where: { id: d.proveedorId } });
+      if (!proveedor) return { ok: false, error: "Proveedor no encontrado" };
+    }
+
     await prisma.$transaction(async (tx) => {
       const cierre = await ensureCierreGeneral(tx, day.id, user.id);
       await tx.cierreGeneralGasto.create({
@@ -158,6 +164,7 @@ export async function agregarGastoCierre(
           monto: d.monto,
           descripcion: d.descripcion,
           metodoPago: d.metodoPago,
+          proveedorId: d.proveedorId,
         },
       });
       await tx.auditLog.create({
@@ -213,7 +220,8 @@ export async function eliminarGastoCierre(gastoId: string): Promise<ActionResult
 }
 
 const agregarFacturaSchema = turnoSchema.extend({
-  proveedor: z.string().max(120).optional(),
+  proveedor: z.string().max(120).optional(), // @deprecated — legado de texto libre
+  proveedorId: z.string().optional(),
   monto: z.number().int().positive("El monto debe ser mayor a cero"),
   descripcion: z.string().max(300).optional(),
   metodoPago: z.enum(METODOS_PAGO_ITEM).optional(),
@@ -229,12 +237,18 @@ export async function agregarFacturaCierre(
     const d = agregarFacturaSchema.parse(input);
     const day = await getOrCreateDay(d.date, d.shift);
 
+    if (d.proveedorId) {
+      const proveedor = await prisma.proveedor.findUnique({ where: { id: d.proveedorId } });
+      if (!proveedor) return { ok: false, error: "Proveedor no encontrado" };
+    }
+
     await prisma.$transaction(async (tx) => {
       const cierre = await ensureCierreGeneral(tx, day.id, user.id);
       await tx.cierreGeneralFactura.create({
         data: {
           cierreGeneralId: cierre.id,
           proveedor: d.proveedor,
+          proveedorId: d.proveedorId,
           monto: d.monto,
           descripcion: d.descripcion,
           metodoPago: d.metodoPago,

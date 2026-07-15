@@ -86,6 +86,16 @@ export const METODO_PAGO_ITEM_LABELS: Record<MetodoPagoItem, string> = {
   OTRO: "Otro",
 };
 
+// Proveedores del Cierre general: un proveedor es de UN tipo (COSTO para facturas, GASTO
+// para gastos). Si el dueño necesita el mismo nombre en ambos contextos, crea dos registros
+// (decisión confirmada 2026-07-15).
+export const PROVEEDOR_TIPOS = ["COSTO", "GASTO"] as const;
+export type ProveedorTipo = (typeof PROVEEDOR_TIPOS)[number];
+export const PROVEEDOR_TIPO_LABELS: Record<ProveedorTipo, string> = {
+  COSTO: "Costo (facturas)",
+  GASTO: "Gastos",
+};
+
 // Turnos de caja: 2 por día (lunes-sábado). Cada turno tiene su propio
 // BusinessDay, cuadre y cierre; los horarios se configuran en /configuracion.
 export const SHIFTS = [1, 2] as const;

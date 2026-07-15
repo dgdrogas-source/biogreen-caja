@@ -18,6 +18,7 @@ import {
   getCategoriasGasto,
   getCierreGeneral,
   getCurrentShift,
+  getProveedores,
   getTendenciasCierreGeneral,
 } from "@/modules/nequi/queries";
 import { BASE_FIJA_EFECTIVO_CAJA, SHIFT_LABELS, type Shift } from "@/modules/nequi/types";
@@ -35,9 +36,11 @@ export default async function CierreGeneralPage({
   const date = params.fecha && DATE_RE.test(params.fecha) ? params.fecha : today;
   const shift: Shift = params.turno === "1" ? 1 : params.turno === "2" ? 2 : await getCurrentShift();
 
-  const [{ cierre }, categorias, bolsas, tendencias] = await Promise.all([
+  const [{ cierre }, categorias, proveedoresCosto, proveedoresGasto, bolsas, tendencias] = await Promise.all([
     getCierreGeneral(date, shift),
     getCategoriasGasto(),
+    getProveedores("COSTO"),
+    getProveedores("GASTO"),
     getBolsasGenerales(),
     getTendenciasCierreGeneral(date, shift),
   ]);
@@ -109,13 +112,9 @@ export default async function CierreGeneralPage({
       : [];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
-      <Link href="/inicio" className="text-sm text-emerald-700 hover:underline">
-        ← Inicio
-      </Link>
-
+    <>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-bold capitalize text-gray-800">Cierre general — {formatDateCo(date)}</h1>
+        <h2 className="text-sm font-medium capitalize text-gray-500">{formatDateCo(date)}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <TurnoTabs date={date} shift={shift} basePath="/cierre/general" />
           <form className="flex items-center gap-2">
@@ -143,7 +142,12 @@ export default async function CierreGeneralPage({
         shift={shift}
         inicial={inicial}
         slotFacturas={
-          <CierreGeneralFacturasList date={date} shift={shift} items={cierre?.facturaItems ?? []} />
+          <CierreGeneralFacturasList
+            date={date}
+            shift={shift}
+            items={cierre?.facturaItems ?? []}
+            proveedores={proveedoresCosto.map((p) => ({ id: p.id, nombre: p.nombre }))}
+          />
         }
         slotGastos={
           <CierreGeneralGastosList
@@ -151,6 +155,7 @@ export default async function CierreGeneralPage({
             shift={shift}
             items={cierre?.gastoItems ?? []}
             categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
+            proveedores={proveedoresGasto.map((p) => ({ id: p.id, nombre: p.nombre }))}
           />
         }
       />
@@ -171,6 +176,6 @@ export default async function CierreGeneralPage({
       <TendenciasCierreGeneral tendencias={tendencias} />
 
       <ReiniciarModuloButton />
-    </div>
+    </>
   );
 }

@@ -169,6 +169,46 @@ const statements = [
     CONSTRAINT "ClosureDifferenceResolution_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
   );`,
   'CREATE INDEX IF NOT EXISTS "ClosureDifferenceResolution_differenciaId_idx" ON "ClosureDifferenceResolution"("differenciaId");',
+
+  // Proveedores del Cierre general (Costo/facturas y Gastos), editables por el admin
+  `CREATE TABLE IF NOT EXISTS "Proveedor" (
+    "id" TEXT NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "tipo" TEXT NOT NULL,
+    "activa" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "Proveedor_pkey" PRIMARY KEY ("id")
+  );`,
+  'CREATE UNIQUE INDEX IF NOT EXISTS "Proveedor_nombre_tipo_key" ON "Proveedor"("nombre", "tipo");',
+
+  'ALTER TABLE "CierreGeneralFactura" ADD COLUMN IF NOT EXISTS "proveedorId" TEXT;',
+  'ALTER TABLE "CierreGeneralGasto" ADD COLUMN IF NOT EXISTS "proveedorId" TEXT;',
+  'CREATE INDEX IF NOT EXISTS "CierreGeneralFactura_proveedorId_idx" ON "CierreGeneralFactura"("proveedorId");',
+  'CREATE INDEX IF NOT EXISTS "CierreGeneralGasto_proveedorId_idx" ON "CierreGeneralGasto"("proveedorId");',
+
+  // Postgres no soporta "ADD CONSTRAINT IF NOT EXISTS" — se guarda con un DO block que
+  // revisa pg_constraint primero (idempotente, seguro de re-correr en cada deploy).
+  `DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'CierreGeneralFactura_proveedorId_fkey'
+    ) THEN
+      ALTER TABLE "CierreGeneralFactura"
+        ADD CONSTRAINT "CierreGeneralFactura_proveedorId_fkey"
+        FOREIGN KEY ("proveedorId") REFERENCES "Proveedor"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+  END $$;`,
+  `DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'CierreGeneralGasto_proveedorId_fkey'
+    ) THEN
+      ALTER TABLE "CierreGeneralGasto"
+        ADD CONSTRAINT "CierreGeneralGasto_proveedorId_fkey"
+        FOREIGN KEY ("proveedorId") REFERENCES "Proveedor"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+  END $$;`,
 ];
 
 let aplicado = false;

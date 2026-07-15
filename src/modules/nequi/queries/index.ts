@@ -21,6 +21,7 @@ import {
   type MovementType,
   type PaymentMethod,
   type PocketBucket,
+  type ProveedorTipo,
   type Shift,
 } from "../types";
 import { getOrCreateDay } from "../server/businessDay";
@@ -250,8 +251,11 @@ export async function getPockets(): Promise<Record<PocketBucket, PocketResumen>>
 }
 
 const cierreGeneralItemsInclude = {
-  gastoItems: { include: { categoria: true }, orderBy: { createdAt: "asc" as const } },
-  facturaItems: { orderBy: { createdAt: "asc" as const } },
+  gastoItems: {
+    include: { categoria: true, proveedorRef: true },
+    orderBy: { createdAt: "asc" as const },
+  },
+  facturaItems: { include: { proveedorRef: true }, orderBy: { createdAt: "asc" as const } },
 } satisfies Prisma.CierreGeneralInclude;
 
 type CierreGeneralConItems = Prisma.CierreGeneralGetPayload<{ include: typeof cierreGeneralItemsInclude }>;
@@ -298,6 +302,14 @@ export async function getCierreGeneral(date: string, shift: Shift) {
 export async function getCategoriasGasto(soloActivas = true) {
   return prisma.categoriaGasto.findMany({
     where: soloActivas ? { activa: true } : undefined,
+    orderBy: { nombre: "asc" },
+  });
+}
+
+// Proveedores del Cierre general, por tipo (COSTO para facturas, GASTO para gastos).
+export async function getProveedores(tipo: ProveedorTipo, soloActivas = true) {
+  return prisma.proveedor.findMany({
+    where: { tipo, ...(soloActivas ? { activa: true } : {}) },
     orderBy: { nombre: "asc" },
   });
 }
