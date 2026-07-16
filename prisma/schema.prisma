@@ -29,6 +29,7 @@ model User {
   abonosCredito          AbonoCredito[]
   closureDifferences     ClosureDifference[]
   closureDifferenceResoluciones ClosureDifferenceResolution[]
+  mensualDias            MensualDia[]
 }
 
 // Un registro por TURNO de caja (2 turnos por día, lunes-sábado). Las filas
@@ -361,4 +362,75 @@ model ClosureDifferenceResolution {
   createdAt   DateTime @default(now())
 
   @@index([differenciaId])
+}
+
+// ============================================================================
+// MÓDULO CIERRE MENSUAL (independiente de Nequi y de Cierre general, a propósito).
+// Modelo simple alimentado día a día. El "disponible para gastar" se calcula en
+// caliente (ver src/modules/mensual/calculations/cierreMensual.ts). Todo el dinero
+// son enteros de pesos (COP). Cada mes arranca de cero (incl. cartera): el resumen
+// solo suma las filas cuya `date` cae en el mes consultado.
+// ============================================================================
+
+// Categorías de gasto PROPIAS del módulo mensual (separadas de CategoriaGasto del
+// Cierre general, por decisión 2026-07-15). "Eliminar" desactiva si ya tiene gastos.
+model MensualCategoriaGasto {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  activa    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  gastos MensualGasto[]
+}
+
+// Una fila por día del mes (unique por fecha). La dueña la alimenta a diario:
+// venta real, comisión 4% (escrita a mano), 4x1000 y el snapshot de cartera a esa fecha.
+model MensualDia {
+  id              String   @id @default(cuid())
+  date            String   @unique // YYYY-MM-DD (America/Bogota)
+  ventaDia        Int      @default(0) // venta real del día
+  comisionTarjeta Int      @default(0) // 4% del banco sobre ventas con tarjeta
+  impuesto4x1000  Int      @default(0) // 0.4% sobre transferencias que salen de su cuenta
+  carteraTotal    Int      @default(0) // total de créditos a esa fecha (snapshot)
+  nota            String?
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  gastos      MensualGasto[]
+  diferencias MensualDiferencia[]
+
+  @@index([date])
+}
+
+// Gasto itemizado del día (categoría + monto). El total del mes = suma de estos.
+model MensualGasto {
+  id           String                @id @default(cuid())
+  mensualDiaId String
+  mensualDia   MensualDia            @relation(fields: [mensualDiaId], references: [id], onDelete: Cascade)
+  categoriaId  String
+  categoria    MensualCategoriaGasto @relation(fields: [categoriaId], references: [id])
+  monto        Int
+  descripcion  String?
+  createdAt    DateTime              @default(now())
+
+  @@index([mensualDiaId])
+}
+
+// Sobrante/faltante de uno de los 3 cierres (Nequi/Efectivo/Banco) en un día.
+// disposicion aplica solo a FALTANTE: CUBRE_EMPLEADA (no afecta disponible) o
+// DESCUENTA_DISPONIBLE (resta). null = pendiente de decidir (aún no descuenta).
+model MensualDiferencia {
+  id           String     @id @default(cuid())
+  mensualDiaId String
+  mensualDia   MensualDia @relation(fields: [mensualDiaId], references: [id], onDelete: Cascade)
+  cierre       String // NEQUI | EFECTIVO | BANCO
+  tipo         String // SOBRANTE | FALTANTE
+  monto        Int // siempre positivo; el signo lo da `tipo`
+  disposicion  String? // CUBRE_EMPLEADA | DESCUENTA_DISPONIBLE (solo FALTANTE)
+  nota         String?
+  createdAt    DateTime   @default(now())
+
+  @@index([mensualDiaId])
 }

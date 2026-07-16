@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/permissions";
 // Puerta de entrada del admin: lo PRIMERO que ve al ingresar. Solo elige qué cierre hacer.
 // - Nequi → todo el programa Caja Nequi (dashboard, movimientos, cierre, etc.)
 // - General → cierre completo de la farmacia (módulo aparte)
-// - Mensual → placeholder (futuro)
+// - Mensual → cierre del mes alimentado día a día (módulo aparte, modelo simple)
 const OPCIONES = [
   {
     href: "/dashboard",
@@ -19,7 +19,7 @@ const OPCIONES = [
   {
     href: "/cierre/mes",
     titulo: "Cierre mensual",
-    descripcion: "Próximamente: consolidado mensual del negocio.",
+    descripcion: "Cierre del mes día a día: ventas, gastos, cartera, cuadres y disponible.",
   },
 ];
 
