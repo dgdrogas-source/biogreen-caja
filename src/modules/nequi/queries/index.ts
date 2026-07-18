@@ -8,7 +8,11 @@ import { calcularCierreGeneral } from "../calculations/cierreGeneral";
 import { sumarConFallback, sumarEfectivoCaja } from "../calculations/cierreGeneralItems";
 import { calcularCuadreCaja } from "../calculations/cuadreCajaCierreGeneral";
 import { calcularSaldoEsperado } from "../calculations/cuadre";
-import { calcularRentabilidadBrutaMensual } from "../calculations/resumenCierreGeneral";
+import {
+  agregarCierresDelDia,
+  calcularRentabilidadBrutaMensual,
+  type CierreDelDia,
+} from "../calculations/resumenCierreGeneral";
 import {
   aplicarTransferencias,
   calcularRepartoPorMedio,
@@ -316,63 +320,47 @@ export async function getCierreGeneralConfig() {
 // (venta, retiro, retiro para facturas/gastos, utilidad, cuadre), el punto de equilibrio
 // (venta del día = ambos turnos, y promedio del mes), y la rentabilidad bruta acumulada del
 // mes con su semáforo. No escribe nada; reutiliza las funciones puras ya testeadas.
-export async function getResumenCierreGeneral(date: string, shift: Shift) {
-  const day = await getOrCreateDay(date, shift);
+export async function getResumenCierreGeneral(date: string) {
   const monthStart = startOfMonth(date);
 
-  const [cierre, config, diaDays, mesDays] = await Promise.all([
-    prisma.cierreGeneral.findUnique({
-      where: { businessDayId: day.id },
-      include: cierreGeneralItemsInclude,
-    }),
+  const [config, diaDays, mesDays] = await Promise.all([
     getCierreGeneralConfig(),
-    getCierreGeneralRange(date, date), // ambos turnos del día → venta del día (equilibrio)
+    getCierreGeneralRange(date, date), // ambos turnos del día → la "foto" es del día
     getCierreGeneralRange(monthStart, date), // cierres del mes hasta la fecha
   ]);
 
-  // --- Bloque TURNO (la cajita) ---
-  let turno: {
-    ventaTotal: number;
-    retiroCierre: number;
-    retiroParaFacturas: number;
-    retiroParaGastos: number;
-    apartado70: number;
-    apartado30: number;
-    utilidadDia: number;
-    facturasPagadas: number;
-    gastosVarios: number;
-    consignado: boolean;
-    cuadre: ReturnType<typeof calcularCuadreCaja>;
-  } | null = null;
-  if (cierre) {
-    const r = calcularCierreGeneral(cierreInputFromRow(cierre));
-    const cuadre = calcularCuadreCaja({
-      baseFija: BASE_FIJA_EFECTIVO_CAJA,
-      ventaEfectivo: cierre.ventaEfectivo,
-      facturasEnEfectivoCaja: sumarEfectivoCaja(cierre.facturaItems),
-      gastosEnEfectivoCaja: sumarEfectivoCaja(cierre.gastoItems),
-      realEfectivo: cierre.realEfectivo,
+  // --- Bloque DÍA (la cajita) ---
+  // Se calcula cada turno por separado y se suman los RESULTADOS (no las ventas): el % de
+  // reposición está congelado por cierre, así que dos turnos pueden llevar % distinto.
+  const cierresDelDia: CierreDelDia[] = diaDays
+    .map((d) => d.cierreGeneral)
+    .filter((c): c is CierreGeneralConItems => c !== null)
+    .map((c) => {
+      const r = calcularCierreGeneral(cierreInputFromRow(c));
+      const cuadre = calcularCuadreCaja({
+        baseFija: BASE_FIJA_EFECTIVO_CAJA,
+        ventaEfectivo: c.ventaEfectivo,
+        facturasEnEfectivoCaja: sumarEfectivoCaja(c.facturaItems),
+        gastosEnEfectivoCaja: sumarEfectivoCaja(c.gastoItems),
+        realEfectivo: c.realEfectivo,
+      });
+      return {
+        ventaTotal: r.ventaTotal,
+        retiroCierre: r.retiroCierre,
+        reposicionBruta: r.reposicionBruta,
+        reposicionNeta: r.reposicionNeta, // 70% − facturas ya pagadas
+        margenBruto: r.margenBruto,
+        facturasPagadas: r.facturasPagadas,
+        gastosVarios: r.gastosVarios,
+        consignado: c.consignado,
+        descuadre: cuadre.descuadre,
+      };
     });
-    turno = {
-      ventaTotal: r.ventaTotal,
-      retiroCierre: r.retiroCierre,
-      retiroParaFacturas: r.reposicionNeta, // neto: 70% − facturas ya pagadas
-      retiroParaGastos: r.consignar, // retiro − retiro para facturas (antes "a consignar")
-      apartado70: r.reposicionBruta,
-      apartado30: r.margenBruto,
-      utilidadDia: r.utilidadDia,
-      facturasPagadas: r.facturasPagadas,
-      gastosVarios: r.gastosVarios,
-      consignado: cierre.consignado,
-      cuadre,
-    };
-  }
+
+  const dia = agregarCierresDelDia(cierresDelDia);
 
   // --- Bloque EQUILIBRIO + RENTABILIDAD (mes) ---
-  const ventaDia = diaDays.reduce(
-    (s, d) => s + (d.cierreGeneral ? calcularCierreGeneral(cierreInputFromRow(d.cierreGeneral)).ventaTotal : 0),
-    0
-  );
+  const ventaDia = dia.ventaTotal;
   const diasTranscurridos = Number(date.split("-")[2]);
   const metricasMes = mesDays
     .map((d) => (d.cierreGeneral ? calcularCierreGeneral(cierreInputFromRow(d.cierreGeneral)) : null))
@@ -385,9 +373,8 @@ export async function getResumenCierreGeneral(date: string, shift: Shift) {
 
   return {
     date,
-    shift,
-    hayCierre: cierre != null,
-    turno,
+    hayCierre: dia.turnosConCierre > 0,
+    dia,
     equilibrio: { puntoEquilibrio: config.puntoEquilibrio, ventaDia, promedioMes, diasTranscurridos },
     rentabilidad,
     config,

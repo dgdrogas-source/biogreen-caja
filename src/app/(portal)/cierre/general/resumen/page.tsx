@@ -3,25 +3,25 @@ import { formatDateCo, todayBogota } from "@/lib/dates";
 import { AjustesCierreGeneralConfig } from "@/modules/nequi/components/AjustesCierreGeneralConfig";
 import { BolsasGeneralesConfig } from "@/modules/nequi/components/BolsasGeneralesConfig";
 import { ResumenCierreGeneralView } from "@/modules/nequi/components/ResumenCierreGeneralView";
-import { TurnoTabs } from "@/modules/nequi/components/TurnoTabs";
-import { getBolsasGenerales, getCurrentShift, getResumenCierreGeneral } from "@/modules/nequi/queries";
-import { BOLSA_GENERAL_BUCKETS, SHIFT_LABELS, type Shift } from "@/modules/nequi/types";
+import { getBolsasGenerales, getResumenCierreGeneral } from "@/modules/nequi/queries";
+import { BOLSA_GENERAL_BUCKETS } from "@/modules/nequi/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// La "foto" del Resumen es del DÍA completo (los 2 turnos sumados), no de un turno
+// (decisión del dueño, 2026-07-16). Por eso aquí no hay selector de turno.
 export default async function ResumenCierreGeneralPage({
   searchParams,
 }: {
-  searchParams: Promise<{ fecha?: string; turno?: string }>;
+  searchParams: Promise<{ fecha?: string }>;
 }) {
   await requireAdmin();
   const params = await searchParams;
   const today = todayBogota();
   const date = params.fecha && DATE_RE.test(params.fecha) ? params.fecha : today;
-  const shift: Shift = params.turno === "1" ? 1 : params.turno === "2" ? 2 : await getCurrentShift();
 
   const [resumen, bolsas] = await Promise.all([
-    getResumenCierreGeneral(date, shift),
+    getResumenCierreGeneral(date),
     getBolsasGenerales(),
   ]);
 
@@ -29,23 +29,20 @@ export default async function ResumenCierreGeneralPage({
     <>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-medium capitalize text-gray-500">{formatDateCo(date)}</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <TurnoTabs date={date} shift={shift} basePath="/cierre/general/resumen" />
-          <form className="flex items-center gap-2">
-            <input type="hidden" name="turno" value={shift} />
-            <input
-              type="date"
-              name="fecha"
-              defaultValue={date}
-              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-            />
-            <button className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-white">Ver</button>
-          </form>
-        </div>
+        <form className="flex items-center gap-2">
+          <input
+            type="date"
+            name="fecha"
+            defaultValue={date}
+            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+          />
+          <button className="rounded-lg bg-gray-800 px-3 py-1.5 text-sm font-medium text-white">Ver</button>
+        </form>
       </div>
 
       <p className="text-xs text-gray-500">
-        Foto de solo lectura del {SHIFT_LABELS[shift]}. Los datos se registran en{" "}
+        Foto de solo lectura del <span className="font-medium text-gray-600">día completo</span> (los
+        dos turnos sumados). Los datos se registran en{" "}
         <span className="font-medium text-gray-600">Movimientos</span>.
       </p>
 

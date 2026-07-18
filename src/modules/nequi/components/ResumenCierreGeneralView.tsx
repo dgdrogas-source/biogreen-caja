@@ -45,16 +45,15 @@ const SEMAFORO_UI: Record<Semaforo, { bg: string; text: string; dot: string; lab
 };
 
 export function ResumenCierreGeneralView({ resumen }: { resumen: Resumen }) {
-  const { turno, equilibrio, rentabilidad } = resumen;
+  const { dia, equilibrio, rentabilidad } = resumen;
+  const hayCierre = dia.turnosConCierre > 0;
 
-  const cuadreUI = turno
-    ? {
-        PENDIENTE: { text: "Aún no se cuenta el efectivo", cls: "text-gray-400" },
-        CUADRO: { text: "✓ Cuadra", cls: "text-emerald-600 font-semibold" },
-        SOBRO: { text: `Sobró ${money(Math.abs(turno.cuadre.descuadre ?? 0))}`, cls: "text-amber-600 font-semibold" },
-        FALTO: { text: `Faltó ${money(Math.abs(turno.cuadre.descuadre ?? 0))}`, cls: "text-red-600 font-semibold" },
-      }[turno.cuadre.estado]
-    : null;
+  const cuadreUI = {
+    PENDIENTE: { text: "Aún no se cuenta el efectivo", cls: "text-gray-400" },
+    CUADRO: { text: "✓ Cuadra", cls: "text-emerald-600 font-semibold" },
+    SOBRO: { text: `Sobró ${money(Math.abs(dia.cuadre.descuadre ?? 0))}`, cls: "text-amber-600 font-semibold" },
+    FALTO: { text: `Faltó ${money(Math.abs(dia.cuadre.descuadre ?? 0))}`, cls: "text-red-600 font-semibold" },
+  }[dia.cuadre.estado];
 
   const cumpleDia = cumpleEquilibrio(equilibrio.ventaDia, equilibrio.puntoEquilibrio);
   const cumplePromedio = cumpleEquilibrio(equilibrio.promedioMes, equilibrio.puntoEquilibrio);
@@ -63,50 +62,52 @@ export function ResumenCierreGeneralView({ resumen }: { resumen: Resumen }) {
 
   return (
     <div className="space-y-4">
-      {/* ---------- Bloque TURNO (la cajita) ---------- */}
+      {/* ---------- Bloque DÍA (la cajita) ---------- */}
       <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold text-gray-800">Resumen del turno</h2>
-        {!turno ? (
+        <h2 className="mb-3 text-base font-semibold text-gray-800">Resumen del día</h2>
+        {!hayCierre ? (
           <p className="py-4 text-center text-sm text-gray-400">
-            Aún no hay cierre guardado para este turno. Regístralo en la pestaña{" "}
+            Aún no hay cierre guardado para este día. Regístralo en la pestaña{" "}
             <span className="font-medium text-gray-500">Movimientos</span>.
           </p>
         ) : (
           <div className="space-y-2">
-            <Fila label="Venta total del día" monto={turno.ventaTotal} />
-            <Fila label="Retiro del turno" monto={turno.retiroCierre} />
+            <Fila label="Venta total del día" monto={dia.ventaTotal} />
+            <Fila label="Retiro del día" monto={dia.retiroCierre} />
 
             <Fila
               label="Retiro para facturas"
-              monto={turno.retiroParaFacturas}
-              hint={`${money(turno.apartado70)} (70/30) − facturas pagadas ${money(turno.facturasPagadas)}`}
+              monto={dia.retiroParaFacturas}
+              hint={`${money(dia.apartado70)} (70/30) − facturas pagadas ${money(dia.facturasPagadas)}`}
               rojoSiNegativo
               destacado
             />
             <Fila
               label="Retiro para gastos"
-              monto={turno.retiroParaGastos}
-              hint={`retiro ${money(turno.retiroCierre)} − retiro para facturas ${money(turno.retiroParaFacturas)}`}
-              rojoSiNegativo
-            />
-            {turno.retiroParaGastos > 0 && (
-              <p className="text-[11px] text-gray-400">
-                {turno.consignado ? "✓ Ya separado/consignado" : "Pendiente por separar/consignar"}
-              </p>
-            )}
-
-            <Fila
-              label="Utilidad del día"
-              monto={turno.utilidadDia}
-              hint={`${money(turno.apartado30)} (30%) − gastos ${money(turno.gastosVarios)}`}
+              monto={dia.retiroParaGastos}
+              hint={`${money(dia.apartado30)} (30%) − gastos ${money(dia.gastosVarios)}`}
               rojoSiNegativo
               destacado
             />
+            {dia.retiroParaGastos > 0 && (
+              <p className="text-[11px] text-gray-400">
+                {dia.consignado ? "✓ Ya separado/consignado" : "Pendiente por separar/consignar"}
+              </p>
+            )}
 
             <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-2">
               <p className="text-sm font-semibold text-gray-800">¿Cuadró la caja?</p>
-              <p className={`text-sm ${cuadreUI?.cls}`}>{cuadreUI?.text}</p>
+              <p className={`text-sm ${cuadreUI.cls}`}>{cuadreUI.text}</p>
             </div>
+            {dia.cuadre.turnosPendientes > 0 && dia.cuadre.descuadre !== null && (
+              <p className="text-[11px] text-amber-600">
+                Falta contar el efectivo de {dia.cuadre.turnosPendientes} turno
+                {dia.cuadre.turnosPendientes > 1 ? "s" : ""}: el cuadre del día está incompleto.
+              </p>
+            )}
+            {dia.turnosConCierre === 1 && (
+              <p className="text-[11px] text-gray-400">Solo hay 1 turno cerrado en este día.</p>
+            )}
           </div>
         )}
       </div>
