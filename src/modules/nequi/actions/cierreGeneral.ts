@@ -47,7 +47,13 @@ export async function guardarCierreGeneral(input: CierreGeneralInputAction): Pro
     const d = schema.parse(input);
     const day = await getOrCreateDay(d.date, d.shift);
 
+    // Congela el % de reposición vigente en este cierre (historial inmutable ante cambios
+    // futuros del ajuste global). Re-guardar el turno re-snapshotea al % actual.
+    const cfg = await prisma.cierreGeneralConfig.findUnique({ where: { id: 1 } });
+    const porcentajeReposicion = cfg?.porcentajeReposicion ?? 70;
+
     const data = {
+      porcentajeReposicion,
       ventaEfectivo: d.ventaEfectivo,
       ventaNequi: d.ventaNequi,
       ventaTarjeta: d.ventaTarjeta,

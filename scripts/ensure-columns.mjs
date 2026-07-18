@@ -265,6 +265,22 @@ const statements = [
     CONSTRAINT "MensualDiferencia_mensualDiaId_fkey" FOREIGN KEY ("mensualDiaId") REFERENCES "MensualDia"("id") ON DELETE CASCADE ON UPDATE CASCADE
   );`,
   'CREATE INDEX IF NOT EXISTS "MensualDiferencia_mensualDiaId_idx" ON "MensualDiferencia"("mensualDiaId");',
+
+  // ---------------------------------------------------------------------------
+  // Resumen Cierre general: % de reposición dinámico (congelado por cierre) + config global
+  // (% y punto de equilibrio). Ver prisma/migrations/20260717000000_cierre_general_resumen/.
+  // ---------------------------------------------------------------------------
+  'ALTER TABLE "CierreGeneral" ADD COLUMN IF NOT EXISTS "porcentajeReposicion" INTEGER NOT NULL DEFAULT 70;',
+  `CREATE TABLE IF NOT EXISTS "CierreGeneralConfig" (
+    "id" INTEGER NOT NULL DEFAULT 1,
+    "porcentajeReposicion" INTEGER NOT NULL DEFAULT 70,
+    "puntoEquilibrio" INTEGER NOT NULL DEFAULT 1100000,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "CierreGeneralConfig_pkey" PRIMARY KEY ("id")
+  );`,
+  // Fila única de arranque (id=1). ON CONFLICT DO NOTHING → idempotente, no pisa ajustes.
+  `INSERT INTO "CierreGeneralConfig" ("id", "porcentajeReposicion", "puntoEquilibrio", "updatedAt")
+   VALUES (1, 70, 1100000, CURRENT_TIMESTAMP) ON CONFLICT ("id") DO NOTHING;`,
 ];
 
 let aplicado = false;

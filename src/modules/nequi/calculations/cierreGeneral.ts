@@ -18,6 +18,7 @@ export interface CierreGeneralInput {
   gastosVarios?: number; // gastos varios del turno (col K)
   retiroCierre?: number; // efectivo retirado al cerrar (col H)
   realPorMedio?: Partial<Record<MedioPago, number>>; // lo realmente recibido por medio (para el cuadre)
+  porcentajeReposicion?: number; // fracción 0..1 del reparto a reposición (default 0.7). Se congela por cierre.
 }
 
 export interface CuadreMedio {
@@ -49,10 +50,12 @@ export function calcularCierreGeneral(input: CierreGeneralInput): CierreGeneralR
   const gastosVarios = input.gastosVarios ?? 0;
   const retiroCierre = input.retiroCierre ?? 0;
 
+  const porcentajeReposicion = input.porcentajeReposicion ?? PORCENTAJE_REPOSICION;
+
   const ventaTotal = MEDIOS_PAGO.reduce((s, m) => s + (input.ventasPorMedio[m] ?? 0), 0);
   const base = ventaTotal + ventaSinFactura;
 
-  const reposicionBruta = base * PORCENTAJE_REPOSICION;
+  const reposicionBruta = base * porcentajeReposicion;
   const reposicionNeta = reposicionBruta - facturasPagadas;
   const margenBruto = base - reposicionBruta; // complemento exacto (evita el ruido de 1 − 0.7)
   const utilidadDia = margenBruto - gastosVarios;

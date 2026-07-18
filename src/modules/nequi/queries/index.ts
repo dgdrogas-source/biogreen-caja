@@ -5,8 +5,10 @@ import { addDays, diffDays, nowBogotaHHMM, startOfIsoWeek, startOfMonth, todayBo
 import { calcularBolsasAcumuladas, type BolsaCierreInput } from "../calculations/bolsas";
 import { calcularSaldoCliente, calcularSaldosPorCliente } from "../calculations/clientes";
 import { calcularCierreGeneral } from "../calculations/cierreGeneral";
-import { sumarConFallback } from "../calculations/cierreGeneralItems";
+import { sumarConFallback, sumarEfectivoCaja } from "../calculations/cierreGeneralItems";
+import { calcularCuadreCaja } from "../calculations/cuadreCajaCierreGeneral";
 import { calcularSaldoEsperado } from "../calculations/cuadre";
+import { calcularRentabilidadBrutaMensual } from "../calculations/resumenCierreGeneral";
 import {
   aplicarTransferencias,
   calcularRepartoPorMedio,
@@ -16,6 +18,7 @@ import {
 import { compararMetricas, promedioMensual, sumarMetricas, type MetricasPeriodo } from "../calculations/tendencias";
 import { DEFAULT_SHIFT_CONFIGS, turnoPorHora } from "../calculations/turnos";
 import {
+  BASE_FIJA_EFECTIVO_CAJA,
   POCKET_BUCKETS,
   type Direction,
   type MovementType,
@@ -280,6 +283,7 @@ function cierreInputFromRow(c: CierreGeneralConItems) {
     facturasPagadas: sumarConFallback(c.facturasPagadas, c.facturaItems),
     gastosVarios: sumarConFallback(c.gastosVarios, c.gastoItems),
     realPorMedio: c.realEfectivo != null ? { EFECTIVO: c.realEfectivo } : undefined,
+    porcentajeReposicion: (c.porcentajeReposicion ?? 70) / 100, // % congelado del cierre → fracción
   };
 }
 
@@ -296,6 +300,98 @@ export async function getCierreGeneral(date: string, shift: Shift) {
     getDaySummary(date, shift),
   ]);
   return { day, cierre, saldoNequiEsperado: saldoEsperado };
+}
+
+// Config global del Cierre general (% de reposición y punto de equilibrio). Una sola fila
+// (id=1); si aún no existe, devuelve los valores por defecto.
+export async function getCierreGeneralConfig() {
+  const cfg = await prisma.cierreGeneralConfig.findUnique({ where: { id: 1 } });
+  return {
+    porcentajeReposicion: cfg?.porcentajeReposicion ?? 70,
+    puntoEquilibrio: cfg?.puntoEquilibrio ?? 1_100_000,
+  };
+}
+
+// Resumen (solo lectura) del Cierre general para el turno (date, shift): la foto del turno
+// (venta, retiro, retiro para facturas/gastos, utilidad, cuadre), el punto de equilibrio
+// (venta del día = ambos turnos, y promedio del mes), y la rentabilidad bruta acumulada del
+// mes con su semáforo. No escribe nada; reutiliza las funciones puras ya testeadas.
+export async function getResumenCierreGeneral(date: string, shift: Shift) {
+  const day = await getOrCreateDay(date, shift);
+  const monthStart = startOfMonth(date);
+
+  const [cierre, config, diaDays, mesDays] = await Promise.all([
+    prisma.cierreGeneral.findUnique({
+      where: { businessDayId: day.id },
+      include: cierreGeneralItemsInclude,
+    }),
+    getCierreGeneralConfig(),
+    getCierreGeneralRange(date, date), // ambos turnos del día → venta del día (equilibrio)
+    getCierreGeneralRange(monthStart, date), // cierres del mes hasta la fecha
+  ]);
+
+  // --- Bloque TURNO (la cajita) ---
+  let turno: {
+    ventaTotal: number;
+    retiroCierre: number;
+    retiroParaFacturas: number;
+    retiroParaGastos: number;
+    apartado70: number;
+    apartado30: number;
+    utilidadDia: number;
+    facturasPagadas: number;
+    gastosVarios: number;
+    consignado: boolean;
+    cuadre: ReturnType<typeof calcularCuadreCaja>;
+  } | null = null;
+  if (cierre) {
+    const r = calcularCierreGeneral(cierreInputFromRow(cierre));
+    const cuadre = calcularCuadreCaja({
+      baseFija: BASE_FIJA_EFECTIVO_CAJA,
+      ventaEfectivo: cierre.ventaEfectivo,
+      facturasEnEfectivoCaja: sumarEfectivoCaja(cierre.facturaItems),
+      gastosEnEfectivoCaja: sumarEfectivoCaja(cierre.gastoItems),
+      realEfectivo: cierre.realEfectivo,
+    });
+    turno = {
+      ventaTotal: r.ventaTotal,
+      retiroCierre: r.retiroCierre,
+      retiroParaFacturas: r.reposicionNeta, // neto: 70% − facturas ya pagadas
+      retiroParaGastos: r.consignar, // retiro − retiro para facturas (antes "a consignar")
+      apartado70: r.reposicionBruta,
+      apartado30: r.margenBruto,
+      utilidadDia: r.utilidadDia,
+      facturasPagadas: r.facturasPagadas,
+      gastosVarios: r.gastosVarios,
+      consignado: cierre.consignado,
+      cuadre,
+    };
+  }
+
+  // --- Bloque EQUILIBRIO + RENTABILIDAD (mes) ---
+  const ventaDia = diaDays.reduce(
+    (s, d) => s + (d.cierreGeneral ? calcularCierreGeneral(cierreInputFromRow(d.cierreGeneral)).ventaTotal : 0),
+    0
+  );
+  const diasTranscurridos = Number(date.split("-")[2]);
+  const metricasMes = mesDays
+    .map((d) => (d.cierreGeneral ? calcularCierreGeneral(cierreInputFromRow(d.cierreGeneral)) : null))
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+  const ventaMes = metricasMes.reduce((s, r) => s + r.ventaTotal, 0);
+  const promedioMes = diasTranscurridos > 0 ? ventaMes / diasTranscurridos : 0;
+  const rentabilidad = calcularRentabilidadBrutaMensual(
+    metricasMes.map((r) => ({ ventaTotal: r.ventaTotal, utilidadBruta: r.margenBruto }))
+  );
+
+  return {
+    date,
+    shift,
+    hayCierre: cierre != null,
+    turno,
+    equilibrio: { puntoEquilibrio: config.puntoEquilibrio, ventaDia, promedioMes, diasTranscurridos },
+    rentabilidad,
+    config,
+  };
 }
 
 // Categorías de gasto (editables por el admin). Por defecto solo las activas.

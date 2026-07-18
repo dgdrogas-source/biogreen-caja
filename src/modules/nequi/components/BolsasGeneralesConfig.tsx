@@ -46,10 +46,14 @@ export function BolsasGeneralesConfig({ items }: { items: BolsaConfigItem[] }) {
 
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
-      <h2 className="mb-1 text-base font-semibold text-gray-800">Bolsas 70/30 acumuladas</h2>
+      <h2 className="mb-1 text-base font-semibold text-gray-800">
+        Saldo inicial de las bolsas acumuladas
+      </h2>
       <p className="mb-4 text-xs text-gray-500">
-        Reposición se llena con el 70% de cada venta (menos facturas pagadas); Gastos/utilidad
-        con el 30% (menos gastos). El saldo inicial se suma al histórico de cierres guardados.
+        La bolsa de facturas se llena con el % de reposición de cada venta (menos facturas
+        pagadas); la de gastos con el resto (menos gastos). Escribe aquí la plata real que
+        tienes en cada bolsa hoy: ese saldo inicial se suma al histórico de cierres guardados
+        y el cambio queda en el registro.
       </p>
 
       {error && (

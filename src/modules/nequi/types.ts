@@ -51,9 +51,11 @@ export type MedioPagoAbono = (typeof MEDIOS_PAGO_ABONO)[number];
 // Bolsas acumuladas 70/30 (Fase 2), aisladas de POCKET_BUCKETS/pockets.ts a propósito.
 export const BOLSA_GENERAL_BUCKETS = ["REPOSICION", "GASTOS_UTILIDAD"] as const;
 export type BolsaGeneralBucket = (typeof BOLSA_GENERAL_BUCKETS)[number];
+// Nombres alineados a cómo habla el dueño (2026-07-17): el 70% es "para facturas" y el
+// 30% "para gastos". Se conserva el nombre técnico entre paréntesis.
 export const BOLSA_GENERAL_LABELS: Record<BolsaGeneralBucket, string> = {
-  REPOSICION: "Bolsa de reposición",
-  GASTOS_UTILIDAD: "Bolsa de gastos/utilidad",
+  REPOSICION: "Bolsa de facturas (reposición)",
+  GASTOS_UTILIDAD: "Bolsa de gastos (utilidad)",
 };
 
 // Porcentaje de la venta que se aparta para reponer inventario (política del dueño).

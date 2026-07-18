@@ -19,6 +19,7 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   SET_SHIFT_CONFIG: { label: "Cambió los horarios de turnos", style: "bg-indigo-50 text-indigo-700" },
   RESET_BALANCES: { label: "Reinició saldos del próximo turno", style: "bg-amber-50 text-amber-700" },
   CIERRE_GENERAL: { label: "Guardó el cierre general", style: "bg-indigo-50 text-indigo-700" },
+  SET_CONFIG_CIERRE_GENERAL: { label: "Ajustó % y punto de equilibrio", style: "bg-purple-50 text-purple-700" },
   RESET_CIERRE_GENERAL: { label: "Reinició el módulo de cierre general", style: "bg-red-50 text-red-600" },
   PROVEEDOR_CREATE: { label: "Creó un proveedor", style: "bg-emerald-50 text-emerald-700" },
   PROVEEDOR_RENAME: { label: "Renombró un proveedor", style: "bg-blue-50 text-blue-700" },

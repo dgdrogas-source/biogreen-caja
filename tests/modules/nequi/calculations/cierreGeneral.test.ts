@@ -55,4 +55,19 @@ describe("calcularCierreGeneral", () => {
     expect(r.base).toBe(649000);
     expect(r.reposicionBruta).toBeCloseTo(454300, 2); // 649.000 × 0.7
   });
+
+  it("usa un % de reposición dinámico cuando se pasa (72/28 en vez de 70/30)", () => {
+    const r = calcularCierreGeneral({
+      ventasPorMedio: { EFECTIVO: 1000000 },
+      porcentajeReposicion: 0.72,
+    });
+    expect(r.reposicionBruta).toBe(720000); // 1.000.000 × 0.72
+    expect(r.margenBruto).toBe(280000); // complemento exacto (28%)
+  });
+
+  it("sin % explícito conserva el default 70/30 (retrocompatibilidad)", () => {
+    const r = calcularCierreGeneral({ ventasPorMedio: { EFECTIVO: 1000000 } });
+    expect(r.reposicionBruta).toBe(700000);
+    expect(r.margenBruto).toBe(300000);
+  });
 });

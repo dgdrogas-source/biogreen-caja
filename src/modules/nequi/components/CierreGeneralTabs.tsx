@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
-  { href: "/cierre/general", label: "Resumen" },
+  { href: "/cierre/general", label: "Movimientos" },
+  { href: "/cierre/general/resumen", label: "Resumen" },
   { href: "/cierre/general/proveedores", label: "Proveedores" },
 ];
 
-// Secciones del Cierre general (distinto de TurnoTabs, que elige turno dentro de Resumen).
-// Navega entre rutas reales: Resumen es el cierre del día; Proveedores es un catálogo sin
-// fecha/turno.
+// Secciones del Cierre general (distinto de TurnoTabs, que elige turno dentro de cada sección).
+// Navega entre rutas reales: Movimientos es la captura del cierre del día; Resumen es la foto
+// de solo lectura con indicadores; Proveedores es un catálogo sin fecha/turno.
 export function CierreGeneralTabs() {
   const pathname = usePathname();
 

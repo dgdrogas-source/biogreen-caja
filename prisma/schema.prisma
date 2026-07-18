@@ -142,6 +142,17 @@ model BaseFund {
   updatedAt    DateTime @updatedAt
 }
 
+// Config global del Cierre general (una sola fila, id=1). El % de reposición es editable
+// por el admin en cualquier momento; su complemento (gastos/utilidad) = 100 − este. Al
+// guardar un cierre se copia este % al cierre (CierreGeneral.porcentajeReposicion) para
+// congelar el historial. puntoEquilibrio = venta diaria mínima de referencia (semáforo).
+model CierreGeneralConfig {
+  id                   Int      @id @default(1)
+  porcentajeReposicion Int      @default(70)
+  puntoEquilibrio      Int      @default(1100000)
+  updatedAt            DateTime @updatedAt
+}
+
 // Saldo inicial manual por bolsillo (ajuste puntual del dueño, fuera de
 // Movement/PocketTransfer). Solo existe fila para los bolsillos ajustados;
 // los demás se tratan como 0 (ver getPockets()).
@@ -185,6 +196,11 @@ model CierreGeneral {
   descuadre       Int? // sobra/falta observado (manual)
   nota            String?
   consignado      Boolean @default(false) // marcado manual: ¿ya se hizo la consignación pendiente?
+
+  // Snapshot del % de reposición vigente al guardar este cierre. "Congela el historial":
+  // cambiar el % global (CierreGeneralConfig) NO altera cierres ya guardados; solo los
+  // nuevos (o los que se re-guarden). Los cierres de Fase 1/2 quedan en 70 por el DEFAULT.
+  porcentajeReposicion Int @default(70)
 
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])
