@@ -82,6 +82,7 @@ Next.js 16 (App Router, Server Actions, Server Components) · TypeScript · Pris
 - **Bolsas acumuladas** = Σ de reposiciónNeta / utilidadDía de todos los cierres + saldo inicial manual (NO crean Movements).
 - **Cuentas por cobrar** por cliente: saldo = Σ ventas a crédito − Σ abonos.
 - Semana = **lunes-domingo**. Promedio de venta = **mensual** (venta del mes ÷ días transcurridos).
+- **Pestaña Resumen = foto del DÍA, no del turno** (2026-07-16). `agregarCierresDelDia` suma los **resultados ya calculados de cada turno**, NUNCA las ventas en crudo: el `porcentajeReposicion` está **congelado por cierre**, así que aplicar un 70/30 único sobre la venta sumada daría mal si dos turnos llevaran % distinto. `Retiro para gastos = Σ(30% del turno − gastos del turno)` (antes era `retiro − retiro para facturas`, que daba negativos sin sentido); la fila "Utilidad del día" se quitó de esa vista por ser idéntica — `utilidadDia` sigue vivo en bolsas/tendencias/rentabilidad. El cuadre del día suma solo los turnos ya contados y avisa si falta alguno. Esa página es **solo lectura**: no llama a `getOrCreateDay` (antes creaba días fantasma).
 - Categorías de gasto editables (eliminar = desactivar si tiene gastos). Alertas solo visuales. `/clientes` abierta a vendedoras (editar/borrar: admin cualquiera, vendedora solo lo suyo del día).
 
 ---
