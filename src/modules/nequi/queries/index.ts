@@ -5,7 +5,12 @@ import { addDays, diffDays, nowBogotaHHMM, startOfIsoWeek, startOfMonth, todayBo
 import { calcularBolsasAcumuladas, type BolsaCierreInput } from "../calculations/bolsas";
 import { calcularSaldoCliente, calcularSaldosPorCliente } from "../calculations/clientes";
 import { calcularCierreGeneral } from "../calculations/cierreGeneral";
-import { sumarConFallback, sumarEfectivoCaja } from "../calculations/cierreGeneralItems";
+import {
+  agruparFacturasDelDia,
+  agruparGastosDelDia,
+  cierreInputDesdeFila,
+  sumarEfectivoCaja,
+} from "../calculations/cierreGeneralItems";
 import { calcularCuadreCaja } from "../calculations/cuadreCajaCierreGeneral";
 import { calcularSaldoEsperado } from "../calculations/cuadre";
 import {
@@ -274,30 +279,9 @@ const cierreGeneralItemsInclude = {
 
 type CierreGeneralConItems = Prisma.CierreGeneralGetPayload<{ include: typeof cierreGeneralItemsInclude }>;
 
-// Adapta un registro de CierreGeneral (con sus items) al input de la función pura
-// calcularCierreGeneral — usado por getBolsasGenerales y getTendenciasCierreGeneral para no
-// repetir la construcción de ventasPorMedio en cada query. facturasPagadas/gastosVarios
-// siempre quedan resueltos (números, nunca undefined), por eso también sirve como
-// BolsaCierreInput sin conversión adicional.
-function cierreInputFromRow(c: CierreGeneralConItems) {
-  return {
-    ventasPorMedio: {
-      EFECTIVO: c.ventaEfectivo,
-      NEQUI: c.ventaNequi,
-      TARJETA: c.ventaTarjeta,
-      DAVIPLATA: c.ventaDaviplata,
-      TRANSFERENCIA: c.ventaTransferencia,
-      CREDITO: c.ventaCredito,
-      OTRO: c.ventaOtro,
-    },
-    ventaSinFactura: c.ventaSinFactura,
-    facturasPagadas: sumarConFallback(c.facturasPagadas, c.facturaItems),
-    gastosVarios: sumarConFallback(c.gastosVarios, c.gastoItems),
-    realPorMedio: c.realEfectivo != null ? { EFECTIVO: c.realEfectivo } : undefined,
-    porcentajeReposicion: (c.porcentajeReposicion ?? 70) / 100, // % congelado del cierre → fracción
-    porcentajeTercero: (c.porcentajeTercero ?? 0) / 100, // % congelado del cierre → fracción
-  };
-}
+// El adaptador fila→input vive ahora en calculations/cierreGeneralItems.ts (cierreInputDesdeFila),
+// con tests: aquí era una función privada sin cobertura y ya había perdido dos campos en
+// silencio (los % congelados y retiroCierre).
 
 // Cierre general del turno (date, shift): el registro guardado (con sus gastos/facturas
 // itemizados) o null + el saldo Nequi esperado del turno, para la columna Nequi conectada
@@ -345,7 +329,7 @@ export async function getResumenCierreGeneral(date: string) {
     .map((d) => d.cierreGeneral)
     .filter((c): c is CierreGeneralConItems => c !== null)
     .map((c) => {
-      const r = calcularCierreGeneral(cierreInputFromRow(c));
+      const r = calcularCierreGeneral(cierreInputDesdeFila(c));
       const cuadre = calcularCuadreCaja({
         baseFija: BASE_FIJA_EFECTIVO_CAJA,
         ventaEfectivo: c.ventaEfectivo,
@@ -369,34 +353,37 @@ export async function getResumenCierreGeneral(date: string) {
 
   const dia = agregarCierresDelDia(cierresDelDia);
 
-  // Desglose (2026-07-19): facturas y gastos pagados en el día, de ambos turnos, con su
-  // proveedor/categoría. Incluye el gasto automático del 4% (categoría "Comisión bancaria",
-  // autoGenerado=true) — es un gasto real más, no se filtra.
+  // Desglose (2026-07-19): facturas y gastos pagados en el día, de ambos turnos. Va AGRUPADO
+  // (gastos por categoría, facturas por proveedor) porque hay gastos que se generan uno por
+  // cierre —el 4% de tarjeta— y sin agrupar se veían duplicados al sumar los dos turnos.
+  // El gasto automático del 4% se incluye: es un gasto real más, no se filtra.
   const cierresConItems = diaDays.map((d) => d.cierreGeneral).filter((c): c is CierreGeneralConItems => c !== null);
-  const facturasDelDia = cierresConItems.flatMap((c) =>
-    c.facturaItems.map((f) => ({
-      id: f.id,
-      monto: f.monto,
-      proveedor: f.proveedorRef?.nombre ?? f.proveedor ?? "Proveedor sin especificar",
-      descripcion: f.descripcion,
-    }))
+  const facturasDelDia = agruparFacturasDelDia(
+    cierresConItems.flatMap((c) =>
+      c.facturaItems.map((f) => ({
+        monto: f.monto,
+        proveedor: f.proveedorRef?.nombre ?? f.proveedor ?? "Proveedor sin especificar",
+        descripcion: f.descripcion,
+      }))
+    )
   );
-  const gastosDelDia = cierresConItems.flatMap((c) =>
-    c.gastoItems.map((g) => ({
-      id: g.id,
-      monto: g.monto,
-      categoria: g.categoria.nombre,
-      proveedor: g.proveedorRef?.nombre ?? null,
-      descripcion: g.descripcion,
-      autoGenerado: g.autoGenerado,
-    }))
+  const gastosDelDia = agruparGastosDelDia(
+    cierresConItems.flatMap((c) =>
+      c.gastoItems.map((g) => ({
+        monto: g.monto,
+        categoria: g.categoria.nombre,
+        proveedor: g.proveedorRef?.nombre ?? null,
+        descripcion: g.descripcion,
+        autoGenerado: g.autoGenerado,
+      }))
+    )
   );
 
   // --- Bloque EQUILIBRIO + RENTABILIDAD (mes) ---
   const ventaDia = dia.ventaTotal;
   const diasTranscurridos = Number(date.split("-")[2]);
   const metricasMes = mesDays
-    .map((d) => (d.cierreGeneral ? calcularCierreGeneral(cierreInputFromRow(d.cierreGeneral)) : null))
+    .map((d) => (d.cierreGeneral ? calcularCierreGeneral(cierreInputDesdeFila(d.cierreGeneral)) : null))
     .filter((r): r is NonNullable<typeof r> => r !== null);
   const ventaMes = metricasMes.reduce((s, r) => s + r.ventaTotal, 0);
   const promedioMes = diasTranscurridos > 0 ? ventaMes / diasTranscurridos : 0;
@@ -440,7 +427,7 @@ export async function getBolsasGenerales() {
     prisma.bolsaGeneral.findMany(),
   ]);
   const openingByBucket = new Map(bolsas.map((b) => [b.bucket, b.openingBalance]));
-  const cierresInput: BolsaCierreInput[] = cierres.map((c) => cierreInputFromRow(c));
+  const cierresInput: BolsaCierreInput[] = cierres.map((c) => cierreInputDesdeFila(c));
   const { reposicion, gastosUtilidad } = calcularBolsasAcumuladas(
     cierresInput,
     openingByBucket.get("REPOSICION") ?? 0,
@@ -583,7 +570,7 @@ export async function getCierreGeneralRange(from: string, to: string, shift?: Sh
 function metricasDeDay(day: { cierreGeneral: CierreGeneralConItems | null }): MetricasPeriodo {
   if (!day.cierreGeneral) return { venta: 0, utilidadDia: 0, descuadreTotal: 0 };
   const c = day.cierreGeneral;
-  const r = calcularCierreGeneral(cierreInputFromRow(c));
+  const r = calcularCierreGeneral(cierreInputDesdeFila(c));
   const descuadreTotal = c.realEfectivo != null ? c.realEfectivo - c.ventaEfectivo : 0;
   return { venta: r.base, utilidadDia: r.utilidadDia, descuadreTotal };
 }

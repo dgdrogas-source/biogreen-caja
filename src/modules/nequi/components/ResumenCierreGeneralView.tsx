@@ -110,7 +110,10 @@ export function ResumenCierreGeneralView({ resumen }: { resumen: Resumen }) {
               <p className="text-[11px] text-gray-400">Solo hay 1 turno cerrado en este día.</p>
             )}
 
-            {/* Desglose (2026-07-19): el detalle de qué compone "facturas pagadas" y "gastos". */}
+            {/* Desglose (2026-07-19): qué compone "facturas pagadas" y "gastos". Va AGRUPADO
+                (gastos por categoría, facturas por proveedor): el 4% de tarjeta se genera uno
+                por turno, así que sin agrupar salía duplicado. "N pagos" avisa que es un
+                acumulado, para que no parezca que se perdió un registro. */}
             <div className="border-t border-gray-100 pt-2">
               <p className="mb-1 text-sm font-semibold text-gray-800">Facturas pagadas</p>
               {facturasDelDia.length === 0 ? (
@@ -118,12 +121,13 @@ export function ResumenCierreGeneralView({ resumen }: { resumen: Resumen }) {
               ) : (
                 <ul className="space-y-1">
                   {facturasDelDia.map((f) => (
-                    <li key={f.id} className="flex items-center justify-between text-xs">
+                    <li key={f.clave} className="flex items-center justify-between text-xs">
                       <span className="text-gray-600">
-                        {f.proveedor}
+                        {f.clave}
+                        {f.cantidad > 1 && <span className="text-gray-400"> · {f.cantidad} pagos</span>}
                         {f.descripcion && <span className="text-gray-400"> · {f.descripcion}</span>}
                       </span>
-                      <span className="shrink-0 tabular-nums text-gray-800">{money(f.monto)}</span>
+                      <span className="shrink-0 tabular-nums text-gray-800">{money(f.total)}</span>
                     </li>
                   ))}
                 </ul>
@@ -137,9 +141,10 @@ export function ResumenCierreGeneralView({ resumen }: { resumen: Resumen }) {
               ) : (
                 <ul className="space-y-1">
                   {gastosDelDia.map((g) => (
-                    <li key={g.id} className="flex items-center justify-between text-xs">
+                    <li key={g.clave} className="flex items-center justify-between text-xs">
                       <span className="text-gray-600">
-                        {g.categoria}
+                        {g.clave}
+                        {g.cantidad > 1 && <span className="text-gray-400"> · {g.cantidad} pagos</span>}
                         {g.proveedor && <span className="text-gray-400"> · {g.proveedor}</span>}
                         {g.autoGenerado && (
                           <span className="ml-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
@@ -147,7 +152,7 @@ export function ResumenCierreGeneralView({ resumen }: { resumen: Resumen }) {
                           </span>
                         )}
                       </span>
-                      <span className="shrink-0 tabular-nums text-gray-800">{money(g.monto)}</span>
+                      <span className="shrink-0 tabular-nums text-gray-800">{money(g.total)}</span>
                     </li>
                   ))}
                 </ul>
