@@ -47,6 +47,10 @@ export function CierreGeneralFacturasList({
   const total = items.reduce((s, i) => s + i.monto, 0);
 
   function agregar() {
+    if (!proveedorId) {
+      setError("Elige un proveedor");
+      return;
+    }
     if (!monto) {
       setError("Escribe un monto");
       return;
@@ -56,7 +60,7 @@ export function CierreGeneralFacturasList({
       const r = await agregarFacturaCierre({
         date,
         shift,
-        proveedorId: proveedorId || undefined,
+        proveedorId,
         monto,
         descripcion: descripcion || undefined,
         metodoPago,
@@ -125,12 +129,12 @@ export function CierreGeneralFacturasList({
         </div>
       )}
 
-      <div className="space-y-2 border-t border-gray-100 pt-3">
-        {proveedores.length === 0 ? (
-          <p className="text-xs text-amber-600">
-            Crea un proveedor de Costo en la pestaña Proveedores para poder elegirlo aquí.
-          </p>
-        ) : (
+      {proveedores.length === 0 ? (
+        <p className="text-xs text-amber-600">
+          Crea un proveedor de Costo en la pestaña Proveedores antes de registrar una factura.
+        </p>
+      ) : (
+        <div className="space-y-2 border-t border-gray-100 pt-3">
           <select
             value={proveedorId}
             onChange={(e) => {
@@ -143,7 +147,7 @@ export function CierreGeneralFacturasList({
             }}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
           >
-            <option value="">Proveedor sin especificar</option>
+            <option value="">Elige un proveedor</option>
             {proveedores.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nombre}
@@ -151,35 +155,35 @@ export function CierreGeneralFacturasList({
               </option>
             ))}
           </select>
-        )}
-        <MoneyInput value={monto} onChange={setMonto} />
-        <select
-          value={metodoPago}
-          onChange={(e) => setMetodoPago(e.target.value as MetodoPagoItem)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-        >
-          {METODOS_PAGO_ITEM_MANUAL.map((m) => (
-            <option key={m} value={m}>
-              {METODO_PAGO_ITEM_LABELS[m]}
-            </option>
-          ))}
-        </select>
-        <input
-          value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value)}
-          placeholder="Descripción (opcional)"
-          maxLength={300}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-        />
-        <button
-          type="button"
-          onClick={agregar}
-          disabled={pending}
-          className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {pending ? "Agregando..." : "Agregar factura"}
-        </button>
-      </div>
+          <MoneyInput value={monto} onChange={setMonto} />
+          <select
+            value={metodoPago}
+            onChange={(e) => setMetodoPago(e.target.value as MetodoPagoItem)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          >
+            {METODOS_PAGO_ITEM_MANUAL.map((m) => (
+              <option key={m} value={m}>
+                {METODO_PAGO_ITEM_LABELS[m]}
+              </option>
+            ))}
+          </select>
+          <input
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            placeholder="Descripción (opcional)"
+            maxLength={300}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={agregar}
+            disabled={pending}
+            className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {pending ? "Agregando..." : "Agregar factura"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

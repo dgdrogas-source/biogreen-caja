@@ -482,6 +482,11 @@ const statements = [
         FOREIGN KEY ("licorCierreId") REFERENCES "LicorCierre"("id") ON DELETE SET NULL ON UPDATE CASCADE;
     END IF;
   END $$;`,
+
+  // Tercer bucket del reparto del Cierre general (2026-07-19). Default 0: no cambia nada
+  // para nadie hasta que se active desde Ajustes. Ver prisma/migrations/20260719000000_tercero_reparto/.
+  'ALTER TABLE "CierreGeneralConfig" ADD COLUMN IF NOT EXISTS "porcentajeTercero" INTEGER NOT NULL DEFAULT 0;',
+  'ALTER TABLE "CierreGeneral" ADD COLUMN IF NOT EXISTS "porcentajeTercero" INTEGER NOT NULL DEFAULT 0;',
 ];
 
 let aplicado = false;

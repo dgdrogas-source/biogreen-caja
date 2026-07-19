@@ -295,6 +295,7 @@ function cierreInputFromRow(c: CierreGeneralConItems) {
     gastosVarios: sumarConFallback(c.gastosVarios, c.gastoItems),
     realPorMedio: c.realEfectivo != null ? { EFECTIVO: c.realEfectivo } : undefined,
     porcentajeReposicion: (c.porcentajeReposicion ?? 70) / 100, // % congelado del cierre → fracción
+    porcentajeTercero: (c.porcentajeTercero ?? 0) / 100, // % congelado del cierre → fracción
   };
 }
 
@@ -319,6 +320,7 @@ export async function getCierreGeneralConfig() {
   const cfg = await prisma.cierreGeneralConfig.findUnique({ where: { id: 1 } });
   return {
     porcentajeReposicion: cfg?.porcentajeReposicion ?? 70,
+    porcentajeTercero: cfg?.porcentajeTercero ?? 0,
     puntoEquilibrio: cfg?.puntoEquilibrio ?? 1_100_000,
   };
 }
@@ -355,7 +357,8 @@ export async function getResumenCierreGeneral(date: string) {
         ventaTotal: r.ventaTotal,
         retiroCierre: r.retiroCierre,
         reposicionBruta: r.reposicionBruta,
-        reposicionNeta: r.reposicionNeta, // 70% − facturas ya pagadas
+        reposicionNeta: r.reposicionNeta, // reposición − facturas ya pagadas
+        terceroBruto: r.terceroBruto,
         margenBruto: r.margenBruto,
         facturasPagadas: r.facturasPagadas,
         gastosVarios: r.gastosVarios,
@@ -366,6 +369,29 @@ export async function getResumenCierreGeneral(date: string) {
 
   const dia = agregarCierresDelDia(cierresDelDia);
 
+  // Desglose (2026-07-19): facturas y gastos pagados en el día, de ambos turnos, con su
+  // proveedor/categoría. Incluye el gasto automático del 4% (categoría "Comisión bancaria",
+  // autoGenerado=true) — es un gasto real más, no se filtra.
+  const cierresConItems = diaDays.map((d) => d.cierreGeneral).filter((c): c is CierreGeneralConItems => c !== null);
+  const facturasDelDia = cierresConItems.flatMap((c) =>
+    c.facturaItems.map((f) => ({
+      id: f.id,
+      monto: f.monto,
+      proveedor: f.proveedorRef?.nombre ?? f.proveedor ?? "Proveedor sin especificar",
+      descripcion: f.descripcion,
+    }))
+  );
+  const gastosDelDia = cierresConItems.flatMap((c) =>
+    c.gastoItems.map((g) => ({
+      id: g.id,
+      monto: g.monto,
+      categoria: g.categoria.nombre,
+      proveedor: g.proveedorRef?.nombre ?? null,
+      descripcion: g.descripcion,
+      autoGenerado: g.autoGenerado,
+    }))
+  );
+
   // --- Bloque EQUILIBRIO + RENTABILIDAD (mes) ---
   const ventaDia = dia.ventaTotal;
   const diasTranscurridos = Number(date.split("-")[2]);
@@ -375,13 +401,15 @@ export async function getResumenCierreGeneral(date: string) {
   const ventaMes = metricasMes.reduce((s, r) => s + r.ventaTotal, 0);
   const promedioMes = diasTranscurridos > 0 ? ventaMes / diasTranscurridos : 0;
   const rentabilidad = calcularRentabilidadBrutaMensual(
-    metricasMes.map((r) => ({ ventaTotal: r.ventaTotal, utilidadBruta: r.margenBruto }))
+    metricasMes.map((r) => ({ ventaTotal: r.ventaTotal, costos: r.facturasPagadas }))
   );
 
   return {
     date,
     hayCierre: dia.turnosConCierre > 0,
     dia,
+    facturasDelDia,
+    gastosDelDia,
     equilibrio: { puntoEquilibrio: config.puntoEquilibrio, ventaDia, promedioMes, diasTranscurridos },
     rentabilidad,
     config,

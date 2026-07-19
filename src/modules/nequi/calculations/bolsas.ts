@@ -11,6 +11,11 @@ export interface BolsaCierreInput {
   ventaSinFactura?: number;
   facturasPagadas: number; // ya resuelto (sumarConFallback), no el legado crudo
   gastosVarios: number; // ya resuelto (sumarConFallback)
+  // % congelados del cierre (2026-07-19: antes NO se pasaban aquí — el acumulado siempre
+  // usaba el 70/0 por defecto sin importar el % real de cada cierre histórico). Opcionales
+  // para no romper llamadas viejas; calcularCierreGeneral ya trae sus propios defaults.
+  porcentajeReposicion?: number;
+  porcentajeTercero?: number;
 }
 
 export interface BolsasAcumuladasResumen {
@@ -31,6 +36,8 @@ export function calcularBolsasAcumuladas(
       ventaSinFactura: c.ventaSinFactura,
       facturasPagadas: c.facturasPagadas,
       gastosVarios: c.gastosVarios,
+      porcentajeReposicion: c.porcentajeReposicion,
+      porcentajeTercero: c.porcentajeTercero,
     });
     reposicion += r.reposicionNeta;
     gastosUtilidad += r.utilidadDia;

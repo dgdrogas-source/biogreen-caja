@@ -36,4 +36,23 @@ describe("calcularBolsasAcumuladas", () => {
     // margenBruto = 30.000, utilidadDia = 30.000 − 50.000 = −20.000
     expect(r.gastosUtilidad).toBe(100000 - 20000);
   });
+
+  it("respeta el % congelado de CADA cierre (2026-07-19: antes siempre usaba 70/0 sin importar el real)", () => {
+    const r = calcularBolsasAcumuladas([
+      // Este turno se guardó con 80/0: reposiciónNeta = 80.000, utilidadDia = 20.000
+      { ventasPorMedio: { EFECTIVO: 100000 }, facturasPagadas: 0, gastosVarios: 0, porcentajeReposicion: 0.8 },
+      // Este con 70/10 (Tercero activo): reposiciónNeta = 70.000, terceroBruto = 10.000,
+      // margenBruto = 20.000, utilidadDia = 20.000
+      {
+        ventasPorMedio: { EFECTIVO: 100000 },
+        facturasPagadas: 0,
+        gastosVarios: 0,
+        porcentajeReposicion: 0.7,
+        porcentajeTercero: 0.1,
+      },
+    ]);
+    // Con el bug viejo (siempre 70/0) habría dado 70.000+70.000=140.000 y 30.000+30.000=60.000.
+    expect(r.reposicion).toBe(80000 + 70000);
+    expect(r.gastosUtilidad).toBe(20000 + 20000);
+  });
 });

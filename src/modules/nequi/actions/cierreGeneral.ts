@@ -51,13 +51,15 @@ export async function guardarCierreGeneral(input: CierreGeneralInputAction): Pro
     const d = schema.parse(input);
     const day = await getOrCreateDay(d.date, d.shift);
 
-    // Congela el % de reposición vigente en este cierre (historial inmutable ante cambios
-    // futuros del ajuste global). Re-guardar el turno re-snapshotea al % actual.
+    // Congela el % de reposición y el % tercero vigentes en este cierre (historial inmutable
+    // ante cambios futuros del ajuste global). Re-guardar el turno re-snapshotea al % actual.
     const cfg = await prisma.cierreGeneralConfig.findUnique({ where: { id: 1 } });
     const porcentajeReposicion = cfg?.porcentajeReposicion ?? 70;
+    const porcentajeTercero = cfg?.porcentajeTercero ?? 0;
 
     const data = {
       porcentajeReposicion,
+      porcentajeTercero,
       ventaEfectivo: d.ventaEfectivo,
       ventaNequi: d.ventaNequi,
       ventaTarjeta: d.ventaTarjeta,
@@ -180,12 +182,15 @@ export async function ensureCierreGeneral(
   return tx.cierreGeneral.findUniqueOrThrow({ where: { businessDayId } });
 }
 
+// proveedorId es OBLIGATORIO desde 2026-07-19 (a pedido del dueño): primero se crea el
+// proveedor en la pestaña Proveedores, luego se le puede registrar un gasto. Los gastos
+// guardados antes de esta fecha pueden tener proveedorId null (no se tocan retroactivamente).
 const agregarGastoSchema = turnoSchema.extend({
   categoriaId: z.string(),
   monto: z.number().int().positive("El monto debe ser mayor a cero"),
   descripcion: z.string().max(300).optional(),
   metodoPago: z.enum(METODOS_PAGO_ITEM).optional(),
-  proveedorId: z.string().optional(),
+  proveedorId: z.string().min(1, "Elige un proveedor"),
 });
 
 // Agrega un gasto itemizado (categoría + monto) al cierre del turno. Reemplaza el input
@@ -270,9 +275,11 @@ export async function eliminarGastoCierre(gastoId: string): Promise<ActionResult
   }
 }
 
+// proveedorId es OBLIGATORIO desde 2026-07-19 (a pedido del dueño): el texto libre `proveedor`
+// queda solo como campo legado de lectura (facturas guardadas antes de esta fecha).
 const agregarFacturaSchema = turnoSchema.extend({
   proveedor: z.string().max(120).optional(), // @deprecated — legado de texto libre
-  proveedorId: z.string().optional(),
+  proveedorId: z.string().min(1, "Elige un proveedor"),
   monto: z.number().int().positive("El monto debe ser mayor a cero"),
   descripcion: z.string().max(300).optional(),
   metodoPago: z.enum(METODOS_PAGO_ITEM).optional(),

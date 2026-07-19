@@ -71,6 +71,7 @@ export default async function ResumenCierreGeneralPage({
 
       <AjustesCierreGeneralConfig
         porcentajeReposicion={resumen.config.porcentajeReposicion}
+        porcentajeTercero={resumen.config.porcentajeTercero}
         puntoEquilibrio={resumen.config.puntoEquilibrio}
       />
 

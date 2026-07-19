@@ -59,6 +59,10 @@ export function CierreGeneralGastosList({
       setError("Elige una categoría");
       return;
     }
+    if (!proveedorId) {
+      setError("Elige un proveedor");
+      return;
+    }
     if (!monto) {
       setError("Escribe un monto");
       return;
@@ -72,7 +76,7 @@ export function CierreGeneralGastosList({
         monto,
         descripcion: descripcion || undefined,
         metodoPago,
-        proveedorId: proveedorId || undefined,
+        proveedorId,
       });
       if (r.ok) {
         setMonto(null);
@@ -139,10 +143,19 @@ export function CierreGeneralGastosList({
         </div>
       )}
 
-      {categorias.length === 0 ? (
-        <p className="text-xs text-amber-600">
-          Crea una categoría en Configuración antes de registrar un gasto.
-        </p>
+      {categorias.length === 0 || proveedores.length === 0 ? (
+        <div className="space-y-1">
+          {categorias.length === 0 && (
+            <p className="text-xs text-amber-600">
+              Crea una categoría en Configuración antes de registrar un gasto.
+            </p>
+          )}
+          {proveedores.length === 0 && (
+            <p className="text-xs text-amber-600">
+              Crea un proveedor de Gasto en la pestaña Proveedores antes de registrar un gasto.
+            </p>
+          )}
+        </div>
       ) : (
         <div className="space-y-2 border-t border-gray-100 pt-3">
           <select
@@ -167,7 +180,7 @@ export function CierreGeneralGastosList({
             }}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
           >
-            <option value="">Sin proveedor</option>
+            <option value="">Elige un proveedor</option>
             {proveedores.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nombre}

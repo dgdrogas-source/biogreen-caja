@@ -71,3 +71,31 @@ describe("calcularCierreGeneral", () => {
     expect(r.margenBruto).toBe(300000);
   });
 });
+
+describe("calcularCierreGeneral — porcentajeTercero (2026-07-19)", () => {
+  it("sin porcentajeTercero (default 0): terceroBruto es 0 y margenBruto no cambia", () => {
+    const r = calcularCierreGeneral({ ventasPorMedio: { EFECTIVO: 1000000 } });
+    expect(r.terceroBruto).toBe(0);
+    expect(r.margenBruto).toBe(300000); // igual que antes de que existiera Tercero
+  });
+
+  it("con tercero activo: resta de gastos/utilidad, NO de reposición", () => {
+    const r = calcularCierreGeneral({
+      ventasPorMedio: { EFECTIVO: 1000000 },
+      porcentajeReposicion: 0.7,
+      porcentajeTercero: 0.1,
+    });
+    expect(r.reposicionBruta).toBe(700000); // reposición intacta
+    expect(r.terceroBruto).toBe(100000);
+    expect(r.margenBruto).toBe(200000); // 1.000.000 − 700.000 − 100.000
+  });
+
+  it("los tres suman exactamente la base (nunca se pierde plata por redondeo)", () => {
+    const r = calcularCierreGeneral({
+      ventasPorMedio: { EFECTIVO: 649175 },
+      porcentajeReposicion: 0.7,
+      porcentajeTercero: 0.05,
+    });
+    expect(r.reposicionBruta + r.terceroBruto + r.margenBruto).toBe(r.base);
+  });
+});

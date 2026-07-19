@@ -28,30 +28,34 @@ describe("semaforoRentabilidad", () => {
   });
 });
 
-describe("calcularRentabilidadBrutaMensual", () => {
-  it("acumula Σ utilidad bruta ÷ Σ venta del mes", () => {
+describe("calcularRentabilidadBrutaMensual — real (ventas − costos) ÷ ventas (2026-07-19)", () => {
+  it("acumula (Σ venta − Σ costos) ÷ Σ venta del mes", () => {
     const r = calcularRentabilidadBrutaMensual([
-      { ventaTotal: 1000000, utilidadBruta: 300000 }, // 30%
-      { ventaTotal: 500000, utilidadBruta: 140000 }, // 28%
+      { ventaTotal: 1000000, costos: 700000 }, // margen real 30%
+      { ventaTotal: 500000, costos: 360000 }, // margen real 28%
     ]);
     expect(r.ventaMes).toBe(1500000);
+    expect(r.costosMes).toBe(1060000);
     expect(r.utilidadBrutaMes).toBe(440000);
     expect(r.ratio).toBeCloseTo(440000 / 1500000, 6); // ≈ 0.2933 → amarillo
     expect(semaforoRentabilidad(r.ratio)).toBe("AMARILLO");
   });
 
-  it("mezcla de % congelados que baja el acumulado a rojo", () => {
+  it("detecta un mes con margen real bajo aunque la POLÍTICA fuera 70/30 (la métrica vieja no podía ver esto)", () => {
+    // La política de reparto (70/30) es independiente del costo real de la mercancía: un mes
+    // en que las facturas subieron mucho da margen real bajo, aunque el margenBruto de
+    // política siga siendo exactamente 30% (por construcción, calcularCierreGeneral).
     const r = calcularRentabilidadBrutaMensual([
-      { ventaTotal: 1000000, utilidadBruta: 300000 }, // 30% (día 70/30)
-      { ventaTotal: 1000000, utilidadBruta: 200000 }, // 20% (día 80/20)
+      { ventaTotal: 1000000, costos: 800000 }, // margen real 20%, aunque la política diga 30%
     ]);
-    expect(r.ratio).toBeCloseTo(0.25, 6);
+    expect(r.ratio).toBeCloseTo(0.2, 6);
     expect(semaforoRentabilidad(r.ratio)).toBe("ROJO");
   });
 
   it("sin cierres → venta 0 y ratio null (no divide por cero)", () => {
     const r = calcularRentabilidadBrutaMensual([]);
     expect(r.ventaMes).toBe(0);
+    expect(r.costosMes).toBe(0);
     expect(r.ratio).toBeNull();
   });
 });
@@ -75,6 +79,7 @@ describe("agregarCierresDelDia", () => {
     retiroCierre: 0,
     reposicionBruta: 377370, // 539.100 × 70%
     reposicionNeta: 309370, // 377.370 − 68.000
+    terceroBruto: 0, // Tercero no estaba activado ese día
     margenBruto: 161730, // 539.100 × 30%
     facturasPagadas: 68000,
     gastosVarios: 0,
@@ -137,6 +142,13 @@ describe("agregarCierresDelDia", () => {
     const r = agregarCierresDelDia([turnoBase, pendiente]);
     expect(r.cuadre.descuadre).toBe(8200); // solo el turno contado
     expect(r.cuadre.turnosPendientes).toBe(1);
+  });
+
+  it("suma apartadoTercero de ambos turnos (2026-07-19)", () => {
+    const t1: CierreDelDia = { ...turnoBase, terceroBruto: 20000 };
+    const t2: CierreDelDia = { ...turnoBase, terceroBruto: 15000 };
+    const r = agregarCierresDelDia([t1, t2]);
+    expect(r.apartadoTercero).toBe(35000);
   });
 
   it("consignado solo si TODOS los turnos lo están", () => {

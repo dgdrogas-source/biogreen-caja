@@ -1,10 +1,13 @@
 import type { EstadoCuadreCaja } from "./cuadreCajaCierreGeneral";
 
 // Indicadores del "Resumen" del Cierre general (solo lectura, sobre datos ya calculados).
-// Reglas confirmadas con el dueño (2026-07-17):
-//   - Rentabilidad bruta = utilidad bruta ÷ venta (utilidad bruta = margen bruto, el 30%).
-//   - Acumulada del mes = Σ utilidad bruta ÷ Σ venta de los cierres del mes (cada cierre con
-//     su % congelado), como % con semáforo: ≥30 verde, 26–<30 amarillo, <26 rojo.
+// Reglas confirmadas con el dueño:
+//   - Rentabilidad REAL (2026-07-19, reemplaza la de 2026-07-17): utilidad bruta = ventas −
+//     costos (facturas pagadas a proveedores), NO el margen del 30% de política. La versión
+//     anterior era casi tautológica: margenBruto siempre es exactamente base×%, así que ese
+//     "ratio" solo medía si se seguía la política, nunca el resultado real del negocio.
+//   - Acumulada del mes = Σ(ventas − costos) ÷ Σ ventas de los cierres del mes, como % con
+//     semáforo: ≥30 verde, 26–<30 amarillo, <26 rojo (mismos umbrales, ella no pidió cambiarlos).
 //   - Punto de equilibrio = venta diaria mínima de referencia; el día "cumple" si la vende.
 
 export type Semaforo = "VERDE" | "AMARILLO" | "ROJO";
@@ -23,21 +26,26 @@ export function semaforoRentabilidad(ratio: number | null): Semaforo | null {
 
 export interface CierreMensualMetrica {
   ventaTotal: number; // venta del cierre (suma por medio de pago)
-  utilidadBruta: number; // margen bruto del cierre (base × % de gastos/utilidad, ya congelado)
+  costos: number; // facturas pagadas a proveedores ese cierre (costo de mercancía, no gastos operativos)
 }
 
 export interface RentabilidadMensual {
   ventaMes: number;
-  utilidadBrutaMes: number;
+  costosMes: number;
+  utilidadBrutaMes: number; // ventaMes − costosMes
   ratio: number | null; // utilidadBrutaMes ÷ ventaMes; null si ventaMes = 0 (evita /0)
 }
 
-// Rentabilidad bruta acumulada del mes: Σ utilidad bruta ÷ Σ venta de los cierres del mes.
+// Rentabilidad bruta REAL acumulada del mes: (Σ venta − Σ costos) ÷ Σ venta. "Costos" = lo
+// pagado a proveedores por mercancía (facturas), no gastos operativos ni la política 70/30 —
+// por eso sí mide resultado real y no solo si se siguió la política.
 export function calcularRentabilidadBrutaMensual(cierres: CierreMensualMetrica[]): RentabilidadMensual {
   const ventaMes = cierres.reduce((s, c) => s + c.ventaTotal, 0);
-  const utilidadBrutaMes = cierres.reduce((s, c) => s + c.utilidadBruta, 0);
+  const costosMes = cierres.reduce((s, c) => s + c.costos, 0);
+  const utilidadBrutaMes = ventaMes - costosMes;
   return {
     ventaMes,
+    costosMes,
     utilidadBrutaMes,
     ratio: ventaMes > 0 ? utilidadBrutaMes / ventaMes : null,
   };
@@ -61,9 +69,10 @@ export function cumpleEquilibrio(venta: number, puntoEquilibrio: number): boolea
 export interface CierreDelDia {
   ventaTotal: number;
   retiroCierre: number;
-  reposicionBruta: number; // apartado del 70%
-  reposicionNeta: number; // 70% − facturas pagadas
-  margenBruto: number; // apartado del 30%
+  reposicionBruta: number; // apartado de reposición
+  reposicionNeta: number; // reposición − facturas pagadas
+  terceroBruto: number; // apartado de Tercero (0 si no está activado)
+  margenBruto: number; // apartado de gastos/utilidad (ya descontado Tercero)
   facturasPagadas: number;
   gastosVarios: number;
   consignado: boolean;
@@ -77,6 +86,7 @@ export interface ResumenDiaCierreGeneral {
   retiroParaFacturas: number; // Σ reposiciónNeta
   retiroParaGastos: number; // Σ (margenBruto − gastos)
   apartado70: number;
+  apartadoTercero: number; // Σ terceroBruto
   apartado30: number;
   facturasPagadas: number;
   gastosVarios: number;
@@ -104,6 +114,7 @@ export function agregarCierresDelDia(cierres: CierreDelDia[]): ResumenDiaCierreG
     retiroParaFacturas: sumar(cierres, (c) => c.reposicionNeta),
     retiroParaGastos: sumar(cierres, (c) => c.margenBruto - c.gastosVarios),
     apartado70: sumar(cierres, (c) => c.reposicionBruta),
+    apartadoTercero: sumar(cierres, (c) => c.terceroBruto),
     apartado30: sumar(cierres, (c) => c.margenBruto),
     facturasPagadas: sumar(cierres, (c) => c.facturasPagadas),
     gastosVarios: sumar(cierres, (c) => c.gastosVarios),

@@ -45,7 +45,7 @@ const SEMAFORO_UI: Record<Semaforo, { bg: string; text: string; dot: string; lab
 };
 
 export function ResumenCierreGeneralView({ resumen }: { resumen: Resumen }) {
-  const { dia, equilibrio, rentabilidad } = resumen;
+  const { dia, equilibrio, rentabilidad, facturasDelDia, gastosDelDia } = resumen;
   const hayCierre = dia.turnosConCierre > 0;
 
   const cuadreUI = {
@@ -78,14 +78,15 @@ export function ResumenCierreGeneralView({ resumen }: { resumen: Resumen }) {
             <Fila
               label="Retiro para facturas"
               monto={dia.retiroParaFacturas}
-              hint={`${money(dia.apartado70)} (70/30) − facturas pagadas ${money(dia.facturasPagadas)}`}
+              hint={`${money(dia.apartado70)} (reposición) − facturas pagadas ${money(dia.facturasPagadas)}`}
               rojoSiNegativo
               destacado
             />
+            {dia.apartadoTercero > 0 && <Fila label="Apartado Tercero" monto={dia.apartadoTercero} />}
             <Fila
               label="Retiro para gastos"
               monto={dia.retiroParaGastos}
-              hint={`${money(dia.apartado30)} (30%) − gastos ${money(dia.gastosVarios)}`}
+              hint={`${money(dia.apartado30)} (gastos/utilidad) − gastos ${money(dia.gastosVarios)}`}
               rojoSiNegativo
               destacado
             />
@@ -108,6 +109,50 @@ export function ResumenCierreGeneralView({ resumen }: { resumen: Resumen }) {
             {dia.turnosConCierre === 1 && (
               <p className="text-[11px] text-gray-400">Solo hay 1 turno cerrado en este día.</p>
             )}
+
+            {/* Desglose (2026-07-19): el detalle de qué compone "facturas pagadas" y "gastos". */}
+            <div className="border-t border-gray-100 pt-2">
+              <p className="mb-1 text-sm font-semibold text-gray-800">Facturas pagadas</p>
+              {facturasDelDia.length === 0 ? (
+                <p className="text-xs text-gray-400">Ninguna hoy</p>
+              ) : (
+                <ul className="space-y-1">
+                  {facturasDelDia.map((f) => (
+                    <li key={f.id} className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600">
+                        {f.proveedor}
+                        {f.descripcion && <span className="text-gray-400"> · {f.descripcion}</span>}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-gray-800">{money(f.monto)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="border-t border-gray-100 pt-2">
+              <p className="mb-1 text-sm font-semibold text-gray-800">Gastos pagados</p>
+              {gastosDelDia.length === 0 ? (
+                <p className="text-xs text-gray-400">Ninguno hoy</p>
+              ) : (
+                <ul className="space-y-1">
+                  {gastosDelDia.map((g) => (
+                    <li key={g.id} className="flex items-center justify-between text-xs">
+                      <span className="text-gray-600">
+                        {g.categoria}
+                        {g.proveedor && <span className="text-gray-400"> · {g.proveedor}</span>}
+                        {g.autoGenerado && (
+                          <span className="ml-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                            automático
+                          </span>
+                        )}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-gray-800">{money(g.monto)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -144,7 +189,7 @@ export function ResumenCierreGeneralView({ resumen }: { resumen: Resumen }) {
           <div>
             <h2 className="text-base font-semibold text-gray-800">Rentabilidad bruta del mes</h2>
             <p className="text-[11px] text-gray-500">
-              Utilidad bruta ÷ venta acumulada · {money(rentabilidad.utilidadBrutaMes)} ÷{" "}
+              (Ventas − costos) ÷ ventas · ({money(rentabilidad.ventaMes)} − {money(rentabilidad.costosMes)}) ÷{" "}
               {money(rentabilidad.ventaMes)}
             </p>
           </div>

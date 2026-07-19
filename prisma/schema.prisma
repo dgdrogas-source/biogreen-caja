@@ -155,6 +155,9 @@ model BaseFund {
 model CierreGeneralConfig {
   id                   Int      @id @default(1)
   porcentajeReposicion Int      @default(70)
+  // Tercer bucket del reparto (2026-07-19), default 0. Resta de gastos/utilidad, no de
+  // reposición. Los tres (reposición + tercero + gastos/utilidad) siempre suman 100%.
+  porcentajeTercero    Int      @default(0)
   puntoEquilibrio      Int      @default(1100000)
   updatedAt            DateTime @updatedAt
 }
@@ -207,6 +210,9 @@ model CierreGeneral {
   // cambiar el % global (CierreGeneralConfig) NO altera cierres ya guardados; solo los
   // nuevos (o los que se re-guarden). Los cierres de Fase 1/2 quedan en 70 por el DEFAULT.
   porcentajeReposicion Int @default(70)
+  // Snapshot del % tercero vigente al guardar (mismo patrón que porcentajeReposicion). 0 en
+  // los cierres anteriores a 2026-07-19 por el DEFAULT.
+  porcentajeTercero    Int @default(0)
 
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id])

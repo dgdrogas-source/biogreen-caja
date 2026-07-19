@@ -88,6 +88,11 @@ export default async function CierreGeneralPage({
         facturasPagadas: facturasPagadasTotal,
         gastosVarios: gastosVariosTotal,
         retiroCierre: cierre.retiroCierre,
+        // % congelados de ESTE cierre ya guardado (2026-07-19: antes usaba siempre el default
+        // 70/0, ignorando el % real con el que se guardó — descuadraba el resumen del turno
+        // apenas alguien cambiara el % global o activara Tercero).
+        porcentajeReposicion: (cierre.porcentajeReposicion ?? 70) / 100,
+        porcentajeTercero: (cierre.porcentajeTercero ?? 0) / 100,
       })
     : null;
 

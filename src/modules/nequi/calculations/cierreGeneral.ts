@@ -19,6 +19,10 @@ export interface CierreGeneralInput {
   retiroCierre?: number; // efectivo retirado al cerrar (col H)
   realPorMedio?: Partial<Record<MedioPago, number>>; // lo realmente recibido por medio (para el cuadre)
   porcentajeReposicion?: number; // fracción 0..1 del reparto a reposición (default 0.7). Se congela por cierre.
+  // Tercer bucket del reparto (2026-07-19), default 0. Resta de gastos/utilidad, NO de
+  // reposición — así una farmacia que nunca lo activa (0%) no ve cambiar ningún número.
+  // Los tres (reposición + tercero + gastos/utilidad) siempre suman 100%.
+  porcentajeTercero?: number; // fracción 0..1
 }
 
 export interface CuadreMedio {
@@ -31,11 +35,12 @@ export interface CuadreMedio {
 export interface CierreGeneralResumen {
   ventaTotal: number; // suma de la venta por medio (D)
   ventaSinFactura: number; // E
-  base: number; // ventaTotal + ventaSinFactura (a lo que se aplica el 70/30)
-  reposicionBruta: number; // base × 70%
-  reposicionNeta: number; // base × 70% − facturas pagadas (col F)
-  margenBruto: number; // base × 30%
-  utilidadDia: number; // base × 30% − gastos varios (V27)
+  base: number; // ventaTotal + ventaSinFactura (a lo que se aplica el reparto)
+  reposicionBruta: number; // base × % reposición
+  reposicionNeta: number; // base × % reposición − facturas pagadas (col F)
+  terceroBruto: number; // base × % tercero (0 si no está activado)
+  margenBruto: number; // base − reposiciónBruta − terceroBruto (el resto, "gastos/utilidad")
+  utilidadDia: number; // margenBruto − gastos varios (V27)
   consignar: number; // retiro cierre − reposiciónNeta (col J)
   facturasPagadas: number;
   gastosVarios: number;
@@ -51,13 +56,17 @@ export function calcularCierreGeneral(input: CierreGeneralInput): CierreGeneralR
   const retiroCierre = input.retiroCierre ?? 0;
 
   const porcentajeReposicion = input.porcentajeReposicion ?? PORCENTAJE_REPOSICION;
+  const porcentajeTercero = input.porcentajeTercero ?? 0;
 
   const ventaTotal = MEDIOS_PAGO.reduce((s, m) => s + (input.ventasPorMedio[m] ?? 0), 0);
   const base = ventaTotal + ventaSinFactura;
 
   const reposicionBruta = base * porcentajeReposicion;
   const reposicionNeta = reposicionBruta - facturasPagadas;
-  const margenBruto = base - reposicionBruta; // complemento exacto (evita el ruido de 1 − 0.7)
+  const terceroBruto = base * porcentajeTercero;
+  // Complemento exacto (evita el ruido de 1 − 0.7 − 0): el "gastos/utilidad" es lo que
+  // queda de la base después de reposición y tercero, nunca un tercer producto redondeado.
+  const margenBruto = base - reposicionBruta - terceroBruto;
   const utilidadDia = margenBruto - gastosVarios;
   const consignar = retiroCierre - reposicionNeta;
 
@@ -74,6 +83,7 @@ export function calcularCierreGeneral(input: CierreGeneralInput): CierreGeneralR
     base,
     reposicionBruta,
     reposicionNeta,
+    terceroBruto,
     margenBruto,
     utilidadDia,
     consignar,
