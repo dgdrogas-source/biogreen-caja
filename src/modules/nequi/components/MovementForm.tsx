@@ -5,6 +5,11 @@ import { useState, useTransition } from "react";
 import { calcularComisionSugerida } from "../calculations/comision";
 import { createMovement } from "../actions/movements";
 import {
+  VentaLicorModal,
+  type ClienteOpcion,
+  type ProductoOpcion,
+} from "@/modules/licores/components/VentaLicorModal";
+import {
   MOVEMENT_DIRECTIONS,
   MOVEMENT_LABELS,
   POCKET_BUCKETS,
@@ -52,6 +57,8 @@ export function MovementForm({
   shiftStatus,
   allowDateChange = false,
   today,
+  licoresProductos,
+  licoresClientes = [],
 }: {
   types: MovementType[];
   commissionSources: CommissionSource[];
@@ -59,8 +66,15 @@ export function MovementForm({
   shiftStatus: Record<Shift, string>;
   allowDateChange?: boolean; // solo admin: permite elegir la fecha del movimiento
   today?: string; // YYYY-MM-DD en Bogotá; requerido si allowDateChange
+  // Cervezas disponibles. Si vienen, "Venta Licores Jhoann" abre el pop-up del módulo
+  // Licores en vez del formulario suelto: así la venta queda con producto y cantidad, y el
+  // movimiento de Nequi lo crea ese módulo UNA sola vez (nunca doble).
+  licoresProductos?: ProductoOpcion[];
+  // Clientes de la cartera de licores (para vender fiado desde el pop-up).
+  licoresClientes?: ClienteOpcion[];
 }) {
   const router = useRouter();
+  const [licorModalAbierto, setLicorModalAbierto] = useState(false);
   const [pending, startTransition] = useTransition();
   // Turno sugerido por la hora; si ese ya está cerrado y el otro no, arranca en el abierto.
   const otherShift: Shift = defaultShift === 1 ? 2 : 1;
@@ -191,6 +205,12 @@ export function MovementForm({
             key={t}
             type="button"
             onClick={() => {
+              // La venta de licor se registra por el pop-up (producto, cantidad, precio):
+              // el formulario suelto no sabría de cuál cerveza se trata.
+              if (t === "VENTA_LICORES_JHOANN" && licoresProductos) {
+                setLicorModalAbierto(true);
+                return;
+              }
               setType(t);
               if (t !== "COMISION") setSourceId("");
               if (t !== "GASTO_FARMACIA" && t !== "PAGO_FACTURA") setPettyCashBucket("");
@@ -325,6 +345,15 @@ export function MovementForm({
       >
         {pending ? "Guardando..." : "Guardar movimiento"}
       </button>
+
+      {licorModalAbierto && licoresProductos && (
+        <VentaLicorModal
+          productos={licoresProductos}
+          clientes={licoresClientes}
+          shift={shift}
+          onClose={() => setLicorModalAbierto(false)}
+        />
+      )}
     </div>
   );
 }

@@ -21,6 +21,11 @@ const OPCIONES = [
     titulo: "Cierre mensual",
     descripcion: "Cierre del mes día a día: ventas, gastos, cartera, cuadres y disponible.",
   },
+  {
+    href: "/licores",
+    titulo: "🍺 Licores",
+    descripcion: "Cervezas: inventario, compras, ventas, ganancia y alertas de stock.",
+  },
 ];
 
 export default async function InicioPage() {

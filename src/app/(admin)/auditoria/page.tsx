@@ -25,6 +25,19 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   PROVEEDOR_RENAME: { label: "Renombró un proveedor", style: "bg-blue-50 text-blue-700" },
   PROVEEDOR_DEACTIVATE: { label: "Desactivó un proveedor", style: "bg-amber-50 text-amber-700" },
   PROVEEDOR_DELETE: { label: "Borró un proveedor", style: "bg-red-50 text-red-600" },
+  LICOR_PRODUCTO_CREATE: { label: "Creó una cerveza", style: "bg-emerald-50 text-emerald-700" },
+  LICOR_PRODUCTO_UPDATE: { label: "Editó una cerveza", style: "bg-blue-50 text-blue-700" },
+  LICOR_PRODUCTO_DELETE: { label: "Quitó una cerveza", style: "bg-red-50 text-red-600" },
+  LICOR_COMPRA_CREATE: { label: "Registró una compra de licor", style: "bg-emerald-50 text-emerald-700" },
+  LICOR_COMPRA_DELETE: { label: "Borró una compra de licor", style: "bg-red-50 text-red-600" },
+  LICOR_VENTA_CREATE: { label: "Registró una venta de licor", style: "bg-emerald-50 text-emerald-700" },
+  LICOR_VENTA_DELETE: { label: "Borró una venta de licor", style: "bg-red-50 text-red-600" },
+  LICOR_CLIENTE_CREATE: { label: "Creó un cliente de licores", style: "bg-emerald-50 text-emerald-700" },
+  LICOR_CLIENTE_UPDATE: { label: "Editó un cliente de licores", style: "bg-blue-50 text-blue-700" },
+  LICOR_ABONO_CREATE: { label: "Registró un abono de licores", style: "bg-emerald-50 text-emerald-700" },
+  LICOR_ABONO_DELETE: { label: "Borró un abono de licores", style: "bg-red-50 text-red-600" },
+  LICOR_CIERRE_CREATE: { label: "Cerró licores", style: "bg-indigo-50 text-indigo-700" },
+  LICOR_CIERRE_DELETE: { label: "Deshizo un cierre de licores", style: "bg-red-50 text-red-600" },
 };
 
 function formatValue(v: unknown): string {

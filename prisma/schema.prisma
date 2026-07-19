@@ -32,6 +32,10 @@ model User {
   mensualDias            MensualDia[]
   tarjetaAbonos          TarjetaAbono[]
   plataformaTransferencias PlataformaTransferencia[]
+  licorCompras           LicorCompra[]
+  licorVentas            LicorVenta[]
+  licorAbonos            LicorAbono[]
+  licorCierres           LicorCierre[]
 }
 
 // Un registro por TURNO de caja (2 turnos por día, lunes-sábado). Las filas
@@ -523,4 +527,171 @@ model PlataformaTransferencia {
   gastoGenerado   CierreGeneralGasto? @relation(fields: [gastoGeneradoId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
+}
+
+// ============================================================================
+// MÓDULO LICORES (2026-07-19). Control de compra/venta de cervezas.
+// Módulo AISLADO (como `mensual`), con una única integración deliberada con Nequi:
+// una compra/venta pagada en NEQUI o EFECTIVO crea UN solo Movement ligado
+// (movementId), para que el dueño no tenga que registrarlo dos veces. Los demás
+// medios (tarjeta, Daviplata, transferencia, crédito) no tocan el cuadre Nequi.
+// `movementId` es una columna suelta a propósito (sin relación Prisma): el módulo
+// Nequi no se toca, y Movement usa soft-delete, así que no hay FK que mantener.
+// ============================================================================
+
+model LicorProducto {
+  id          String   @id @default(cuid())
+  nombre      String   @unique
+  precioVenta Int      @default(0) // precio de venta ACTUAL; las ventas congelan el suyo
+  stockMinimo Int      @default(6) // umbral de la alerta de stock bajo
+  activo      Boolean  @default(true) // "eliminar" = desactivar (conserva el historial)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  compras LicorCompra[]
+  ventas  LicorVenta[]
+}
+
+// Compra al proveedor (solo admin). El costo unitario se DERIVA: valorTotal / cantidad.
+model LicorCompra {
+  id          String        @id @default(cuid())
+  productoId  String
+  producto    LicorProducto @relation(fields: [productoId], references: [id])
+  date        String // YYYY-MM-DD (America/Bogota)
+  cantidad    Int
+  valorTotal  Int // pesos pagados por TODA la compra
+  proveedor   String?
+  descripcion String?
+  metodoPago  String // NEQUI | EFECTIVO | TARJETA | DAVIPLATA | TRANSFERENCIA | CREDITO
+  movementId  String? // Movement (GASTO_FARMACIA) ligado; solo si metodoPago es NEQUI/EFECTIVO
+  createdById String
+  createdBy   User          @relation(fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+  deletedAt   DateTime? // soft delete
+
+  // Cierre de licores que ya la contó (null = pendiente del próximo corte).
+  licorCierreId String?
+  licorCierre   LicorCierre? @relation(fields: [licorCierreId], references: [id], onDelete: SetNull)
+
+  @@index([productoId, deletedAt])
+  @@index([date])
+  @@index([licorCierreId])
+}
+
+// Venta (la registra la vendedora desde el pop-up de "Venta Licores Jhoann").
+// precioUnitario y costoUnitario quedan CONGELADOS: cambiar el precio del producto
+// después no altera el margen ya registrado.
+model LicorVenta {
+  id             String        @id @default(cuid())
+  productoId     String
+  producto       LicorProducto @relation(fields: [productoId], references: [id])
+  date           String // YYYY-MM-DD
+  shift          Int // 1 | 2
+  cantidad       Int
+  precioUnitario Int // congelado al vender
+  costoUnitario  Int // promedio ponderado de las compras a ese momento (congelado)
+  metodoPago     String // NEQUI | EFECTIVO | TARJETA | DAVIPLATA | TRANSFERENCIA | CREDITO
+  descuento      Boolean       @default(false) // true si se vendió a un precio distinto al de lista
+  movementId     String? // Movement (VENTA_LICORES_JHOANN) ligado; solo NEQUI/EFECTIVO
+  nota           String?
+  createdById    String
+  createdBy      User          @relation(fields: [createdById], references: [id])
+  createdAt      DateTime      @default(now())
+  deletedAt      DateTime? // soft delete
+
+  // Obligatorio SOLO cuando metodoPago = CREDITO: la cerveza salió fiada y hay que saber
+  // a quién cobrarle. Cartera propia de licores, aparte de la de la farmacia.
+  clienteId String?
+  cliente   LicorCliente? @relation(fields: [clienteId], references: [id])
+
+  licorCierreId String?
+  licorCierre   LicorCierre? @relation(fields: [licorCierreId], references: [id], onDelete: SetNull)
+
+  @@index([productoId, deletedAt])
+  @@index([date])
+  @@index([clienteId, deletedAt])
+  @@index([licorCierreId])
+}
+
+
+// ---------------------------------------------------------------------------
+// CARTERA DE LICORES (2026-07-19). Lista de clientes PROPIA, separada a propósito de
+// `Cliente`/`VentaCredito` del Cierre general (decisión del dueño): nada de licores puede
+// afectar la cartera de la farmacia. Saldo = Σ ventas a crédito − Σ abonos.
+// ---------------------------------------------------------------------------
+
+model LicorCliente {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  telefono  String?
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ventas LicorVenta[]
+  abonos LicorAbono[]
+}
+
+// Pago de un cliente contra su deuda de cerveza. El medio se reduce a las 2 modalidades del
+// cierre de licores (efectivo / plataforma), que es como el dueño lo maneja.
+model LicorAbono {
+  id          String       @id @default(cuid())
+  clienteId   String
+  cliente     LicorCliente @relation(fields: [clienteId], references: [id])
+  date        String // YYYY-MM-DD
+  monto       Int
+  medioPago   String // EFECTIVO | PLATAFORMA
+  nota        String?
+  createdById String
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
+  deletedAt   DateTime?
+
+  licorCierreId String?
+  licorCierre   LicorCierre? @relation(fields: [licorCierreId], references: [id], onDelete: SetNull)
+
+  @@index([clienteId, deletedAt])
+  @@index([date])
+  @@index([licorCierreId])
+}
+
+// ---------------------------------------------------------------------------
+// CIERRE DE LICORES (2026-07-19). ESPORÁDICO: el dueño lo hace cuando quiere, no en una
+// fecha fija. Cada cierre es un CORTE — se lleva todo lo que aún no había sido cerrado
+// (ventas, compras y abonos con licorCierreId = null) y lo marca con su id. Así nada se
+// cuenta dos veces aunque los cierres estén separados por semanas.
+//
+// Solo 2 modalidades (como lo maneja el dueño): EFECTIVO y PLATAFORMA (todo lo digital
+// junto). El crédito queda aparte: esa plata todavía no entró.
+// Se cuadra SOLO el efectivo contra el conteo físico; la plataforma es de referencia.
+// Es una reconciliación propia de licores: NO altera el cuadre de Nequi.
+// ---------------------------------------------------------------------------
+
+model LicorCierre {
+  id   String @id @default(cuid())
+  date String // YYYY-MM-DD en que se hizo el corte
+
+  // Fotos del periodo (se guardan para poder mostrar el histórico sin recalcular).
+  ventasEfectivo   Int @default(0)
+  ventasPlataforma Int @default(0)
+  ventasCredito    Int @default(0) // informativo: salió cerveza, entró deuda
+  abonosEfectivo   Int @default(0)
+  abonosPlataforma Int @default(0)
+  comprasEfectivo  Int @default(0)
+  comprasPlataforma Int @default(0)
+
+  efectivoEsperado Int @default(0) // ventas efectivo + abonos efectivo − compras efectivo
+  efectivoContado  Int @default(0) // lo que el dueño contó físicamente
+  diferencia       Int @default(0) // contado − esperado (+ sobró / − faltó)
+
+  nota        String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  ventas  LicorVenta[]
+  compras LicorCompra[]
+  abonos  LicorAbono[]
+
+  @@index([date])
 }

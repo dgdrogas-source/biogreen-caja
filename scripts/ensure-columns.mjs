@@ -346,6 +346,142 @@ const statements = [
         FOREIGN KEY ("gastoGeneradoId") REFERENCES "CierreGeneralGasto"("id") ON DELETE SET NULL ON UPDATE CASCADE;
     END IF;
   END $$;`,
+
+  // ---------------------------------------------------------------------------
+  // Módulo LICORES (2026-07-19). Ver prisma/migrations/20260719000000_licores/.
+  // ---------------------------------------------------------------------------
+  `CREATE TABLE IF NOT EXISTS "LicorProducto" (
+    "id" TEXT NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "precioVenta" INTEGER NOT NULL DEFAULT 0,
+    "stockMinimo" INTEGER NOT NULL DEFAULT 6,
+    "activo" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "LicorProducto_pkey" PRIMARY KEY ("id")
+  );`,
+  'CREATE UNIQUE INDEX IF NOT EXISTS "LicorProducto_nombre_key" ON "LicorProducto"("nombre");',
+
+  `CREATE TABLE IF NOT EXISTS "LicorCompra" (
+    "id" TEXT NOT NULL,
+    "productoId" TEXT NOT NULL,
+    "date" TEXT NOT NULL,
+    "cantidad" INTEGER NOT NULL,
+    "valorTotal" INTEGER NOT NULL,
+    "proveedor" TEXT,
+    "descripcion" TEXT,
+    "metodoPago" TEXT NOT NULL,
+    "movementId" TEXT,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    CONSTRAINT "LicorCompra_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "LicorCompra_productoId_fkey" FOREIGN KEY ("productoId") REFERENCES "LicorProducto"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "LicorCompra_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+  );`,
+  'CREATE INDEX IF NOT EXISTS "LicorCompra_productoId_deletedAt_idx" ON "LicorCompra"("productoId", "deletedAt");',
+  'CREATE INDEX IF NOT EXISTS "LicorCompra_date_idx" ON "LicorCompra"("date");',
+
+  `CREATE TABLE IF NOT EXISTS "LicorVenta" (
+    "id" TEXT NOT NULL,
+    "productoId" TEXT NOT NULL,
+    "date" TEXT NOT NULL,
+    "shift" INTEGER NOT NULL,
+    "cantidad" INTEGER NOT NULL,
+    "precioUnitario" INTEGER NOT NULL,
+    "costoUnitario" INTEGER NOT NULL,
+    "metodoPago" TEXT NOT NULL,
+    "descuento" BOOLEAN NOT NULL DEFAULT false,
+    "movementId" TEXT,
+    "nota" TEXT,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    CONSTRAINT "LicorVenta_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "LicorVenta_productoId_fkey" FOREIGN KEY ("productoId") REFERENCES "LicorProducto"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "LicorVenta_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+  );`,
+  'CREATE INDEX IF NOT EXISTS "LicorVenta_productoId_deletedAt_idx" ON "LicorVenta"("productoId", "deletedAt");',
+  'CREATE INDEX IF NOT EXISTS "LicorVenta_date_idx" ON "LicorVenta"("date");',
+
+  // ---------------------------------------------------------------------------
+  // Licores: cartera propia + cierre esporádico (2026-07-19).
+  // Ver prisma/migrations/20260719120000_licores_cartera_cierre/.
+  // ---------------------------------------------------------------------------
+  `CREATE TABLE IF NOT EXISTS "LicorCliente" (
+    "id" TEXT NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "telefono" TEXT,
+    "activo" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "LicorCliente_pkey" PRIMARY KEY ("id")
+  );`,
+  'CREATE UNIQUE INDEX IF NOT EXISTS "LicorCliente_nombre_key" ON "LicorCliente"("nombre");',
+
+  `CREATE TABLE IF NOT EXISTS "LicorCierre" (
+    "id" TEXT NOT NULL,
+    "date" TEXT NOT NULL,
+    "ventasEfectivo" INTEGER NOT NULL DEFAULT 0,
+    "ventasPlataforma" INTEGER NOT NULL DEFAULT 0,
+    "ventasCredito" INTEGER NOT NULL DEFAULT 0,
+    "abonosEfectivo" INTEGER NOT NULL DEFAULT 0,
+    "abonosPlataforma" INTEGER NOT NULL DEFAULT 0,
+    "comprasEfectivo" INTEGER NOT NULL DEFAULT 0,
+    "comprasPlataforma" INTEGER NOT NULL DEFAULT 0,
+    "efectivoEsperado" INTEGER NOT NULL DEFAULT 0,
+    "efectivoContado" INTEGER NOT NULL DEFAULT 0,
+    "diferencia" INTEGER NOT NULL DEFAULT 0,
+    "nota" TEXT,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "LicorCierre_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "LicorCierre_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+  );`,
+  'CREATE INDEX IF NOT EXISTS "LicorCierre_date_idx" ON "LicorCierre"("date");',
+
+  `CREATE TABLE IF NOT EXISTS "LicorAbono" (
+    "id" TEXT NOT NULL,
+    "clienteId" TEXT NOT NULL,
+    "date" TEXT NOT NULL,
+    "monto" INTEGER NOT NULL,
+    "medioPago" TEXT NOT NULL,
+    "nota" TEXT,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "licorCierreId" TEXT,
+    CONSTRAINT "LicorAbono_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "LicorAbono_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "LicorCliente"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "LicorAbono_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "LicorAbono_licorCierreId_fkey" FOREIGN KEY ("licorCierreId") REFERENCES "LicorCierre"("id") ON DELETE SET NULL ON UPDATE CASCADE
+  );`,
+  'CREATE INDEX IF NOT EXISTS "LicorAbono_clienteId_deletedAt_idx" ON "LicorAbono"("clienteId", "deletedAt");',
+  'CREATE INDEX IF NOT EXISTS "LicorAbono_date_idx" ON "LicorAbono"("date");',
+  'CREATE INDEX IF NOT EXISTS "LicorAbono_licorCierreId_idx" ON "LicorAbono"("licorCierreId");',
+
+  // Columnas nuevas sobre las tablas de licores ya creadas (aditivo).
+  'ALTER TABLE "LicorVenta" ADD COLUMN IF NOT EXISTS "clienteId" TEXT;',
+  'ALTER TABLE "LicorVenta" ADD COLUMN IF NOT EXISTS "licorCierreId" TEXT;',
+  'ALTER TABLE "LicorCompra" ADD COLUMN IF NOT EXISTS "licorCierreId" TEXT;',
+  'CREATE INDEX IF NOT EXISTS "LicorVenta_clienteId_deletedAt_idx" ON "LicorVenta"("clienteId", "deletedAt");',
+  'CREATE INDEX IF NOT EXISTS "LicorVenta_licorCierreId_idx" ON "LicorVenta"("licorCierreId");',
+  'CREATE INDEX IF NOT EXISTS "LicorCompra_licorCierreId_idx" ON "LicorCompra"("licorCierreId");',
+  `DO $$
+  BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'LicorVenta_clienteId_fkey') THEN
+      ALTER TABLE "LicorVenta" ADD CONSTRAINT "LicorVenta_clienteId_fkey"
+        FOREIGN KEY ("clienteId") REFERENCES "LicorCliente"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'LicorVenta_licorCierreId_fkey') THEN
+      ALTER TABLE "LicorVenta" ADD CONSTRAINT "LicorVenta_licorCierreId_fkey"
+        FOREIGN KEY ("licorCierreId") REFERENCES "LicorCierre"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'LicorCompra_licorCierreId_fkey') THEN
+      ALTER TABLE "LicorCompra" ADD CONSTRAINT "LicorCompra_licorCierreId_fkey"
+        FOREIGN KEY ("licorCierreId") REFERENCES "LicorCierre"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+  END $$;`,
 ];
 
 let aplicado = false;

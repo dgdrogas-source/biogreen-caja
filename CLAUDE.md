@@ -95,6 +95,78 @@ Next.js 16 (App Router, Server Actions, Server Components) · TypeScript · Pris
 - ✅ **Fase 3 BD aplicada** (`560843c`): tablas `ClosureDifference` + `ClosureDifferenceResolution` (sobrante/faltante con razón y resolución) y columna `metodoPago` en `CierreGeneralGasto`/`CierreGeneralFactura`. **Aún sin UI ni Server Actions.**
 - ✅ **Cierre mensual v1 en PROD, modo prueba** (`6bcca42`, 2026-07-15, deploy verificado 307): módulo NUEVO e independiente en `src/modules/mensual/` + `/cierre/mes`. Modelo simple de la dueña (entrevista 2026-07-15): se alimenta día a día; `disponible = venta acumulada − cartera (snapshot del último día; se REINICIA cada mes) − gastos − comisión 4% (a mano) − 4x1000 (a mano) + sobrantes − faltantes marcados "descuenta"` (faltante también puede ser "lo cubre la empleada" o quedar pendiente = no descuenta). Tablas propias `MensualCategoriaGasto/MensualDia/MensualGasto/MensualDiferencia` (categorías SEPARADAS de las del Cierre general, a propósito); respaldo Excel en `/api/mensual/export?mes=YYYY-MM`; botón "Reiniciar saldos del módulo" (borra solo `MensualDia`+cascada; no toca categorías/Nequi/Cierre general). NO consolida el Cierre general (decisión del dueño: entrada mensual aparte). Pendiente: prueba funcional de la dueña; mejora opcional sugerida = precargar la cartera del último día al abrir un día nuevo.
 
+## 🍺 MÓDULO LICORES (2026-07-19) — CONSTRUIDO, PENDIENTE DEPLOY
+
+4º botón en `/inicio` (junto a Nequi/General/Mensual) → `/licores`. Módulo NUEVO e
+independiente en `src/modules/licores/` (mismo patrón aislado que `mensual`). Control de
+compra/venta de cervezas: inventario, historial, inversión, ganancia, margen y alerta de
+stock bajo. Entrevista de procesos completa el 2026-07-19.
+
+**Tablas propias:** `LicorProducto` (nombre, precioVenta, stockMinimo default 6, activo),
+`LicorCompra`, `LicorVenta` (ambas con soft-delete).
+
+**La regla que NO se puede romper — registro único, nunca doble:** una compra o venta
+pagada en **NEQUI o EFECTIVO** ya movió plata de la caja, así que el módulo Licores crea
+**él mismo** el `Movement` correspondiente (`movementId`, columna suelta sin relación
+Prisma, para no tocar el módulo Nequi) — el dueño/vendedora **no** debe registrarlo otra
+vez a mano. Con **tarjeta / Daviplata / transferencia / crédito** la plata no pasa por la
+caja Nequi, así que **no** se crea ningún Movement: solo queda en Licores. Ver
+`server/movementLink.ts` (`crearMovementLigado` / `borrarMovementLigado`). Borrar una
+compra/venta arrastra su Movement y el 4x1000 hijo.
+
+**Reglas de negocio confirmadas:**
+- Stock = Σ compras − Σ ventas (arrancó en 0, sin inventario inicial). **Stock 0 → venta
+  bloqueada** (validado en servidor, no solo en UI).
+- El dueño registra el **valor TOTAL** de la compra; el costo unitario se deriva
+  (promedio ponderado) y se **CONGELA** en cada venta junto con el precio → cambiar el
+  precio de lista después no altera el margen ya registrado.
+- **Crédito (fiado)**: baja el inventario y cuenta la ganancia, pero se muestra aparte como
+  "por cobrar". NO se liga a `Cliente`/`VentaCredito` del Cierre general (no se pidió).
+- Alerta de stock bajo con **umbral propio por marca** (default 6).
+- "Eliminar" una cerveza con historial = **desactivar** (conserva compras/ventas).
+- Permisos: la vendedora corrige solo sus ventas del día; el admin, cualquiera y cualquier día.
+
+**UI:** la venta la registra la vendedora desde un **pop-up** que abre el botón "Venta
+Licores Jhoann" que ya existía (`MovementForm` recibe `licoresProductos`; sin esa prop el
+botón se comporta como antes). El precio se autocompleta al elegir producto y, si lo cambia,
+pide confirmar el descuento. **Botón flotante 🍺** con la lista de precios en `/registrar`
+(abajo-IZQUIERDA: la derecha la ocupa el conmutador de tema). Pestaña Licores = **solo admin**.
+
+**Aclaración del dueño (2026-07-19):** el descuento del bolsillo "Licores Jhoann" en una
+compra aplica **solo pagando por NEQUI**. El bolsillo es un acumulado sobre plata de Nequi;
+una compra en efectivo no lo toca. (Las VENTAS sí alimentan el bolsillo con Nequi y efectivo
+por igual — comportamiento que ya existía antes de este módulo, no se cambió.)
+
+### Cartera de licores (`/licores/clientes`)
+Lista de clientes **PROPIA** (`LicorCliente`), separada a propósito de `Cliente`/`VentaCredito`
+del Cierre general: nada de licores puede mover la cartera de la farmacia. Vender con
+`metodoPago = CREDITO` **exige** elegir cliente (validado en servidor) y queda en
+`LicorVenta.clienteId`. Abonos en `LicorAbono` con solo 2 medios (EFECTIVO | PLATAFORMA).
+`saldo = Σ ventas crédito − Σ abonos`; la cartera total suma **solo saldos positivos** (quien
+abonó de más no tapa la deuda de otro). Un abono **NO** crea Movement en Nequi: el corte de
+licores ya lo cuenta, meterlo también allá duplicaría la plata. La vendedora puede crear
+cliente y abonar desde el pop-up; desactivar cliente es solo admin.
+
+### Cierre de licores (`/licores/cierre`)
+**ESPORÁDICO** — el dueño lo hace cuando quiere, no en fecha fija. Modelo de **CORTE**: cada
+cierre se lleva todo lo que tenga `licorCierreId = null` (ventas, compras y abonos) y lo marca
+con su id, así nada se cuenta dos veces aunque pasen semanas. Se marca **por id** dentro de la
+transacción (no por filtro), para que algo registrado a mitad del proceso quede para el
+próximo corte.
+
+Solo **2 modalidades**: `EFECTIVO` y `PLATAFORMA` (Nequi + tarjeta + Daviplata + transferencia
+juntos); el `CREDITO` no es ninguna — esa plata no entró, va a la cartera.
+`efectivoEsperado = ventas efectivo + abonos efectivo − compras en efectivo`; se cuadra
+**solo el efectivo** contra el conteo físico (`diferencia = contado − esperado`), la plataforma
+es referencia. Reconciliación **propia de licores: NO altera el cuadre de Nequi**.
+Ventas/compras/abonos ya cerrados **no se pueden borrar** (hay que deshacer el cierre primero),
+y solo se puede deshacer el **último** cierre.
+
+**Verificado aquí:** `tsc` limpio, **197/197 tests** (40 nuevos en
+`tests/modules/licores/calculations/{inventario,cartera,cierre}.test.ts`), `next build` OK con
+las 4 rutas (`/licores`, `/productos`, `/clientes`, `/cierre`).
+**Falta la prueba funcional del dueño en la web.**
+
 ## 🔴 Pendiente / por dónde seguir
 1. **UI + actions de diferencias**: registrar sobrante/faltante con razón (enum: cliente pagó por método incorrecto, olvidó abono a crédito, error de facturación, pago mal recibido, otro), resolverlas moviendo el monto entre medios de pago, con historial de cambios comentado. Sin umbral tolerable (toda diferencia se registra). BD ya lista.
 2. **Selector de método de pago** al agregar gastos/facturas (columna `metodoPago` ya existe; hoy null = EFECTIVO). Importa para calcular cuánto efectivo debería quedar en caja.

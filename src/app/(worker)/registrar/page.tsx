@@ -4,6 +4,11 @@ import { BaseFundCard } from "@/modules/nequi/components/BaseFundCard";
 import { CierreDesgloseCard } from "@/modules/nequi/components/CierreDesgloseCard";
 import { MovementForm } from "@/modules/nequi/components/MovementForm";
 import { MovementList } from "@/modules/nequi/components/MovementList";
+import { ListaPreciosFlotante } from "@/modules/licores/components/ListaPreciosFlotante";
+import {
+  getClientesLicorParaVender,
+  getProductosParaVender,
+} from "@/modules/licores/queries";
 import { desglosarCuadre } from "@/modules/nequi/calculations/cuadre";
 import {
   getBaseFund,
@@ -34,11 +39,13 @@ export default async function RegistrarPage() {
       ? otherShift
       : shiftInfo.defaultShift;
 
-  const [{ movements }, sources, baseFund, summary] = await Promise.all([
+  const [{ movements }, sources, baseFund, summary, licores, licoresClientes] = await Promise.all([
     getMyTodayMovements(user.id),
     getMyCommissionSources(user.id),
     getBaseFund(),
     getDaySummary(undefined, activeShift),
+    getProductosParaVender(),
+    getClientesLicorParaVender(),
   ]);
 
   const desglose =
@@ -75,6 +82,8 @@ export default async function RegistrarPage() {
           commissionSources={sources.map((s) => ({ id: s.id, type: s.type, amount: s.amount }))}
           defaultShift={shiftInfo.defaultShift}
           shiftStatus={shiftInfo.shiftStatus}
+          licoresProductos={licores}
+          licoresClientes={licoresClientes}
         />
 
         <div className="space-y-4">
@@ -107,6 +116,8 @@ export default async function RegistrarPage() {
           </div>
         </div>
       </div>
+
+      <ListaPreciosFlotante productos={licores} />
     </div>
   );
 }
