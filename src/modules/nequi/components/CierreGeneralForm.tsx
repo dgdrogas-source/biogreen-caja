@@ -21,6 +21,10 @@ export interface CierreGeneralInicial {
   retiroCierre: number;
   nota: string;
   consignado: boolean;
+  // % CONGELADOS de este cierre (enteros 0..100). Un cierre ya guardado conserva el reparto
+  // con el que se guardó, aunque después se cambie el % global en Ajustes.
+  porcentajeReposicion: number;
+  porcentajeTercero: number;
 }
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
@@ -51,12 +55,18 @@ export function CierreGeneralForm({
   date,
   shift,
   inicial,
+  configPorcentajeReposicion,
+  configPorcentajeTercero,
   slotFacturas,
   slotGastos,
 }: {
   date: string;
   shift: Shift;
   inicial: CierreGeneralInicial | null;
+  // % de Ajustes (enteros 0..100), para un cierre que TODAVÍA no se ha guardado. Un cierre
+  // ya guardado usa los suyos congelados (inicial.*), no estos.
+  configPorcentajeReposicion: number;
+  configPorcentajeTercero: number;
   slotFacturas: ReactNode;
   slotGastos: ReactNode;
 }) {
@@ -98,12 +108,18 @@ export function CierreGeneralForm({
     setDirty(true);
   };
 
+  // Reparto de esta vista previa: si el cierre YA está guardado usa su % congelado; si es
+  // nuevo, el % actual de Ajustes. Antes no se pasaba ninguno y siempre asumía 70/30/0, así
+  // que al cambiar el % (o activar Tercero) la vista previa mostraba números que no
+  // coincidían con lo que se guardaba.
   const resumen = calcularCierreGeneral({
     ventasPorMedio: Object.fromEntries(MEDIOS_PAGO.map((m) => [m, ventas[m] ?? 0])),
     ventaSinFactura: ventaSinFactura ?? 0,
     facturasPagadas: inicial?.facturasPagadasTotal ?? 0,
     gastosVarios: inicial?.gastosVariosTotal ?? 0,
     retiroCierre: retiroCierre ?? 0,
+    porcentajeReposicion: (inicial?.porcentajeReposicion ?? configPorcentajeReposicion) / 100,
+    porcentajeTercero: (inicial?.porcentajeTercero ?? configPorcentajeTercero) / 100,
   });
 
   const cuadreCaja = calcularCuadreCaja({

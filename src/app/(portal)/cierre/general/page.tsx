@@ -17,6 +17,7 @@ import {
   getBolsasGenerales,
   getCategoriasGasto,
   getCierreGeneral,
+  getCierreGeneralConfig,
   getCurrentShift,
   getProveedores,
   getTendenciasCierreGeneral,
@@ -36,14 +37,16 @@ export default async function CierreGeneralPage({
   const date = params.fecha && DATE_RE.test(params.fecha) ? params.fecha : today;
   const shift: Shift = params.turno === "1" ? 1 : params.turno === "2" ? 2 : await getCurrentShift();
 
-  const [{ cierre }, categorias, proveedoresCosto, proveedoresGasto, bolsas, tendencias] = await Promise.all([
-    getCierreGeneral(date, shift),
-    getCategoriasGasto(),
-    getProveedores("COSTO"),
-    getProveedores("GASTO"),
-    getBolsasGenerales(),
-    getTendenciasCierreGeneral(date, shift),
-  ]);
+  const [{ cierre }, categorias, proveedoresCosto, proveedoresGasto, bolsas, tendencias, config] =
+    await Promise.all([
+      getCierreGeneral(date, shift),
+      getCategoriasGasto(),
+      getProveedores("COSTO"),
+      getProveedores("GASTO"),
+      getBolsasGenerales(),
+      getTendenciasCierreGeneral(date, shift),
+      getCierreGeneralConfig(),
+    ]);
 
   const facturasPagadasTotal = sumarConFallback(cierre?.facturasPagadas ?? 0, cierre?.facturaItems ?? []);
   const gastosVariosTotal = sumarConFallback(cierre?.gastosVarios ?? 0, cierre?.gastoItems ?? []);
@@ -70,6 +73,8 @@ export default async function CierreGeneralPage({
         retiroCierre: cierre.retiroCierre,
         nota: cierre.nota ?? "",
         consignado: cierre.consignado,
+        porcentajeReposicion: cierre.porcentajeReposicion,
+        porcentajeTercero: cierre.porcentajeTercero,
       }
     : null;
 
@@ -146,6 +151,8 @@ export default async function CierreGeneralPage({
         date={date}
         shift={shift}
         inicial={inicial}
+        configPorcentajeReposicion={config.porcentajeReposicion}
+        configPorcentajeTercero={config.porcentajeTercero}
         slotFacturas={
           <CierreGeneralFacturasList
             date={date}
