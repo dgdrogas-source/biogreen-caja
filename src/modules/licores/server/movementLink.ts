@@ -128,6 +128,96 @@ export async function borrarMovementLigado(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Dirección INVERSA del puente: Nequi → Licores.
+// Cuando la vendedora borra un movimiento desde "Mis movimientos de hoy" (o el admin desde
+// el Historial), ese movimiento puede ser el que creó una venta/compra de cerveza. Si solo
+// se borrara el Movement, la venta seguiría viva en Licores y el inventario NUNCA se
+// reajustaría (bug reportado por el dueño el 2026-07-19). Estas dos funciones cierran ese
+// hueco desde `actions/movements.ts` del módulo Nequi.
+// ---------------------------------------------------------------------------
+
+export interface LicorLigado {
+  tipo: "venta" | "compra";
+  descripcion: string;
+  yaCerrado: boolean; // pertenece a un cierre de licores ya hecho
+}
+
+// ¿Este Movement lo creó el módulo Licores? null si es un movimiento normal de Nequi.
+export async function licorLigadoAMovement(movementId: string): Promise<LicorLigado | null> {
+  const [venta, compra] = await Promise.all([
+    prisma.licorVenta.findFirst({
+      where: { movementId, deletedAt: null },
+      include: { producto: { select: { nombre: true } } },
+    }),
+    prisma.licorCompra.findFirst({
+      where: { movementId, deletedAt: null },
+      include: { producto: { select: { nombre: true } } },
+    }),
+  ]);
+
+  if (venta)
+    return {
+      tipo: "venta",
+      descripcion: `${venta.cantidad} × ${venta.producto.nombre}`,
+      yaCerrado: venta.licorCierreId !== null,
+    };
+  if (compra)
+    return {
+      tipo: "compra",
+      descripcion: `${compra.cantidad} × ${compra.producto.nombre}`,
+      yaCerrado: compra.licorCierreId !== null,
+    };
+  return null;
+}
+
+// Borra (soft) la venta/compra de licor ligada al Movement que se está borrando, para que el
+// inventario vuelva a su sitio. Se llama DENTRO de la transacción de `deleteMovement`.
+export async function borrarLicorLigadoAMovement(
+  tx: Prisma.TransactionClient,
+  movementId: string,
+  userId: string
+): Promise<void> {
+  const now = new Date();
+
+  const venta = await tx.licorVenta.findFirst({
+    where: { movementId, deletedAt: null },
+    include: { producto: { select: { nombre: true } } },
+  });
+  if (venta) {
+    await tx.licorVenta.update({ where: { id: venta.id }, data: { deletedAt: now } });
+    await tx.auditLog.create({
+      data: {
+        action: "LICOR_VENTA_DELETE",
+        changedById: userId,
+        fieldChanges: JSON.stringify({
+          venta: { before: `${venta.cantidad} × ${venta.producto.nombre}`, after: null },
+          origen: { before: "Se borró el movimiento en Nequi", after: null },
+        }),
+      },
+    });
+    return;
+  }
+
+  const compra = await tx.licorCompra.findFirst({
+    where: { movementId, deletedAt: null },
+    include: { producto: { select: { nombre: true } } },
+  });
+  if (compra) {
+    await tx.licorCompra.update({ where: { id: compra.id }, data: { deletedAt: now } });
+    await tx.auditLog.create({
+      data: {
+        action: "LICOR_COMPRA_DELETE",
+        changedById: userId,
+        fieldChanges: JSON.stringify({
+          compra: { before: `${compra.cantidad} × ${compra.producto.nombre}`, after: null },
+          origen: { before: "Se borró el movimiento en Nequi", after: null },
+        }),
+      },
+    });
+  }
+}
+
 // ¿El turno del Movement ligado sigue abierto? Editar/borrar un registro cuyo turno ya cerró
 // dejaría el cuadre de ese turno descuadrado, así que se bloquea (misma regla que Nequi).
 export async function turnoDelMovementAbierto(movementId: string | null): Promise<boolean> {

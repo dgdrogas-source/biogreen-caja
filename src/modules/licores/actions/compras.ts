@@ -12,7 +12,7 @@ import {
   resolverTurnoAbierto,
   turnoDelMovementAbierto,
 } from "../server/movementLink";
-import { afectaCuadreNequi, LICOR_MEDIOS_PAGO, type ActionResult } from "../types";
+import { LICOR_MEDIOS_PAGO_COMPRA, type ActionResult } from "../types";
 
 const compraSchema = z.object({
   productoId: z.string().min(1, "Elige la cerveza"),
@@ -21,7 +21,7 @@ const compraSchema = z.object({
   valorTotal: z.number().int().positive("El valor pagado debe ser mayor a cero"),
   proveedor: z.string().trim().max(80).optional(),
   descripcion: z.string().trim().max(300).optional(),
-  metodoPago: z.enum(LICOR_MEDIOS_PAGO),
+  metodoPago: z.enum(LICOR_MEDIOS_PAGO_COMPRA), // solo EFECTIVO | NEQUI
   // ¿El gasto sale del bolsillo "Licores Jhoann"? Solo aplica pagando por NEQUI: el bolsillo
   // es un acumulado sobre la plata de Nequi, así que una compra pagada en efectivo no debe
   // descontarlo (aclaración del dueño, 2026-07-19).
@@ -34,8 +34,8 @@ function revalidateAll() {
   revalidatePath("/", "layout");
 }
 
-// Registra una compra al proveedor (solo admin). Si se pagó por Nequi o Efectivo, crea
-// ADEMÁS el gasto correspondiente en el cuadre Nequi — una sola vez, ligado a esta compra.
+// Registra una compra al proveedor (solo admin). Como solo se paga en efectivo o por Nequi,
+// TODA compra crea ADEMÁS su gasto en el cuadre Nequi — una sola vez, ligado a esta compra.
 export async function registrarCompraLicor(input: CompraLicorInput): Promise<ActionResult> {
   try {
     const user = await requireAdmin();
@@ -46,28 +46,23 @@ export async function registrarCompraLicor(input: CompraLicorInput): Promise<Act
     const producto = await prisma.licorProducto.findUnique({ where: { id: data.productoId } });
     if (!producto) return { ok: false, error: "Cerveza no encontrada" };
 
-    // Si toca el cuadre Nequi, el turno destino debe estar abierto ANTES de guardar nada.
-    let businessDayId: string | null = null;
-    if (afectaCuadreNequi(data.metodoPago)) {
-      const turno = await resolverTurnoAbierto(data.date, await getCurrentShift());
-      if (!turno.ok) return turno;
-      businessDayId = turno.businessDayId;
-    }
+    // Toda compra mueve plata real, así que el turno destino debe estar abierto ANTES de
+    // guardar nada (si no, el gasto no podría entrar al cuadre y quedaría descuadrado).
+    const turno = await resolverTurnoAbierto(data.date, await getCurrentShift());
+    if (!turno.ok) return turno;
 
     await prisma.$transaction(async (tx) => {
-      const movementId = businessDayId
-        ? await crearMovementLigado(tx, {
-            businessDayId,
-            type: "GASTO_FARMACIA",
-            direction: "EXPENSE",
-            amount: data.valorTotal,
-            paymentMethod: data.metodoPago as "NEQUI" | "EFECTIVO",
-            pettyCashBucket:
-              data.descontarDelBolsillo && data.metodoPago === "NEQUI" ? "LICORES_JHOANN" : null,
-            note: `Compra ${data.cantidad} × ${producto.nombre}${data.proveedor ? ` — ${data.proveedor}` : ""}`,
-            userId: user.id,
-          })
-        : null;
+      const movementId = await crearMovementLigado(tx, {
+        businessDayId: turno.businessDayId,
+        type: "GASTO_FARMACIA",
+        direction: "EXPENSE",
+        amount: data.valorTotal,
+        paymentMethod: data.metodoPago,
+        pettyCashBucket:
+          data.descontarDelBolsillo && data.metodoPago === "NEQUI" ? "LICORES_JHOANN" : null,
+        note: `Compra ${data.cantidad} × ${producto.nombre}${data.proveedor ? ` — ${data.proveedor}` : ""}`,
+        userId: user.id,
+      });
 
       const compra = await tx.licorCompra.create({
         data: {

@@ -25,6 +25,10 @@ import {
   type PocketBucket,
   type TransferBucket,
 } from "../types";
+import {
+  borrarLicorLigadoAMovement,
+  licorLigadoAMovement,
+} from "@/modules/licores/server/movementLink";
 import { getOrCreateDay } from "../server/businessDay";
 import { getBaseFund, getCurrentShift, getDaySummary, getPockets } from "../queries";
 
@@ -245,6 +249,17 @@ export async function updateMovement(input: MovementUpdateInput): Promise<Action
     if (!movement || movement.deletedAt) return { ok: false, error: "Movimiento no encontrado" };
     if (movement.isSystemGenerated) return { ok: false, error: "Los movimientos automáticos no se editan directamente" };
 
+    // Un movimiento creado desde Licores lleva pegada una venta/compra con su cantidad y su
+    // producto. Editar aquí solo el monto los dejaría diciendo cosas distintas, así que se
+    // bloquea: se borra y se vuelve a registrar desde el pop-up de cerveza.
+    const licorEnEdicion = await licorLigadoAMovement(movement.id);
+    if (licorEnEdicion) {
+      return {
+        ok: false,
+        error: `Esta ${licorEnEdicion.tipo} de cerveza (${licorEnEdicion.descripcion}) se registró en Licores. Bórrala y vuelve a registrarla para corregirla.`,
+      };
+    }
+
     if (user.role !== "ADMIN") {
       if (movement.registeredById !== user.id) return { ok: false, error: "Solo puedes editar tus propios registros" };
       if (movement.businessDay.date !== todayBogota()) return { ok: false, error: "Solo puedes editar registros del día actual" };
@@ -378,9 +393,23 @@ export async function deleteMovement(id: string): Promise<ActionResult> {
       return { ok: false, error: "El turno está cerrado. El administrador debe reabrirlo." };
     }
 
+    // Si este movimiento lo creó el módulo Licores, borrarlo también tiene que devolver la
+    // cerveza al inventario. Lo único que no se puede es tocarlo si ya entró a un cierre de
+    // licores: eso descuadraría ese corte.
+    const licor = await licorLigadoAMovement(movement.id);
+    if (licor?.yaCerrado) {
+      return {
+        ok: false,
+        error: `Esta ${licor.tipo} de licor (${licor.descripcion}) ya entró a un cierre de licores. Deshaz ese cierre antes de borrarla.`,
+      };
+    }
+
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       await tx.movement.update({ where: { id: movement.id }, data: { deletedAt: now } });
+
+      // Arrastra la venta/compra de cerveza para que el inventario se reajuste.
+      await borrarLicorLigadoAMovement(tx, movement.id, user.id);
 
       // Revertir el efecto del movimiento sobre el reparto de la base.
       await adjustBase(

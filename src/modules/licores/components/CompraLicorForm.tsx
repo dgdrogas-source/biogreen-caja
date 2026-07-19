@@ -4,10 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { registrarCompraLicor } from "../actions/compras";
 import {
-  LICOR_MEDIOS_PAGO,
+  LICOR_MEDIOS_PAGO_COMPRA,
   LICOR_MEDIO_PAGO_LABELS,
-  afectaCuadreNequi,
-  type LicorMedioPago,
+  type LicorMedioPagoCompra,
 } from "../types";
 
 // Registrar una compra al proveedor (solo admin). El dueño escribe el VALOR TOTAL pagado y
@@ -30,13 +29,12 @@ export function CompraLicorForm({
   const [valorTotal, setValorTotal] = useState("");
   const [proveedor, setProveedor] = useState("");
   const [descripcion, setDescripcion] = useState("");
-  const [metodoPago, setMetodoPago] = useState<LicorMedioPago>("EFECTIVO");
+  const [metodoPago, setMetodoPago] = useState<LicorMedioPagoCompra>("EFECTIVO");
   const [descontarDelBolsillo, setDescontarDelBolsillo] = useState(true);
 
   const unidades = Number(cantidad.replace(/\D/g, "")) || 0;
   const total = Number(valorTotal.replace(/\D/g, "")) || 0;
   const costoUnitario = unidades > 0 ? Math.round(total / unidades) : 0;
-  const tocaNequi = afectaCuadreNequi(metodoPago);
 
   function guardar() {
     if (!productoId) return setError("Elige la cerveza");
@@ -170,13 +168,14 @@ export function CompraLicorForm({
 
       <div className="mt-4">
         <label className="mb-1 block text-sm font-medium text-gray-700">¿Cómo la pagaste?</label>
-        <div className="grid grid-cols-3 gap-2">
-          {LICOR_MEDIOS_PAGO.map((m) => (
+        {/* Solo 2 medios: la cerveza siempre se paga de la caja o por Nequi. */}
+        <div className="grid grid-cols-2 gap-2">
+          {LICOR_MEDIOS_PAGO_COMPRA.map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setMetodoPago(m)}
-              className={`rounded-lg border-2 px-2 py-2 text-xs font-semibold ${
+              className={`rounded-lg border-2 px-2 py-2.5 text-sm font-semibold ${
                 metodoPago === m
                   ? "border-emerald-600 bg-emerald-50 text-emerald-800"
                   : "border-gray-200 text-gray-600"
@@ -187,9 +186,7 @@ export function CompraLicorForm({
           ))}
         </div>
         <p className="mt-1.5 text-xs text-gray-500">
-          {tocaNequi
-            ? "Se registra también como gasto en el cierre de Nequi — no lo apuntes otra vez allá."
-            : "No pasa por la caja Nequi: solo queda en el control de licores."}
+          Se registra también como gasto en el cierre de Nequi — no lo apuntes otra vez allá.
         </p>
       </div>
 

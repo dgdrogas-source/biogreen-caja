@@ -31,6 +31,12 @@ export function afectaCuadreNequi(medio: LicorMedioPago): medio is "EFECTIVO" | 
   return medio === "EFECTIVO" || medio === "NEQUI";
 }
 
+// Medios con los que el dueño paga una COMPRA al proveedor. Solo 2 (aclaración del dueño,
+// 2026-07-19): la cerveza siempre la paga de la caja o por Nequi. Como ambos mueven plata
+// real, TODA compra genera su Movement ligado en el cuadre de Nequi.
+export const LICOR_MEDIOS_PAGO_COMPRA = ["EFECTIVO", "NEQUI"] as const;
+export type LicorMedioPagoCompra = (typeof LICOR_MEDIOS_PAGO_COMPRA)[number];
+
 // Umbral por defecto de la alerta de stock bajo al crear un producto nuevo.
 export const STOCK_MINIMO_DEFECTO = 6;
 

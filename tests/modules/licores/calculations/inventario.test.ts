@@ -51,6 +51,18 @@ describe("calcularStock", () => {
   it("sin movimientos → 0 (el dueño arranca en cero)", () => {
     expect(calcularStock([], [])).toBe(0);
   });
+
+  // Regresión del bug del 2026-07-19: la vendedora borraba el movimiento desde Nequi y la
+  // venta seguía viva, así que el inventario nunca volvía. Una venta retirada de la lista
+  // (soft-delete) tiene que devolver las unidades.
+  it("al quitar una venta borrada, el stock vuelve a subir", () => {
+    expect(calcularStock([COMPRA_HEINEKEN], [VENTA_HEINEKEN])).toBe(45);
+    expect(calcularStock([COMPRA_HEINEKEN], [])).toBe(48);
+  });
+
+  it("al quitar una compra borrada, el stock vuelve a bajar", () => {
+    expect(calcularStock([], [VENTA_HEINEKEN])).toBe(-3); // negativo = dato inconsistente visible
+  });
 });
 
 describe("estadoStock", () => {
