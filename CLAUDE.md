@@ -20,7 +20,8 @@ No hay comando de "aplicar migración" local (ver Gotcha de migraciones). **`npm
 ## Deploy
 - `git add -A && git commit … && git push origin master` → Vercel construye y publica solo.
 - Autor de commits: **`dgdrogas-source <dg.drogas@gmail.com>`** (obligatorio; el plan Hobby bloquea otros autores; el git local ya está configurado así). Terminar commits con `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
-- Verificar tras deploy: `curl -s -o /dev/null -w "%{http_code}" https://biogreen-caja.vercel.app/login` → 200. Rutas nuevas responden 307 (redirect a login); inexistentes 404.
+- **Verificar tras deploy — usar SIEMPRE esto primero:** `curl -s https://biogreen-caja.vercel.app/api/health` → `{"ok":true,"commit":"<sha corto>"}`. Si el sha coincide con `git rev-parse --short HEAD`, el build nuevo YA está publicado. Es la única señal concluyente.
+- Los códigos HTTP (`/login` → 200, rutas nuevas → 307, inexistentes → 404) sirven para ver que la web está en pie y que una RUTA NUEVA existe, pero **no distinguen** "build nuevo publicado" de "build falló y sigue el anterior" — para eso, `/api/health`.
 
 ---
 
