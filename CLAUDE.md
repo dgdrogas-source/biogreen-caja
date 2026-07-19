@@ -58,6 +58,7 @@ Next.js 16 (App Router, Server Actions, Server Components) · TypeScript · Pris
 - **Patrón "saldo inicial ajustable"** (reusar): `PocketBalance` / `BolsaGeneral` + botón "Ajustar" auditado (ver `PocketBalancesConfig.tsx`).
 - **Fechas**: helpers en `src/lib/dates.ts` (`todayBogota`, `addDays`, `startOfIsoWeek`, `startOfMonth`, `formatDateCo`…). Zona América/Bogotá. Fechas como strings `YYYY-MM-DD`.
 - **Dinero**: enteros de pesos (`Int`), sin decimales, en toda la BD.
+- **Temas** (2026-07-17): 3 modos — Claro (default, sin atributo), Noche (slate suave) y Oscuro (negro). `data-theme` en `<html>` + overrides de utilidades Tailwind en `globals.css` (los componentes NO llevan clases dark:). Conmutador global: `src/components/ThemeSwitcher.tsx` (montado en el layout raíz, flotante abajo-derecha); persiste en `localStorage("biogreen-tema")` y un script inline en `layout.tsx` lo aplica antes del primer pintado. Si se usa una utilidad de color nueva de forma extendida, añadir su override en globals.css. OJO: en Tailwind 4 las reglas SIN capa de globals.css le ganan a las utilidades (por eso funcionan los overrides); el bloque `prefers-color-scheme` del template se eliminó a propósito (oscurecía el fondo en equipos con SO en modo oscuro sin oscurecer las tarjetas).
 
 ## Modelos principales (schema.prisma)
 `User`, `BusinessDay` (1 por turno: `date`+`shift` unique, 2 turnos/día), `Movement` (soft-delete `deletedAt`; `pettyCashBucket` para bolsillos; `sourceMovementId` liga comisión/4x1000 a su origen), `AuditLog`, `ShiftConfig`, `BaseFund`, `PocketBalance` (+`openingEfectivo`), `PocketTransfer`. **Cierre general:** `CierreGeneral` (1 por turno; campos `gastosVarios`/`facturasPagadas` **deprecados**), `BolsaGeneral`, `CategoriaGasto`, `CierreGeneralGasto`, `CierreGeneralFactura`, `Cliente`, `VentaCredito`, `AbonoCredito` (últimos dos con `deletedAt`).
@@ -103,7 +104,7 @@ Next.js 16 (App Router, Server Actions, Server Components) · TypeScript · Pris
 
 ---
 
-## 📐 Diseño acordado: "Saldos por plataforma" (entrevista 2026-07-17) — POR CONSTRUIR
+## 📐 "Saldos por plataforma" (Cierre general, 2026-07-17) — FASE 1 CONSTRUIDA
 
 La dueña ya tiene las bolsas 70/30 (facturas/gastos) como **monto**, pero esa plata está
 repartida entre varias cuentas y no sabe **desde cuál pagar**. Esto lo resuelve.
@@ -133,10 +134,19 @@ repartida entre varias cuentas y no sabe **desde cuál pagar**. Esto lo resuelve
 
 **Semáforo de cobertura de facturas:** 🟢 alcanza hoy · 🟡 alcanza contando la tarjeta pendiente (*problema de fecha, no de plata*) · 🔴 hueco real → mostrar la cartera como fuente.
 
-**Fases recomendadas** (la 1 ya resuelve el ~70% de lo que pidió):
-1. **Ver saldos por plataforma** + ajuste de saldos iniciales. Casi todo sale de datos que ya existen.
-2. **Pendiente de tarjeta** + confirmación de abonos (parciales) + gasto automático del 4%.
-3. **Sugerencias "paga desde aquí"** + movimientos entre plataformas + `medioPagoHabitual` en Proveedor.
+**✅ FASE 1 construida** (2026-07-17, en `Cierre general → Resumen`, card "¿Dónde está tu plata?"):
+- `calculations/plataformas.ts` (+ 10 tests) — saldo corrido por plataforma sobre todo el histórico.
+- Tablas `PlataformaSaldoInicial`, `TarjetaAbono`, `PlataformaTransferencia` + columna `CierreGeneralGasto.autoGenerado`.
+- Comisión 4% AUTOMÁTICA: `guardarCierreGeneral` crea/ajusta/borra un gasto `autoGenerado` con método `DESCONTADO_ORIGEN` (cuenta como gasto pero no resta de ninguna plataforma). Idempotente al re-guardar.
+- Acciones: `ajustarSaldoInicialPlataforma`, `confirmarAbonoTarjeta` (valida contra el pendiente), `registrarTransferenciaPlataforma`, + sus eliminar.
+- `METODOS_PAGO_ITEM_MANUAL` = lista sin `DESCONTADO_ORIGEN` para los selectores manuales (evita que se elija a mano y descuadre).
+
+**Notas / límites de la Fase 1:**
+- Pagos con método `DATAFONO` u `OTRO` NO restan de ninguna plataforma seguida (métodos ambiguos; se ignoran a propósito — revisar si la dueña los usa).
+- La caja principal NO aparece en la card (es operativa, ya se cuadra en "Resumen del día").
+- El 4x1000 de un movimiento interno reduce la plataforma origen, pero (Fase 1) NO se registra todavía como gasto en la bolsa. Pendiente si se quiere ese detalle.
+
+**⏳ FASE 2 (pendiente):** semáforo 🟢🟡🔴 de cobertura de facturas · sugerencia "paga desde aquí" usando el `medioPagoHabitual` de cada proveedor (campo nuevo en `Proveedor`) · registrar el 4x1000 interno como gasto.
 
 ## Referencias
 - Historial detallado: memoria del asistente en `~/.claude/projects/…/memory/proyecto-caja-nequi-biogreen.md` y plan en `~/.claude/plans/en-la-misma-pagina-quiet-eich.md`.

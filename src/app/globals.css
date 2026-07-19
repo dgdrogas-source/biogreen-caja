@@ -12,15 +12,133 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ============================================================================
+   TEMAS (2026-07-17): Claro (default, sin atributo) · Noche · Oscuro.
+   El conmutador (ThemeSwitcher) pone data-theme="noche"|"oscuro" en <html> y lo
+   persiste en localStorage; un script inline en el layout lo aplica antes del
+   primer pintado (sin parpadeo). Como el app usa utilidades Tailwind fijas
+   (bg-white, text-gray-800, …), los temas oscuros se logran re-mapeando ESAS
+   utilidades a variables por tema — así ningún componente necesita cambios.
+   Si se añade una utilidad de color nueva muy usada, añadir su override aquí.
+   ========================================================================== */
+
+/* Noche: oscuro suave, tonos azul-gris (slate). */
+[data-theme="noche"] {
+  color-scheme: dark;
+  --th-bg: #0f172a;
+  --th-card: #1e293b;
+  --th-soft: #2b3a51;
+  --th-border: #3e4f68;
+  --th-border-soft: #2b3a51;
+  --th-text-1: #f1f5f9;
+  --th-text-2: #cbd5e1;
+  --th-text-3: #94a3b8;
+  --th-muted: #64748b;
+  --th-hover: rgba(148, 163, 184, 0.08);
+}
+
+/* Oscuro: negro profundo, neutro (zinc). */
+[data-theme="oscuro"] {
+  color-scheme: dark;
+  --th-bg: #09090b;
+  --th-card: #18181b;
+  --th-soft: #27272a;
+  --th-border: #3f3f46;
+  --th-border-soft: #27272a;
+  --th-text-1: #fafafa;
+  --th-text-2: #d4d4d8;
+  --th-text-3: #a1a1aa;
+  --th-muted: #71717a;
+  --th-hover: rgba(255, 255, 255, 0.06);
+}
+
+/* ---- Fondos ---- */
+[data-theme] body { background: var(--th-bg); color: var(--th-text-1); }
+[data-theme] .bg-white { background-color: var(--th-card); }
+[data-theme] .bg-gray-50 { background-color: var(--th-bg); }
+[data-theme] .bg-gray-100 { background-color: var(--th-soft); }
+[data-theme] .bg-gray-800,
+[data-theme] .bg-gray-900 { background-color: var(--th-soft); }
+[data-theme] .hover\:bg-gray-50:hover { background-color: var(--th-hover); }
+[data-theme] .hover\:bg-gray-100:hover { background-color: var(--th-hover); }
+
+/* ---- Texto ---- */
+[data-theme] .text-gray-900,
+[data-theme] .text-gray-800 { color: var(--th-text-1); }
+[data-theme] .text-gray-700,
+[data-theme] .text-gray-600 { color: var(--th-text-2); }
+[data-theme] .text-gray-500 { color: var(--th-text-3); }
+[data-theme] .text-gray-400 { color: var(--th-muted); }
+
+/* ---- Bordes y divisores ---- */
+[data-theme] .border-gray-50,
+[data-theme] .border-gray-100 { border-color: var(--th-border-soft); }
+[data-theme] .border-gray-200,
+[data-theme] .border-gray-300,
+[data-theme] .border-gray-500 { border-color: var(--th-border); }
+[data-theme] .divide-gray-50 > :not([hidden]) ~ :not([hidden]),
+[data-theme] .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--th-border-soft);
+}
+
+/* ---- Verdes (marca) ---- */
+[data-theme] .text-emerald-600,
+[data-theme] .text-emerald-700 { color: #34d399; }
+[data-theme] .text-emerald-800,
+[data-theme] .text-emerald-900 { color: #6ee7b7; }
+[data-theme] .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.14); }
+[data-theme] .bg-emerald-100 { background-color: rgba(16, 185, 129, 0.22); }
+[data-theme] .border-emerald-200,
+[data-theme] .border-emerald-300,
+[data-theme] .border-emerald-400 { border-color: rgba(52, 211, 153, 0.4); }
+
+/* ---- Rojos ---- */
+[data-theme] .text-red-500,
+[data-theme] .text-red-600,
+[data-theme] .text-red-700 { color: #f87171; }
+[data-theme] .text-red-800,
+[data-theme] .text-red-900 { color: #fca5a5; }
+[data-theme] .bg-red-50 { background-color: rgba(239, 68, 68, 0.14); }
+[data-theme] .bg-red-50\/40 { background-color: rgba(239, 68, 68, 0.08); }
+[data-theme] .bg-red-100 { background-color: rgba(239, 68, 68, 0.22); }
+[data-theme] .hover\:bg-red-50:hover { background-color: rgba(239, 68, 68, 0.14); }
+[data-theme] .border-red-100,
+[data-theme] .border-red-300,
+[data-theme] .border-red-400,
+[data-theme] .border-red-500,
+[data-theme] .border-red-600 { border-color: rgba(248, 113, 113, 0.45); }
+
+/* ---- Ámbar ---- */
+[data-theme] .text-amber-600,
+[data-theme] .text-amber-700 { color: #fbbf24; }
+[data-theme] .text-amber-800 { color: #fcd34d; }
+[data-theme] .bg-amber-50 { background-color: rgba(245, 158, 11, 0.14); }
+[data-theme] .bg-amber-50\/50 { background-color: rgba(245, 158, 11, 0.08); }
+[data-theme] .bg-amber-100 { background-color: rgba(245, 158, 11, 0.22); }
+[data-theme] .border-amber-200,
+[data-theme] .border-amber-300,
+[data-theme] .border-amber-400,
+[data-theme] .border-amber-500 { border-color: rgba(251, 191, 36, 0.45); }
+
+/* ---- Azules y verdes (avisos) ---- */
+[data-theme] .bg-blue-50 { background-color: rgba(59, 130, 246, 0.14); }
+[data-theme] .text-blue-600,
+[data-theme] .text-blue-700 { color: #60a5fa; }
+[data-theme] .bg-green-100 { background-color: rgba(34, 197, 94, 0.22); }
+[data-theme] .text-green-800 { color: #86efac; }
+
+/* ---- Formularios (inputs, selects, date pickers) ---- */
+[data-theme] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme] select,
+[data-theme] textarea {
+  background-color: var(--th-card);
+  color: var(--th-text-1);
+}
+[data-theme] input::placeholder,
+[data-theme] textarea::placeholder { color: var(--th-muted); }
