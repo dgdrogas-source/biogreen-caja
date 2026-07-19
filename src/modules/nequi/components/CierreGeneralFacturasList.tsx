@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { agregarFacturaCierre, eliminarFacturaCierre } from "../actions/cierreGeneral";
-import { METODOS_PAGO_ITEM, METODO_PAGO_ITEM_LABELS, type MetodoPagoItem, type Shift } from "../types";
+import { METODOS_PAGO_ITEM_MANUAL, METODO_PAGO_ITEM_LABELS, type MetodoPagoItem, type Shift } from "../types";
 import { MoneyInput } from "./MoneyInput";
 
 export interface FacturaItem {
@@ -149,7 +149,7 @@ export function CierreGeneralFacturasList({
           onChange={(e) => setMetodoPago(e.target.value as MetodoPagoItem)}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
         >
-          {METODOS_PAGO_ITEM.map((m) => (
+          {METODOS_PAGO_ITEM_MANUAL.map((m) => (
             <option key={m} value={m}>
               {METODO_PAGO_ITEM_LABELS[m]}
             </option>

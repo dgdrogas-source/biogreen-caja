@@ -30,6 +30,8 @@ model User {
   closureDifferences     ClosureDifference[]
   closureDifferenceResoluciones ClosureDifferenceResolution[]
   mensualDias            MensualDia[]
+  tarjetaAbonos          TarjetaAbono[]
+  plataformaTransferencias PlataformaTransferencia[]
 }
 
 // Un registro por TURNO de caja (2 turnos por día, lunes-sábado). Las filas
@@ -246,9 +248,12 @@ model CierreGeneralGasto {
   categoria       CategoriaGasto @relation(fields: [categoriaId], references: [id])
   monto           Int
   descripcion     String?
-  metodoPago      String? // EFECTIVO | NEQUI | DAVIPLATA | TRANSFERENCIA | OTRO (null = se asume EFECTIVO)
+  metodoPago      String? // EFECTIVO_CAJA | EFECTIVO_SOBRE | NEQUI | DAVIPLATA | DATAFONO | TRANSFERENCIA | DESCONTADO_ORIGEN | OTRO (null = EFECTIVO_CAJA)
   proveedorId     String? // Proveedor tipo GASTO (opcional: no todo gasto tiene un proveedor externo)
   proveedorRef    Proveedor?     @relation("ProveedorGastos", fields: [proveedorId], references: [id])
+  // true = gasto creado por el sistema (hoy solo el 4% de tarjeta). Se re-ajusta solo al
+  // re-guardar el cierre; la dueña no lo edita a mano (ver guardarCierreGeneral).
+  autoGenerado    Boolean        @default(false)
   createdAt       DateTime       @default(now())
 
   @@index([cierreGeneralId])
@@ -449,4 +454,50 @@ model MensualDiferencia {
   createdAt    DateTime   @default(now())
 
   @@index([mensualDiaId])
+}
+
+// ============================================================================
+// SALDOS POR PLATAFORMA (Cierre general, 2026-07-17). Ver el diseño en CLAUDE.md.
+// El saldo de cada plataforma se calcula EN CALIENTE (calculations/plataformas.ts) sumando
+// ventas/pagos/abonos/transferencias; estas tablas solo guardan lo que no se puede derivar.
+// ============================================================================
+
+// Saldo inicial manual por plataforma (mismo patrón que BolsaGeneral). Solo hay fila para
+// las plataformas ajustadas; el resto se trata como 0.
+model PlataformaSaldoInicial {
+  plataforma     String   @id // SOBRE_BLANCO | NEQUI | BANCO | DAVIPLATA
+  openingBalance Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+// Ledger de abonos de tarjeta confirmados por la dueña (el banco abona la venta en NETO —
+// venta − 4% — al día siguiente, y puede abonar parcial). Cada clic de "ya llegó" es una
+// fila. El pendiente = Σ(venta tarjeta × 96%) − Σ abonos (se calcula, no se guarda).
+model TarjetaAbono {
+  id          String   @id @default(cuid())
+  date        String // YYYY-MM-DD en que la dueña confirma el abono
+  monto       Int // neto que entró al banco (lo que ella ve en la app)
+  nota        String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([date])
+}
+
+// Movimiento real de plata entre plataformas propias (ej. Banco → Nequi para juntar lo de
+// facturas). El dinero llega COMPLETO; el 4x1000 se cobra aparte y reduce la plataforma
+// origen (impuesto4x1000). Aislado a propósito de PocketTransfer del módulo Nequi.
+model PlataformaTransferencia {
+  id             String   @id @default(cuid())
+  fromPlataforma String // SOBRE_BLANCO | NEQUI | BANCO | DAVIPLATA
+  toPlataforma   String
+  monto          Int
+  impuesto4x1000 Int      @default(0) // 4x1000 que el banco cobró por el movimiento (reduce el origen)
+  nota           String?
+  createdById    String
+  createdBy      User     @relation(fields: [createdById], references: [id])
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
 }

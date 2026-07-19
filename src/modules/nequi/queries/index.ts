@@ -14,6 +14,10 @@ import {
   type CierreDelDia,
 } from "../calculations/resumenCierreGeneral";
 import {
+  calcularSaldosPlataforma,
+  type CierrePlataformaInput,
+} from "../calculations/plataformas";
+import {
   aplicarTransferencias,
   calcularRepartoPorMedio,
   calcularSaldoPorBolsillo,
@@ -23,10 +27,12 @@ import { compararMetricas, promedioMensual, sumarMetricas, type MetricasPeriodo 
 import { DEFAULT_SHIFT_CONFIGS, turnoPorHora } from "../calculations/turnos";
 import {
   BASE_FIJA_EFECTIVO_CAJA,
+  PLATAFORMAS,
   POCKET_BUCKETS,
   type Direction,
   type MovementType,
   type PaymentMethod,
+  type Plataforma,
   type PocketBucket,
   type ProveedorTipo,
   type Shift,
@@ -417,6 +423,50 @@ export async function getBolsasGenerales() {
     openingReposicion: openingByBucket.get("REPOSICION") ?? 0,
     openingGastos: openingByBucket.get("GASTOS_UTILIDAD") ?? 0,
   };
+}
+
+// Saldos por plataforma (2026-07-17): en qué cuenta está la plata. Acumulado sobre TODO el
+// histórico, como las bolsas. Ver calculations/plataformas.ts.
+export async function getSaldosPorPlataforma() {
+  const [cierres, transferencias, abonos, iniciales] = await Promise.all([
+    prisma.cierreGeneral.findMany({ include: cierreGeneralItemsInclude }),
+    prisma.plataformaTransferencia.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.tarjetaAbono.findMany({ orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
+    prisma.plataformaSaldoInicial.findMany(),
+  ]);
+
+  const cierresInput: CierrePlataformaInput[] = cierres.map((c) => ({
+    ventaNequi: c.ventaNequi,
+    ventaTarjeta: c.ventaTarjeta,
+    ventaDaviplata: c.ventaDaviplata,
+    ventaTransferencia: c.ventaTransferencia,
+    retiroCierre: c.retiroCierre,
+    pagos: [
+      ...c.gastoItems.map((g) => ({ monto: g.monto, metodoPago: g.metodoPago })),
+      ...c.facturaItems.map((f) => ({ monto: f.monto, metodoPago: f.metodoPago })),
+    ],
+  }));
+
+  const saldosIniciales: Partial<Record<Plataforma, number>> = {};
+  for (const s of iniciales) {
+    if ((PLATAFORMAS as readonly string[]).includes(s.plataforma)) {
+      saldosIniciales[s.plataforma as Plataforma] = s.openingBalance;
+    }
+  }
+
+  const resumen = calcularSaldosPlataforma({
+    cierres: cierresInput,
+    transferencias: transferencias.map((t) => ({
+      fromPlataforma: t.fromPlataforma,
+      toPlataforma: t.toPlataforma,
+      monto: t.monto,
+      impuesto4x1000: t.impuesto4x1000,
+    })),
+    abonosTarjeta: abonos.map((a) => a.monto),
+    saldosIniciales,
+  });
+
+  return { ...resumen, saldosIniciales, transferencias, abonos };
 }
 
 // Clientes con su saldo pendiente (Σ ventas a crédito − Σ abonos, excluye borrados).

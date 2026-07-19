@@ -281,6 +281,44 @@ const statements = [
   // Fila única de arranque (id=1). ON CONFLICT DO NOTHING → idempotente, no pisa ajustes.
   `INSERT INTO "CierreGeneralConfig" ("id", "porcentajeReposicion", "puntoEquilibrio", "updatedAt")
    VALUES (1, 70, 1100000, CURRENT_TIMESTAMP) ON CONFLICT ("id") DO NOTHING;`,
+
+  // ---------------------------------------------------------------------------
+  // Saldos por plataforma (Cierre general, 2026-07-17). Ver prisma/migrations/20260717120000_saldos_plataforma/.
+  // ---------------------------------------------------------------------------
+  'ALTER TABLE "CierreGeneralGasto" ADD COLUMN IF NOT EXISTS "autoGenerado" BOOLEAN NOT NULL DEFAULT false;',
+
+  `CREATE TABLE IF NOT EXISTS "PlataformaSaldoInicial" (
+    "plataforma" TEXT NOT NULL,
+    "openingBalance" INTEGER NOT NULL DEFAULT 0,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "PlataformaSaldoInicial_pkey" PRIMARY KEY ("plataforma")
+  );`,
+
+  `CREATE TABLE IF NOT EXISTS "TarjetaAbono" (
+    "id" TEXT NOT NULL,
+    "date" TEXT NOT NULL,
+    "monto" INTEGER NOT NULL,
+    "nota" TEXT,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "TarjetaAbono_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "TarjetaAbono_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+  );`,
+  'CREATE INDEX IF NOT EXISTS "TarjetaAbono_date_idx" ON "TarjetaAbono"("date");',
+
+  `CREATE TABLE IF NOT EXISTS "PlataformaTransferencia" (
+    "id" TEXT NOT NULL,
+    "fromPlataforma" TEXT NOT NULL,
+    "toPlataforma" TEXT NOT NULL,
+    "monto" INTEGER NOT NULL,
+    "impuesto4x1000" INTEGER NOT NULL DEFAULT 0,
+    "nota" TEXT,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "PlataformaTransferencia_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "PlataformaTransferencia_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+  );`,
+  'CREATE INDEX IF NOT EXISTS "PlataformaTransferencia_createdAt_idx" ON "PlataformaTransferencia"("createdAt");',
 ];
 
 let aplicado = false;

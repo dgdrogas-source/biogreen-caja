@@ -3,7 +3,8 @@ import { formatDateCo, todayBogota } from "@/lib/dates";
 import { AjustesCierreGeneralConfig } from "@/modules/nequi/components/AjustesCierreGeneralConfig";
 import { BolsasGeneralesConfig } from "@/modules/nequi/components/BolsasGeneralesConfig";
 import { ResumenCierreGeneralView } from "@/modules/nequi/components/ResumenCierreGeneralView";
-import { getBolsasGenerales, getResumenCierreGeneral } from "@/modules/nequi/queries";
+import { SaldosPlataformaCard } from "@/modules/nequi/components/SaldosPlataformaCard";
+import { getBolsasGenerales, getResumenCierreGeneral, getSaldosPorPlataforma } from "@/modules/nequi/queries";
 import { BOLSA_GENERAL_BUCKETS } from "@/modules/nequi/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -20,9 +21,10 @@ export default async function ResumenCierreGeneralPage({
   const today = todayBogota();
   const date = params.fecha && DATE_RE.test(params.fecha) ? params.fecha : today;
 
-  const [resumen, bolsas] = await Promise.all([
+  const [resumen, bolsas, plataformas] = await Promise.all([
     getResumenCierreGeneral(date),
     getBolsasGenerales(),
+    getSaldosPorPlataforma(),
   ]);
 
   return (
@@ -47,6 +49,15 @@ export default async function ResumenCierreGeneralPage({
       </p>
 
       <ResumenCierreGeneralView resumen={resumen} />
+
+      <SaldosPlataformaCard
+        data={{
+          saldos: plataformas.saldos,
+          tarjetaPendiente: plataformas.tarjetaPendiente,
+          totalDisponible: plataformas.totalDisponible,
+          saldosIniciales: plataformas.saldosIniciales,
+        }}
+      />
 
       <AjustesCierreGeneralConfig
         porcentajeReposicion={resumen.config.porcentajeReposicion}

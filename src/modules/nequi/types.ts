@@ -72,6 +72,11 @@ export const BASE_FIJA_EFECTIVO_CAJA = 200_000;
 // vs sobre blanco, porque solo la caja principal se cuadra contra el conteo físico.
 // DAVIPLATA se añadió el 2026-07-17: se podía COBRAR por Daviplata (está en MEDIOS_PAGO)
 // pero no PAGAR desde Daviplata, así que su saldo por plataforma solo habría podido crecer.
+// DAVIPLATA se añadió el 2026-07-17: se podía COBRAR por Daviplata (está en MEDIOS_PAGO)
+// pero no PAGAR desde Daviplata, así que su saldo por plataforma solo habría podido crecer.
+// DESCONTADO_ORIGEN (2026-07-17): para el gasto automático del 4% de tarjeta — cuenta como
+// gasto (baja la bolsa de gastos) pero NO sale de ninguna plataforma, porque el banco ya lo
+// descontó del abono; esa plata nunca pasó por las manos de la dueña.
 export const METODOS_PAGO_ITEM = [
   "EFECTIVO_CAJA",
   "EFECTIVO_SOBRE",
@@ -79,6 +84,7 @@ export const METODOS_PAGO_ITEM = [
   "DAVIPLATA",
   "DATAFONO",
   "TRANSFERENCIA",
+  "DESCONTADO_ORIGEN",
   "OTRO",
 ] as const;
 export type MetodoPagoItem = (typeof METODOS_PAGO_ITEM)[number];
@@ -89,7 +95,33 @@ export const METODO_PAGO_ITEM_LABELS: Record<MetodoPagoItem, string> = {
   DAVIPLATA: "Daviplata",
   DATAFONO: "Datáfono",
   TRANSFERENCIA: "Transferencia",
+  DESCONTADO_ORIGEN: "Descontado en origen",
   OTRO: "Otro",
+};
+
+// Métodos que la dueña puede elegir A MANO al registrar un gasto/factura. Excluye
+// DESCONTADO_ORIGEN, que es exclusivo del 4% automático de tarjeta (no sale de ninguna
+// plataforma): si se pudiera elegir a mano, descuadraría los saldos por plataforma.
+export const METODOS_PAGO_ITEM_MANUAL = METODOS_PAGO_ITEM.filter(
+  (m) => m !== "DESCONTADO_ORIGEN"
+);
+
+// Comisión que el banco cobra sobre TODA venta con tarjeta (igual débito/crédito). El banco
+// abona la venta menos este %, así que se registra como gasto automático al guardar el cierre.
+export const COMISION_TARJETA = 0.04;
+export const CATEGORIA_COMISION_TARJETA = "Comisión bancaria";
+
+// Plataformas con SALDO CORRIDO (acumulado día a día). La caja principal NO está aquí: es
+// operativa y se cuadra por turno contra el conteo físico (ver cuadreCajaCierreGeneral). El
+// sobre blanco sí, porque es la reserva de facturas. La tarjeta tampoco: es "pendiente de
+// abono" (el banco la paga al día siguiente, en neto), no un saldo disponible.
+export const PLATAFORMAS = ["SOBRE_BLANCO", "NEQUI", "BANCO", "DAVIPLATA"] as const;
+export type Plataforma = (typeof PLATAFORMAS)[number];
+export const PLATAFORMA_LABELS: Record<Plataforma, string> = {
+  SOBRE_BLANCO: "Efectivo (sobre blanco)",
+  NEQUI: "Nequi",
+  BANCO: "Banco",
+  DAVIPLATA: "Daviplata",
 };
 
 // Proveedores del Cierre general: un proveedor es de UN tipo (COSTO para facturas, GASTO
