@@ -101,6 +101,43 @@ Next.js 16 (App Router, Server Actions, Server Components) · TypeScript · Pris
 4. Futuro: análisis (ingresos día/semana/mes, cartera, 70/30, gastos y costos por proveedor, estado de resultados), maestro de proveedores, Cierre de mes, cambiar contraseñas del seed, definir módulos 2 y 3.
 - Contexto de decisiones del Cierre general (entrevista 2026-07-15): el dueño copia el recibo del POS (Dominium) a mano; orden real del cierre = fecha → venta → facturas → retiro → gastos → nº cuadre → sobrante/faltante; facturas se pagan completas (de caja o del "sobre blanco" = caja menor aparte, NO entra al cierre general); el cierre general es SOLO caja principal; 70/30 fijo.
 
+---
+
+## 📐 Diseño acordado: "Saldos por plataforma" (entrevista 2026-07-17) — POR CONSTRUIR
+
+La dueña ya tiene las bolsas 70/30 (facturas/gastos) como **monto**, pero esa plata está
+repartida entre varias cuentas y no sabe **desde cuál pagar**. Esto lo resuelve.
+
+**Las plataformas y cómo se calcula cada saldo** (corrido, acumulado día a día):
+
+| Plataforma | Tipo | Fórmula |
+|---|---|---|
+| Efectivo caja principal | Efectivo | base fija + ventas efectivo − pagos desde caja − **retiros al sobre** |
+| Efectivo **sobre blanco** | Efectivo | saldo inicial + **Σ retiroCierre** − pagos desde el sobre |
+| Nequi | Digital | saldo inicial + ventas Nequi − pagos por Nequi + entradas de otras plataformas |
+| Banco | Digital | saldo inicial + ventas transferencia + **abonos de tarjeta confirmados** − pagos − salidas − 4x1000 |
+| Daviplata | Digital | saldo inicial + ventas Daviplata − pagos − salidas |
+| *Tarjeta* | *antesala* | pendiente **en NETO** (venta − 4%); baja cuando ella confirma el abono |
+
+**Reglas confirmadas por la dueña:**
+- El **"Retiro del día"** (`retiroCierre`, ya registrado) **es exactamente lo que va al sobre blanco**. Por eso el saldo del sobre se calcula solo, sin registrar nada nuevo.
+- El **sobre blanco SÍ es una plataforma** a seguir, pero **NO participa del cuadre de caja** (eso sigue siendo solo caja principal — no contradice la regla vieja, convive con ella).
+- Regla base: **efectivo (sobre blanco) → facturas**, **digital → gastos**.
+- Si el efectivo no alcanza para facturas, se saca de digital en orden **Nequi → Banco → Daviplata**, y ella **junta esa plata EN NEQUI** (movimientos reales, hay que registrarlos). El efectivo casi nunca se mueve (si sobra, sí lo pasa a digital).
+- **Solo cuenta lo que ya tiene en la mano**: la tarjeta no abonada NO suma.
+- **Tarjeta**: el banco abona la venta **menos 4%** (igual para todas), puede abonar **parcial**, y no abona fines de semana → ella **confirma con un clic**.
+- El **4% se registra como gasto automático** con un método aparte tipo "descontado en origen": cuenta como gasto (baja la bolsa) pero **NO descuenta de ninguna plataforma** (esa plata nunca pasó por sus manos). Sin esto, el banco se descuadraría cada día.
+- **4x1000 en movimientos internos**: el dinero llega **completo** y el impuesto se cobra **aparte** (mover $90.000 → llegan $90.000 y el banco carga $360 por separado).
+
+**Insight clave para el motor de sugerencias:** el 4x1000 es **0,4% del monto, no una tarifa por operación** — juntar movimientos NO ahorra nada. Lo que ahorra es que la plata **dé menos saltos**: `Banco → Nequi → proveedor` paga dos veces; `Banco → proveedor` paga una. Por eso la función debe sugerir **"paga desde aquí"** (usando el medio de pago habitual de cada proveedor) en vez de "mueve plata a Nequi". Ella ya sabe cómo cobra cada proveedor.
+
+**Semáforo de cobertura de facturas:** 🟢 alcanza hoy · 🟡 alcanza contando la tarjeta pendiente (*problema de fecha, no de plata*) · 🔴 hueco real → mostrar la cartera como fuente.
+
+**Fases recomendadas** (la 1 ya resuelve el ~70% de lo que pidió):
+1. **Ver saldos por plataforma** + ajuste de saldos iniciales. Casi todo sale de datos que ya existen.
+2. **Pendiente de tarjeta** + confirmación de abonos (parciales) + gasto automático del 4%.
+3. **Sugerencias "paga desde aquí"** + movimientos entre plataformas + `medioPagoHabitual` en Proveedor.
+
 ## Referencias
 - Historial detallado: memoria del asistente en `~/.claude/projects/…/memory/proyecto-caja-nequi-biogreen.md` y plan en `~/.claude/plans/en-la-misma-pagina-quiet-eich.md`.
 - Doc de traspaso extenso (fuera del repo): `…/Trabajo/Biogreen/CONTEXTO-Y-CONTINUACION.md`.

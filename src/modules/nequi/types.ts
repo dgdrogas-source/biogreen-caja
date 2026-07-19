@@ -70,10 +70,13 @@ export const BASE_FIJA_EFECTIVO_CAJA = 200_000;
 // Medio de pago de un gasto o factura del Cierre general (de dónde salió la plata).
 // Distinto de MEDIOS_PAGO (que describe la VENTA): aquí importa diferenciar caja principal
 // vs sobre blanco, porque solo la caja principal se cuadra contra el conteo físico.
+// DAVIPLATA se añadió el 2026-07-17: se podía COBRAR por Daviplata (está en MEDIOS_PAGO)
+// pero no PAGAR desde Daviplata, así que su saldo por plataforma solo habría podido crecer.
 export const METODOS_PAGO_ITEM = [
   "EFECTIVO_CAJA",
   "EFECTIVO_SOBRE",
   "NEQUI",
+  "DAVIPLATA",
   "DATAFONO",
   "TRANSFERENCIA",
   "OTRO",
@@ -83,6 +86,7 @@ export const METODO_PAGO_ITEM_LABELS: Record<MetodoPagoItem, string> = {
   EFECTIVO_CAJA: "Efectivo (caja)",
   EFECTIVO_SOBRE: "Efectivo (sobre blanco)",
   NEQUI: "Nequi",
+  DAVIPLATA: "Daviplata",
   DATAFONO: "Datáfono",
   TRANSFERENCIA: "Transferencia",
   OTRO: "Otro",
