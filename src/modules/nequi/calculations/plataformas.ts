@@ -40,6 +40,10 @@ export interface PlataformasInput {
   transferencias: TransferenciaInput[];
   abonosTarjeta: number[]; // montos netos confirmados
   saldosIniciales: Partial<Record<Plataforma, number>>;
+  // Corrige lo que se MUESTRA como "pendiente" el día que se activa esta función (Fase 2,
+  // 2026-07-17): sin esto, el pendiente sumaría TODA la venta histórica con tarjeta como si
+  // nunca se hubiera abonado. Se resta del pendiente calculado; NO toca ninguna plataforma.
+  ajustePendienteInicial?: number;
 }
 
 export interface SaldoPlataforma {
@@ -108,7 +112,10 @@ export function calcularSaldosPlataforma(input: PlataformasInput): PlataformasRe
     if (isPlataforma(t.toPlataforma)) saldo[t.toPlataforma] += t.monto;
   }
 
-  const tarjetaPendiente = ventaTarjetaNetaTotal - abonosTotal;
+  const tarjetaPendiente = Math.max(
+    0,
+    ventaTarjetaNetaTotal - abonosTotal - (input.ajustePendienteInicial ?? 0)
+  );
   const saldos = PLATAFORMAS.map((p) => ({ plataforma: p, saldo: saldo[p] }));
   const totalDisponible = saldos.reduce((s, x) => s + x.saldo, 0);
 

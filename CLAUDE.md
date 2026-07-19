@@ -146,7 +146,16 @@ repartida entre varias cuentas y no sabe **desde cuál pagar**. Esto lo resuelve
 - La caja principal NO aparece en la card (es operativa, ya se cuadra en "Resumen del día").
 - El 4x1000 de un movimiento interno reduce la plataforma origen, pero (Fase 1) NO se registra todavía como gasto en la bolsa. Pendiente si se quiere ese detalle.
 
-**⏳ FASE 2 (pendiente):** semáforo 🟢🟡🔴 de cobertura de facturas · sugerencia "paga desde aquí" usando el `medioPagoHabitual` de cada proveedor (campo nuevo en `Proveedor`) · registrar el 4x1000 interno como gasto.
+**✅ FASE 2 construida** (2026-07-17, mismo día que Fase 1 — "probar todo junto"):
+- `calculations/coberturaFacturas.ts` (+7 tests): semáforo 🟢/🟡/🔴 — compara `totalDisponible` (4 plataformas) contra la bolsa de facturas; 🟡 si la tarjeta pendiente la cubre; 🔴 muestra la cartera como referencia. `sugerencia`: de qué plataforma sacar lo que el sobre blanco no cubre, orden Nequi→Banco→Daviplata, capado a lo real. Card `CoberturaFacturasCard` en Resumen.
+- **`Proveedor.medioPagoHabitual`** (nuevo campo): al elegir ese proveedor en Gastos/Facturas, el formulario **pre-selecciona** el método de pago (ella puede cambiarlo). Editable en `/cierre/general/proveedores` (selector inline, guarda al cambiar) y al crear. Enfoque confirmado: "paga desde donde el proveedor cobra" en vez de rotar todo a Nequi — evita el 4x1000 duplicado de un salto extra.
+- **`TarjetaConfig.ajustePendienteInicial`**: corrige la alarma falsa del día 1 (el pendiente sumaría TODA la venta histórica con tarjeta). Resta del pendiente MOSTRADO; no toca el saldo del banco. Botón "Corregir pendiente de tarjeta" en la card de saldos.
+- **4x1000 interno como gasto real**: `registrarTransferenciaPlataforma` ahora acepta `date`/`shift` (default: hoy + turno actual) y, si `impuesto4x1000 > 0`, crea un gasto `DESCONTADO_ORIGEN` autoGenerado **ligado** a la transferencia (`PlataformaTransferencia.gastoGeneradoId`, único, `ON DELETE SET NULL`). `eliminarTransferenciaPlataforma` borra ese gasto explícitamente (no confía solo en la FK). Categoría: "4x1000 (movimiento interno)", separada de "Comisión bancaria" — es un costo evitable, no fijo.
+- `ensureCierreGeneral` (antes privada en `actions/cierreGeneral.ts`) se exportó para reutilizarla aquí sin duplicar lógica.
+
+**Notas / límites de la Fase 2:**
+- La "sugerencia" es informativa (ella confirma o decide); el sistema no mueve plata solo.
+- No existe "facturas pendientes de pago" en el modelo (todo lo registrado ya está pagado) — por eso la sugerencia es sobre el momento de REGISTRAR el pago (pre-selección), no una lista de pendientes por cobrar.
 
 ## Referencias
 - Historial detallado: memoria del asistente en `~/.claude/projects/…/memory/proyecto-caja-nequi-biogreen.md` y plan en `~/.claude/plans/en-la-misma-pagina-quiet-eich.md`.

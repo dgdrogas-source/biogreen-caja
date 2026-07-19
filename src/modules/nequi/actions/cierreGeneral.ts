@@ -165,8 +165,9 @@ const turnoSchema = z.object({
 
 // Crea el CierreGeneral "cascarón" del turno si aún no existe (mismo upsert vacío que
 // guardarCierreGeneral usa implícitamente), para poder colgarle un gasto/factura antes de
-// haber guardado el resto del formulario.
-async function ensureCierreGeneral(
+// haber guardado el resto del formulario. Exportado: lo reutiliza actions/plataformas.ts
+// para el gasto automático del 4x1000 de un movimiento interno (Fase 2).
+export async function ensureCierreGeneral(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   businessDayId: string,
   createdById: string

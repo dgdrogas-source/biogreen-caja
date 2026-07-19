@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { todayBogota } from "@/lib/dates";
 import {
+  ajustarPendienteInicialTarjeta,
   ajustarSaldoInicialPlataforma,
   confirmarAbonoTarjeta,
   registrarTransferenciaPlataforma,
@@ -18,20 +19,24 @@ export interface SaldosPlataformaData {
   tarjetaPendiente: number;
   totalDisponible: number;
   saldosIniciales: Partial<Record<Plataforma, number>>;
+  ajustePendienteInicial: number;
 }
 
-// "Dónde está tu plata": saldo corrido por plataforma (Fase 1 de Saldos por plataforma).
-// Solo lectura + 3 acciones puntuales (confirmar abono de tarjeta, mover entre plataformas,
-// ajustar saldos iniciales). No sugiere aún desde dónde pagar — eso es la Fase 2.
+// "Dónde está tu plata": saldo corrido por plataforma (Fase 1) + confirmar abono, mover
+// entre plataformas, ajustar saldos iniciales y el pendiente inicial de tarjeta (Fase 2: sin
+// este último, el primer día muestra TODA la venta histórica con tarjeta como "pendiente").
 export function SaldosPlataformaCard({ data }: { data: SaldosPlataformaData }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [panel, setPanel] = useState<null | "abono" | "mover" | "iniciales">(null);
+  const [panel, setPanel] = useState<null | "abono" | "mover" | "iniciales" | "ajustePendiente">(null);
 
   // --- abono de tarjeta ---
   const [abonoMonto, setAbonoMonto] = useState<number | null>(null);
   const [abonoDate, setAbonoDate] = useState(todayBogota());
+
+  // --- ajuste del pendiente inicial de tarjeta ---
+  const [ajuste, setAjuste] = useState<number | null>(data.ajustePendienteInicial);
 
   // --- mover entre plataformas ---
   const [from, setFrom] = useState<Plataforma>("BANCO");
@@ -85,6 +90,21 @@ export function SaldosPlataformaCard({ data }: { data: SaldosPlataformaData }) {
       {data.tarjetaPendiente > 0 && (
         <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-700">
           ⏳ Tarjeta pendiente de abono (no disponible aún): <b>{money(data.tarjetaPendiente)}</b>
+          {data.ajustePendienteInicial === 0 && (
+            <>
+              {" "}
+              — si esto parece muy alto y nunca has confirmado un abono, probablemente sea
+              historial de antes de esta función.{" "}
+              <button
+                type="button"
+                onClick={() => setPanel("ajustePendiente")}
+                className="font-semibold underline"
+              >
+                Corregirlo
+              </button>
+              .
+            </>
+          )}
         </p>
       )}
 
@@ -110,7 +130,34 @@ export function SaldosPlataformaCard({ data }: { data: SaldosPlataformaData }) {
         >
           Ajustar saldos iniciales
         </button>
+        <button
+          type="button"
+          onClick={() => setPanel(panel === "ajustePendiente" ? null : "ajustePendiente")}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Corregir pendiente de tarjeta
+        </button>
       </div>
+
+      {panel === "ajustePendiente" && (
+        <div className="mt-3 space-y-2 rounded-xl border border-gray-100 p-3">
+          <p className="text-xs text-gray-500">
+            Si el &ldquo;pendiente de tarjeta&rdquo; muestra venta de antes de usar esta
+            función (que en realidad el banco ya te pagó hace tiempo), escribe aquí cuánto de
+            eso restar. Esto NO cambia el saldo del banco, solo corrige lo que se muestra
+            como pendiente.
+          </p>
+          <MoneyInput value={ajuste} onChange={setAjuste} />
+          <button
+            type="button"
+            disabled={pending || ajuste === null}
+            onClick={() => run(() => ajustarPendienteInicialTarjeta(ajuste ?? 0))}
+            className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {pending ? "Guardando..." : "Guardar ajuste"}
+          </button>
+        </div>
+      )}
 
       {panel === "abono" && (
         <div className="mt-3 space-y-2 rounded-xl border border-gray-100 p-3">

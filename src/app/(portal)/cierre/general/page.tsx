@@ -21,7 +21,7 @@ import {
   getProveedores,
   getTendenciasCierreGeneral,
 } from "@/modules/nequi/queries";
-import { BASE_FIJA_EFECTIVO_CAJA, SHIFT_LABELS, type Shift } from "@/modules/nequi/types";
+import { BASE_FIJA_EFECTIVO_CAJA, SHIFT_LABELS, type MetodoPagoItem, type Shift } from "@/modules/nequi/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -146,7 +146,11 @@ export default async function CierreGeneralPage({
             date={date}
             shift={shift}
             items={cierre?.facturaItems ?? []}
-            proveedores={proveedoresCosto.map((p) => ({ id: p.id, nombre: p.nombre }))}
+            proveedores={proveedoresCosto.map((p) => ({
+              id: p.id,
+              nombre: p.nombre,
+              medioPagoHabitual: p.medioPagoHabitual as MetodoPagoItem | null,
+            }))}
           />
         }
         slotGastos={
@@ -155,7 +159,11 @@ export default async function CierreGeneralPage({
             shift={shift}
             items={cierre?.gastoItems ?? []}
             categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
-            proveedores={proveedoresGasto.map((p) => ({ id: p.id, nombre: p.nombre }))}
+            proveedores={proveedoresGasto.map((p) => ({
+              id: p.id,
+              nombre: p.nombre,
+              medioPagoHabitual: p.medioPagoHabitual as MetodoPagoItem | null,
+            }))}
           />
         }
       />

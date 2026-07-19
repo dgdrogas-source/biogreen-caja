@@ -23,6 +23,7 @@ export interface CategoriaOption {
 export interface ProveedorOption {
   id: string;
   nombre: string;
+  medioPagoHabitual: MetodoPagoItem | null;
 }
 
 // Gastos itemizados del turno (categoría + monto + proveedor opcional + descripción).
@@ -158,13 +159,19 @@ export function CierreGeneralGastosList({
           <MoneyInput value={monto} onChange={setMonto} />
           <select
             value={proveedorId}
-            onChange={(e) => setProveedorId(e.target.value)}
+            onChange={(e) => {
+              const id = e.target.value;
+              setProveedorId(id);
+              const habitual = proveedores.find((p) => p.id === id)?.medioPagoHabitual;
+              if (habitual) setMetodoPago(habitual);
+            }}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
           >
             <option value="">Sin proveedor</option>
             {proveedores.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nombre}
+                {p.medioPagoHabitual && ` (${METODO_PAGO_ITEM_LABELS[p.medioPagoHabitual]})`}
               </option>
             ))}
           </select>

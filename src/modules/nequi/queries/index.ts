@@ -13,6 +13,7 @@ import {
   calcularRentabilidadBrutaMensual,
   type CierreDelDia,
 } from "../calculations/resumenCierreGeneral";
+import { calcularCoberturaFacturas } from "../calculations/coberturaFacturas";
 import {
   calcularSaldosPlataforma,
   type CierrePlataformaInput,
@@ -428,12 +429,14 @@ export async function getBolsasGenerales() {
 // Saldos por plataforma (2026-07-17): en qué cuenta está la plata. Acumulado sobre TODO el
 // histórico, como las bolsas. Ver calculations/plataformas.ts.
 export async function getSaldosPorPlataforma() {
-  const [cierres, transferencias, abonos, iniciales] = await Promise.all([
+  const [cierres, transferencias, abonos, iniciales, tarjetaConfig] = await Promise.all([
     prisma.cierreGeneral.findMany({ include: cierreGeneralItemsInclude }),
     prisma.plataformaTransferencia.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.tarjetaAbono.findMany({ orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
     prisma.plataformaSaldoInicial.findMany(),
+    prisma.tarjetaConfig.findUnique({ where: { id: 1 } }),
   ]);
+  const ajustePendienteInicial = tarjetaConfig?.ajustePendienteInicial ?? 0;
 
   const cierresInput: CierrePlataformaInput[] = cierres.map((c) => ({
     ventaNequi: c.ventaNequi,
@@ -464,9 +467,37 @@ export async function getSaldosPorPlataforma() {
     })),
     abonosTarjeta: abonos.map((a) => a.monto),
     saldosIniciales,
+    ajustePendienteInicial,
   });
 
-  return { ...resumen, saldosIniciales, transferencias, abonos };
+  return { ...resumen, saldosIniciales, transferencias, abonos, ajustePendienteInicial };
+}
+
+// Semáforo de cobertura de facturas (Fase 2): compara la bolsa de facturas contra los
+// saldos por plataforma + la tarjeta pendiente, y sugiere de dónde sacar el faltante.
+export async function getCoberturaFacturas() {
+  const [{ reposicion }, plataformas, clientes] = await Promise.all([
+    getBolsasGenerales(),
+    getSaldosPorPlataforma(),
+    getClientesConSaldo(),
+  ]);
+
+  const saldosPorPlataforma: Record<Plataforma, number> = {
+    SOBRE_BLANCO: 0,
+    NEQUI: 0,
+    BANCO: 0,
+    DAVIPLATA: 0,
+  };
+  for (const s of plataformas.saldos) saldosPorPlataforma[s.plataforma] = s.saldo;
+  const carteraTotal = clientes.reduce((sum, c) => sum + c.saldo, 0);
+
+  return calcularCoberturaFacturas({
+    bolsaFacturas: reposicion,
+    saldos: saldosPorPlataforma,
+    totalDisponible: plataformas.totalDisponible,
+    tarjetaPendiente: plataformas.tarjetaPendiente,
+    carteraTotal,
+  });
 }
 
 // Clientes con su saldo pendiente (Σ ventas a crédito − Σ abonos, excluye borrados).

@@ -111,6 +111,11 @@ export const METODOS_PAGO_ITEM_MANUAL = METODOS_PAGO_ITEM.filter(
 export const COMISION_TARJETA = 0.04;
 export const CATEGORIA_COMISION_TARJETA = "Comisión bancaria";
 
+// Categoría del gasto automático que representa el 4x1000 de un movimiento entre
+// plataformas propias (Fase 2, 2026-07-17). Separada de "Comisión bancaria" porque es un
+// costo evitable (rotar menos plata = pagar menos), no uno fijo como el de tarjeta.
+export const CATEGORIA_4X1000_INTERNO = "4x1000 (movimiento interno)";
+
 // Plataformas con SALDO CORRIDO (acumulado día a día). La caja principal NO está aquí: es
 // operativa y se cuadra por turno contra el conteo físico (ver cuadreCajaCierreGeneral). El
 // sobre blanco sí, porque es la reserva de facturas. La tarjeta tampoco: es "pendiente de

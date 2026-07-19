@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { crearProveedor, eliminarProveedor, renombrarProveedor } from "../actions/proveedores";
-import type { ProveedorTipo } from "../types";
+import { ajustarMedioPagoProveedor, crearProveedor, eliminarProveedor, renombrarProveedor } from "../actions/proveedores";
+import { METODOS_PAGO_ITEM_MANUAL, METODO_PAGO_ITEM_LABELS, type MetodoPagoItem, type ProveedorTipo } from "../types";
 
 export interface ProveedorItem {
   id: string;
   nombre: string;
+  medioPagoHabitual: MetodoPagoItem | null;
 }
 
 // CRUD de proveedores para UN tipo (COSTO o GASTO). Se usan dos instancias en la pestaña
@@ -27,11 +28,13 @@ export function ProveedoresConfig({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [nombre, setNombre] = useState("");
+  const [medioNuevo, setMedioNuevo] = useState<MetodoPagoItem | "">("");
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nombreEdicion, setNombreEdicion] = useState("");
+  const [guardandoMedioId, setGuardandoMedioId] = useState<string | null>(null);
 
   function agregar() {
     if (!nombre.trim()) {
@@ -41,11 +44,26 @@ export function ProveedoresConfig({
     setError(null);
     setAviso(null);
     startTransition(async () => {
-      const r = await crearProveedor({ nombre: nombre.trim(), tipo });
+      const r = await crearProveedor({
+        nombre: nombre.trim(),
+        tipo,
+        medioPagoHabitual: medioNuevo || null,
+      });
       if (r.ok) {
         setNombre("");
+        setMedioNuevo("");
         router.refresh();
       } else setError(r.error);
+    });
+  }
+
+  function cambiarMedio(id: string, medio: string) {
+    setGuardandoMedioId(id);
+    startTransition(async () => {
+      const r = await ajustarMedioPagoProveedor(id, (medio || null) as MetodoPagoItem | null);
+      setGuardandoMedioId(null);
+      if (r.ok) router.refresh();
+      else setError(r.error);
     });
   }
 
@@ -133,49 +151,79 @@ export function ProveedoresConfig({
             ) : (
               <div
                 key={p.id}
-                className="flex items-center justify-between rounded-xl border border-gray-100 px-3 py-2"
+                className="rounded-xl border border-gray-100 px-3 py-2"
               >
-                <span className="text-sm text-gray-700">{p.nombre}</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => empezarEdicion(p)}
-                    disabled={pending}
-                    className="rounded-lg px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-40"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => eliminar(p.id)}
-                    disabled={pending}
-                    className="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
-                  >
-                    {borrandoId === p.id ? "..." : "Eliminar"}
-                  </button>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">{p.nombre}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => empezarEdicion(p)}
+                      disabled={pending}
+                      className="rounded-lg px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-40"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => eliminar(p.id)}
+                      disabled={pending}
+                      className="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+                    >
+                      {borrandoId === p.id ? "..." : "Eliminar"}
+                    </button>
+                  </div>
                 </div>
+                <select
+                  value={p.medioPagoHabitual ?? ""}
+                  onChange={(e) => cambiarMedio(p.id, e.target.value)}
+                  disabled={pending}
+                  className="mt-1.5 w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-600 focus:border-emerald-500 focus:outline-none disabled:opacity-50"
+                >
+                  <option value="">Cómo cobra habitualmente (sin definir)</option>
+                  {METODOS_PAGO_ITEM_MANUAL.map((m) => (
+                    <option key={m} value={m}>
+                      {METODO_PAGO_ITEM_LABELS[m]}
+                    </option>
+                  ))}
+                </select>
+                {guardandoMedioId === p.id && <p className="mt-0.5 text-[11px] text-gray-400">Guardando...</p>}
               </div>
             )
           )
         )}
       </div>
 
-      <div className="flex gap-2">
-        <input
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Nuevo proveedor"
-          maxLength={80}
-          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-        />
-        <button
-          type="button"
-          onClick={agregar}
-          disabled={pending}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Nuevo proveedor"
+            maxLength={80}
+            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={agregar}
+            disabled={pending}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            Añadir
+          </button>
+        </div>
+        <select
+          value={medioNuevo}
+          onChange={(e) => setMedioNuevo(e.target.value as MetodoPagoItem | "")}
+          className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs text-gray-600 focus:border-emerald-500 focus:outline-none"
         >
-          Añadir
-        </button>
+          <option value="">Cómo cobra habitualmente (opcional)</option>
+          {METODOS_PAGO_ITEM_MANUAL.map((m) => (
+            <option key={m} value={m}>
+              {METODO_PAGO_ITEM_LABELS[m]}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );

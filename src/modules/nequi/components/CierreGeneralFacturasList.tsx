@@ -18,6 +18,7 @@ export interface FacturaItem {
 export interface ProveedorOption {
   id: string;
   nombre: string;
+  medioPagoHabitual: MetodoPagoItem | null;
 }
 
 // Facturas de proveedor pagadas, itemizadas. Reemplaza el input directo de Fase 1
@@ -132,13 +133,21 @@ export function CierreGeneralFacturasList({
         ) : (
           <select
             value={proveedorId}
-            onChange={(e) => setProveedorId(e.target.value)}
+            onChange={(e) => {
+              const id = e.target.value;
+              setProveedorId(id);
+              // Pre-selecciona el método de pago habitual de ese proveedor (ella puede
+              // cambiarlo). Evita rotar plata: paga desde donde ese proveedor cobra.
+              const habitual = proveedores.find((p) => p.id === id)?.medioPagoHabitual;
+              if (habitual) setMetodoPago(habitual);
+            }}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
           >
             <option value="">Proveedor sin especificar</option>
             {proveedores.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nombre}
+                {p.medioPagoHabitual && ` (${METODO_PAGO_ITEM_LABELS[p.medioPagoHabitual]})`}
               </option>
             ))}
           </select>

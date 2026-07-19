@@ -142,6 +142,29 @@ describe("calcularSaldosPlataforma", () => {
     expect(saldoDe(r, "BANCO")).toBe(-360); // 90.000 − 90.000 − 360
   });
 
+  it("ajustePendienteInicial corrige el pendiente mostrado sin tocar el banco (día 1)", () => {
+    const base = {
+      ...vacio,
+      cierres: [{ ventaNequi: 0, ventaTarjeta: 1000000, ventaDaviplata: 0, ventaTransferencia: 0, retiroCierre: 0, pagos: [] }],
+    };
+    // sin ajuste: 960.000 pendientes (alarma falsa el día 1)
+    expect(calcularSaldosPlataforma(base).tarjetaPendiente).toBe(960000);
+
+    // con ajuste igual al pendiente: queda en 0, y el banco NO se infla
+    const ajustado = calcularSaldosPlataforma({ ...base, ajustePendienteInicial: 960000 });
+    expect(ajustado.tarjetaPendiente).toBe(0);
+    expect(saldoDe(ajustado, "BANCO")).toBe(0);
+  });
+
+  it("ajustePendienteInicial nunca deja el pendiente en negativo", () => {
+    const r = calcularSaldosPlataforma({
+      ...vacio,
+      cierres: [{ ventaNequi: 0, ventaTarjeta: 100000, ventaDaviplata: 0, ventaTransferencia: 0, retiroCierre: 0, pagos: [] }],
+      ajustePendienteInicial: 999999,
+    });
+    expect(r.tarjetaPendiente).toBe(0);
+  });
+
   it("caso integral coherente con el ejemplo del diseño", () => {
     const r = calcularSaldosPlataforma({
       saldosIniciales: { SOBRE_BLANCO: 0, NEQUI: 0, BANCO: 0, DAVIPLATA: 0 },

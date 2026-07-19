@@ -2,9 +2,15 @@ import { requireAdmin } from "@/lib/permissions";
 import { formatDateCo, todayBogota } from "@/lib/dates";
 import { AjustesCierreGeneralConfig } from "@/modules/nequi/components/AjustesCierreGeneralConfig";
 import { BolsasGeneralesConfig } from "@/modules/nequi/components/BolsasGeneralesConfig";
+import { CoberturaFacturasCard } from "@/modules/nequi/components/CoberturaFacturasCard";
 import { ResumenCierreGeneralView } from "@/modules/nequi/components/ResumenCierreGeneralView";
 import { SaldosPlataformaCard } from "@/modules/nequi/components/SaldosPlataformaCard";
-import { getBolsasGenerales, getResumenCierreGeneral, getSaldosPorPlataforma } from "@/modules/nequi/queries";
+import {
+  getBolsasGenerales,
+  getCoberturaFacturas,
+  getResumenCierreGeneral,
+  getSaldosPorPlataforma,
+} from "@/modules/nequi/queries";
 import { BOLSA_GENERAL_BUCKETS } from "@/modules/nequi/types";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -21,10 +27,11 @@ export default async function ResumenCierreGeneralPage({
   const today = todayBogota();
   const date = params.fecha && DATE_RE.test(params.fecha) ? params.fecha : today;
 
-  const [resumen, bolsas, plataformas] = await Promise.all([
+  const [resumen, bolsas, plataformas, cobertura] = await Promise.all([
     getResumenCierreGeneral(date),
     getBolsasGenerales(),
     getSaldosPorPlataforma(),
+    getCoberturaFacturas(),
   ]);
 
   return (
@@ -50,12 +57,15 @@ export default async function ResumenCierreGeneralPage({
 
       <ResumenCierreGeneralView resumen={resumen} />
 
+      <CoberturaFacturasCard cobertura={cobertura} />
+
       <SaldosPlataformaCard
         data={{
           saldos: plataformas.saldos,
           tarjetaPendiente: plataformas.tarjetaPendiente,
           totalDisponible: plataformas.totalDisponible,
           saldosIniciales: plataformas.saldosIniciales,
+          ajustePendienteInicial: plataformas.ajustePendienteInicial,
         }}
       />
 

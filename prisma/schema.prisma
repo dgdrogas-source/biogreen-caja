@@ -251,10 +251,13 @@ model CierreGeneralGasto {
   metodoPago      String? // EFECTIVO_CAJA | EFECTIVO_SOBRE | NEQUI | DAVIPLATA | DATAFONO | TRANSFERENCIA | DESCONTADO_ORIGEN | OTRO (null = EFECTIVO_CAJA)
   proveedorId     String? // Proveedor tipo GASTO (opcional: no todo gasto tiene un proveedor externo)
   proveedorRef    Proveedor?     @relation("ProveedorGastos", fields: [proveedorId], references: [id])
-  // true = gasto creado por el sistema (hoy solo el 4% de tarjeta). Se re-ajusta solo al
-  // re-guardar el cierre; la dueña no lo edita a mano (ver guardarCierreGeneral).
+  // true = gasto creado por el sistema (4% de tarjeta, o 4x1000 de una transferencia interna).
+  // Se re-ajusta solo al re-guardar el cierre / se borra en cascada con su transferencia; la
+  // dueña no lo edita a mano.
   autoGenerado    Boolean        @default(false)
   createdAt       DateTime       @default(now())
+
+  plataformaTransferencia PlataformaTransferencia?
 
   @@index([cierreGeneralId])
   @@index([proveedorId])
@@ -289,6 +292,10 @@ model Proveedor {
   activa    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  // Cómo cobra habitualmente (2026-07-17, Fase 2 saldos por plataforma): al elegir este
+  // proveedor en el formulario de gastos/facturas, se pre-selecciona este método (ella puede
+  // cambiarlo). Evita rotar plata innecesariamente — paga desde donde el proveedor cobra.
+  medioPagoHabitual String? // EFECTIVO_CAJA | EFECTIVO_SOBRE | NEQUI | DAVIPLATA | DATAFONO | TRANSFERENCIA | OTRO
 
   facturas CierreGeneralFactura[] @relation("ProveedorFacturas")
   gastos   CierreGeneralGasto[] @relation("ProveedorGastos")
@@ -488,6 +495,16 @@ model TarjetaAbono {
 // Movimiento real de plata entre plataformas propias (ej. Banco → Nequi para juntar lo de
 // facturas). El dinero llega COMPLETO; el 4x1000 se cobra aparte y reduce la plataforma
 // origen (impuesto4x1000). Aislado a propósito de PocketTransfer del módulo Nequi.
+// Fila única (id=1). Corrige el "pendiente de tarjeta" mostrado el día que se activa la
+// función: sin esto, sumaría TODA la venta histórica con tarjeta como si nunca se hubiera
+// abonado. La dueña la fija una vez al monto que ya sabe que el banco le pagó en el pasado.
+// Solo afecta lo que se MUESTRA como pendiente — no toca el saldo de ninguna plataforma.
+model TarjetaConfig {
+  id                     Int      @id @default(1)
+  ajustePendienteInicial Int      @default(0)
+  updatedAt              DateTime @updatedAt
+}
+
 model PlataformaTransferencia {
   id             String   @id @default(cuid())
   fromPlataforma String // SOBRE_BLANCO | NEQUI | BANCO | DAVIPLATA
@@ -498,6 +515,12 @@ model PlataformaTransferencia {
   createdById    String
   createdBy      User     @relation(fields: [createdById], references: [id])
   createdAt      DateTime @default(now())
+  // Gasto DESCONTADO_ORIGEN creado automáticamente cuando impuesto4x1000 > 0 (Fase 2), para
+  // que el 4x1000 SÍ reduzca la bolsa de gastos (el saldo de plataforma ya lo descuenta por
+  // su cuenta arriba — este gasto es solo para la contabilidad de la bolsa). Se borra en
+  // cascada si se elimina el movimiento.
+  gastoGeneradoId String?             @unique
+  gastoGenerado   CierreGeneralGasto? @relation(fields: [gastoGeneradoId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
 }
