@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/permissions";
-import { formatTimeCo } from "@/lib/dates";
+import { formatTimeCo, todayBogota } from "@/lib/dates";
 import { BaseFundCard } from "@/modules/nequi/components/BaseFundCard";
 import { CierreDesgloseCard } from "@/modules/nequi/components/CierreDesgloseCard";
 import { MovementForm } from "@/modules/nequi/components/MovementForm";
@@ -7,8 +7,11 @@ import { MovementList } from "@/modules/nequi/components/MovementList";
 import { ListaPreciosFlotante } from "@/modules/licores/components/ListaPreciosFlotante";
 import {
   getClientesLicorParaVender,
+  getMisVentasDelDia,
   getProductosParaVender,
 } from "@/modules/licores/queries";
+import { LICOR_MEDIO_PAGO_LABELS, type LicorMedioPago } from "@/modules/licores/types";
+import type { MovementItem } from "@/modules/nequi/components/MovementList";
 import { desglosarCuadre } from "@/modules/nequi/calculations/cuadre";
 import {
   getBaseFund,
@@ -39,14 +42,61 @@ export default async function RegistrarPage() {
       ? otherShift
       : shiftInfo.defaultShift;
 
-  const [{ movements }, sources, baseFund, summary, licores, licoresClientes] = await Promise.all([
-    getMyTodayMovements(user.id),
-    getMyCommissionSources(user.id),
-    getBaseFund(),
-    getDaySummary(undefined, activeShift),
-    getProductosParaVender(),
-    getClientesLicorParaVender(),
-  ]);
+  const [{ movements }, sources, baseFund, summary, licores, licoresClientes, misVentasLicor] =
+    await Promise.all([
+      getMyTodayMovements(user.id),
+      getMyCommissionSources(user.id),
+      getBaseFund(),
+      getDaySummary(undefined, activeShift),
+      getProductosParaVender(),
+      getClientesLicorParaVender(),
+      getMisVentasDelDia(user.id, todayBogota()),
+    ]);
+
+  // "Mis movimientos de hoy" con las ventas de licor incluidas (pedido del dueño, 2026-07-19):
+  // - Una venta en Nequi/Efectivo YA está en la lista (es un Movement real); solo se marca
+  //   como licor para ocultarle el lápiz (se corrige borrando y re-registrando).
+  // - Una venta con tarjeta/Daviplata/transferencia/crédito no crea Movement (no entra al
+  //   cuadre), así que se inyecta como fila informativa — la vendedora la ve y puede borrarla.
+  const movementIdsDeLicor = new Set(
+    misVentasLicor.map((v) => v.movementId).filter((id): id is string => id !== null)
+  );
+  const filasMovimientos = movements.map((m) => ({
+    ts: m.registeredAt.getTime(),
+    item: {
+      id: m.id,
+      type: m.type,
+      direction: m.direction,
+      amount: m.amount,
+      paymentMethod: m.paymentMethod,
+      note: m.note,
+      isSystemGenerated: m.isSystemGenerated,
+      registeredAt: `T${m.businessDay.shift} · ${formatTimeCo(m.registeredAt)}`,
+      esVentaLicor: movementIdsDeLicor.has(m.id),
+    } satisfies MovementItem,
+  }));
+  const filasLicorSinMovimiento = misVentasLicor
+    .filter((v) => v.movementId === null)
+    .map((v) => ({
+      ts: v.createdAt.getTime(),
+      item: {
+        id: `licor-${v.id}`,
+        type: "VENTA_LICORES_JHOANN",
+        direction: "INCOME",
+        amount: v.precioUnitario * v.cantidad,
+        paymentMethod: v.metodoPago,
+        note: `${v.cantidad} × ${v.producto.nombre}${v.nota ? ` — ${v.nota}` : ""}`,
+        isSystemGenerated: false,
+        registeredAt: `T${v.shift} · ${formatTimeCo(v.createdAt)}`,
+        esVentaLicor: true,
+        licorVentaId: v.id,
+        metodoPagoLabel:
+          LICOR_MEDIO_PAGO_LABELS[v.metodoPago as LicorMedioPago] ?? v.metodoPago,
+      } satisfies MovementItem,
+    }));
+  const misMovimientos = [...filasMovimientos, ...filasLicorSinMovimiento]
+    .sort((a, b) => b.ts - a.ts)
+    .map((f) => f.item);
 
   const desglose =
     summary.day.openingBalance === null
@@ -100,18 +150,7 @@ export default async function RegistrarPage() {
           <div className="rounded-2xl bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-base font-semibold text-gray-800">Mis movimientos de hoy</h2>
             <div className="max-h-96 overflow-y-auto">
-              <MovementList
-                movements={movements.map((m) => ({
-                  id: m.id,
-                  type: m.type,
-                  direction: m.direction,
-                  amount: m.amount,
-                  paymentMethod: m.paymentMethod,
-                  note: m.note,
-                  isSystemGenerated: m.isSystemGenerated,
-                  registeredAt: `T${m.businessDay.shift} · ${formatTimeCo(m.registeredAt)}`,
-                }))}
-              />
+              <MovementList movements={misMovimientos} />
             </div>
           </div>
         </div>

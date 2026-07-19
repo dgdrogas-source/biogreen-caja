@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteMovement, updateMovement } from "../actions/movements";
+import { eliminarVentaLicor } from "@/modules/licores/actions/ventas";
 import { MOVEMENT_LABELS, type MovementType, type PaymentMethod } from "../types";
 import { MoneyInput } from "./MoneyInput";
 
@@ -16,6 +17,14 @@ export interface MovementItem {
   isSystemGenerated: boolean;
   registeredAt: string; // ya formateada
   registeredByName?: string;
+  // Filas de VENTA DE LICOR (2026-07-19). Una venta de cerveza se corrige borrando y
+  // re-registrando desde el pop-up (lleva producto y cantidad pegados), así que estas filas
+  // no muestran el lápiz de editar.
+  esVentaLicor?: boolean;
+  // Solo en las ventas SIN movimiento en Nequi (tarjeta/Daviplata/transferencia/crédito):
+  // la fila es informativa — no entra al cuadre — y borrar va por eliminarVentaLicor.
+  licorVentaId?: string;
+  metodoPagoLabel?: string; // etiqueta del medio cuando no es Nequi/Efectivo
 }
 
 // Lista de movimientos con edición/borrado en línea.
@@ -61,10 +70,17 @@ export function MovementList({
     });
   }
 
-  function remove(id: string) {
-    if (!confirm("¿Seguro que quieres borrar este movimiento? El cambio quedará registrado.")) return;
+  function remove(m: MovementItem) {
+    const msg = m.esVentaLicor
+      ? "¿Borrar esta venta de cerveza? El inventario se reajusta y el cambio queda registrado."
+      : "¿Seguro que quieres borrar este movimiento? El cambio quedará registrado.";
+    if (!confirm(msg)) return;
     startTransition(async () => {
-      const result = await deleteMovement(id);
+      // Venta de licor sin movimiento en Nequi: se borra directo en el módulo Licores.
+      // Con movimiento, deleteMovement arrastra la venta ligada (y su 4x1000).
+      const result = m.licorVentaId
+        ? await eliminarVentaLicor(m.licorVentaId)
+        : await deleteMovement(m.id);
       if (result.ok) router.refresh();
       else setError(result.error);
     });
@@ -151,9 +167,16 @@ export function MovementList({
                   {m.registeredAt}
                   {showUser && m.registeredByName ? ` · ${m.registeredByName}` : ""}
                   {" · "}
-                  <span className={m.paymentMethod === "NEQUI" ? "text-purple-600" : "text-amber-600"}>
-                    {m.paymentMethod === "NEQUI" ? "Nequi" : "Efectivo"}
-                  </span>
+                  {m.metodoPagoLabel ? (
+                    <span className="text-sky-600">{m.metodoPagoLabel}</span>
+                  ) : (
+                    <span className={m.paymentMethod === "NEQUI" ? "text-purple-600" : "text-amber-600"}>
+                      {m.paymentMethod === "NEQUI" ? "Nequi" : "Efectivo"}
+                    </span>
+                  )}
+                  {/* Venta de licor que no pasó por Nequi/caja: se muestra para que la
+                      vendedora la vea, pero no suma al cuadre del turno. */}
+                  {m.licorVentaId && <span className="text-gray-400"> · no entra al cuadre</span>}
                 </p>
                 {m.note && <p className="truncate text-xs text-gray-400">{m.note}</p>}
               </div>
@@ -167,17 +190,21 @@ export function MovementList({
                 </p>
                 {!m.isSystemGenerated && (
                   <div className="flex gap-1">
+                    {/* Una venta de licor no se edita en línea: lleva producto y cantidad
+                        pegados. Se borra y se vuelve a registrar desde el pop-up. */}
+                    {!m.esVentaLicor && (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(m)}
+                        className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                        aria-label="Editar"
+                      >
+                        ✏️
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => startEdit(m)}
-                      className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                      aria-label="Editar"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => remove(m.id)}
+                      onClick={() => remove(m)}
                       disabled={pending}
                       className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"
                       aria-label="Borrar"
