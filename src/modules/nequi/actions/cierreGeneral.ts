@@ -5,11 +5,8 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOrCreateDay } from "../server/businessDay";
-import {
-  CATEGORIA_COMISION_TARJETA,
-  COMISION_TARJETA,
-  METODOS_PAGO_ITEM,
-} from "../types";
+import { sincronizarComisionTarjeta } from "../server/comisionTarjeta";
+import { METODOS_PAGO_ITEM } from "../types";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -74,12 +71,10 @@ export async function guardarCierreGeneral(input: CierreGeneralInputAction): Pro
       nota: d.nota ?? null,
     };
 
-    // Comisión del 4% de tarjeta como gasto AUTOMÁTICO (método DESCONTADO_ORIGEN: cuenta como
-    // gasto pero no sale de ninguna plataforma). Se re-ajusta de forma determinista al re-guardar:
-    // un único gasto autoGenerado por cierre, que se crea / actualiza / borra según la venta de
-    // tarjeta. Por eso la transacción es interactiva (necesita el id del cierre).
-    const montoComision = Math.round(d.ventaTarjeta * COMISION_TARJETA);
-
+    // Comisión del 4% de tarjeta como gasto AUTOMÁTICO. La lógica vive en
+    // server/comisionTarjeta.ts porque la aprobación de un parte de turno tiene que producir
+    // exactamente el mismo gasto (2026-07-29). Por eso la transacción es interactiva: el
+    // helper necesita el id del cierre.
     await prisma.$transaction(async (tx) => {
       const cierre = await tx.cierreGeneral.upsert({
         where: { businessDayId: day.id },
@@ -87,37 +82,7 @@ export async function guardarCierreGeneral(input: CierreGeneralInputAction): Pro
         create: { businessDayId: day.id, createdById: user.id, ...data },
       });
 
-      const autoExistente = await tx.cierreGeneralGasto.findFirst({
-        where: { cierreGeneralId: cierre.id, autoGenerado: true },
-      });
-
-      if (montoComision > 0) {
-        const categoria = await tx.categoriaGasto.upsert({
-          where: { nombre: CATEGORIA_COMISION_TARJETA },
-          update: {},
-          create: { nombre: CATEGORIA_COMISION_TARJETA },
-        });
-        if (autoExistente) {
-          await tx.cierreGeneralGasto.update({
-            where: { id: autoExistente.id },
-            data: { monto: montoComision, categoriaId: categoria.id, metodoPago: "DESCONTADO_ORIGEN" },
-          });
-        } else {
-          await tx.cierreGeneralGasto.create({
-            data: {
-              cierreGeneralId: cierre.id,
-              categoriaId: categoria.id,
-              monto: montoComision,
-              metodoPago: "DESCONTADO_ORIGEN",
-              autoGenerado: true,
-              descripcion: "4% de comisión sobre ventas con tarjeta (automático)",
-            },
-          });
-        }
-      } else if (autoExistente) {
-        // Ya no hay venta de tarjeta: se retira el gasto automático.
-        await tx.cierreGeneralGasto.delete({ where: { id: autoExistente.id } });
-      }
+      const montoComision = await sincronizarComisionTarjeta(tx, cierre.id, d.ventaTarjeta);
 
       await tx.auditLog.create({
         data: {

@@ -38,6 +38,14 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   LICOR_ABONO_DELETE: { label: "Borró un abono de licores", style: "bg-red-50 text-red-600" },
   LICOR_CIERRE_CREATE: { label: "Cerró licores", style: "bg-indigo-50 text-indigo-700" },
   LICOR_CIERRE_DELETE: { label: "Deshizo un cierre de licores", style: "bg-red-50 text-red-600" },
+  PARTE_TURNO_GUARDAR: { label: "Guardó su parte de turno", style: "bg-gray-100 text-gray-700" },
+  PARTE_TURNO_GASTO_ADD: { label: "Agregó un gasto a su parte", style: "bg-emerald-50 text-emerald-700" },
+  PARTE_TURNO_GASTO_DELETE: { label: "Quitó un gasto de su parte", style: "bg-red-50 text-red-600" },
+  PARTE_TURNO_FACTURA_ADD: { label: "Agregó una factura a su parte", style: "bg-emerald-50 text-emerald-700" },
+  PARTE_TURNO_FACTURA_DELETE: { label: "Quitó una factura de su parte", style: "bg-red-50 text-red-600" },
+  PARTE_TURNO_ENVIAR: { label: "Envió su parte de turno", style: "bg-blue-50 text-blue-700" },
+  PARTE_TURNO_APROBAR: { label: "Aprobó un parte de turno", style: "bg-indigo-50 text-indigo-700" },
+  PARTE_TURNO_DEVOLVER: { label: "Devolvió un parte de turno", style: "bg-amber-50 text-amber-700" },
 };
 
 function formatValue(v: unknown): string {

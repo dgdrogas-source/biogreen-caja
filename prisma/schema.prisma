@@ -36,6 +36,8 @@ model User {
   licorVentas            LicorVenta[]
   licorAbonos            LicorAbono[]
   licorCierres           LicorCierre[]
+  partesRegistrados      ParteTurno[]  @relation("ParteRegistradoPor")
+  partesAprobados        ParteTurno[]  @relation("ParteAprobadoPor")
 }
 
 // Un registro por TURNO de caja (2 turnos por día, lunes-sábado). Las filas
@@ -57,6 +59,7 @@ model BusinessDay {
   movements     Movement[]
   auditLogs     AuditLog[]
   cierreGeneral CierreGeneral?
+  parteTurno    ParteTurno?
 
   @@unique([date, shift])
 }
@@ -245,7 +248,8 @@ model CategoriaGasto {
   activa    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  gastos CierreGeneralGasto[]
+  gastos       CierreGeneralGasto[]
+  partesGastos ParteTurnoGasto[]
 }
 
 // Gasto individual del turno. Reemplaza el input directo CierreGeneral.gastosVarios (deprecado).
@@ -265,6 +269,11 @@ model CierreGeneralGasto {
   // Se re-ajusta solo al re-guardar el cierre / se borra en cascada con su transferencia; la
   // dueña no lo edita a mano.
   autoGenerado    Boolean        @default(false)
+  // Parte de turno del que salió este gasto (2026-07-29). Columna SUELTA a propósito, sin
+  // relación Prisma (mismo criterio que LicorVenta.movementId): es trazabilidad —"esto lo
+  // registró la vendedora en su parte"—, no una restricción referencial. Null = lo registró
+  // el admin directamente, o es anterior al módulo Parte de turno.
+  parteTurnoId    String?
   createdAt       DateTime       @default(now())
 
   plataformaTransferencia PlataformaTransferencia?
@@ -284,6 +293,8 @@ model CierreGeneralFactura {
   monto           Int
   descripcion     String?
   metodoPago      String? // EFECTIVO | NEQUI | DAVIPLATA | TRANSFERENCIA | OTRO (null = se asume EFECTIVO)
+  // Ver la nota de CierreGeneralGasto.parteTurnoId — columna suelta de trazabilidad.
+  parteTurnoId    String?
   createdAt       DateTime      @default(now())
 
   @@index([cierreGeneralId])
@@ -309,6 +320,8 @@ model Proveedor {
 
   facturas CierreGeneralFactura[] @relation("ProveedorFacturas")
   gastos   CierreGeneralGasto[] @relation("ProveedorGastos")
+  partesFacturas ParteTurnoFactura[] @relation("ProveedorPartesFacturas")
+  partesGastos   ParteTurnoGasto[]   @relation("ProveedorPartesGastos")
 
   @@unique([nombre, tipo])
 }
@@ -700,4 +713,96 @@ model LicorCierre {
   abonos  LicorAbono[]
 
   @@index([date])
+}
+
+// ============================================================================
+// MÓDULO PARTE DE TURNO (2026-07-29). La vendedora registra al cambio de turno el
+// "Cuadre de Caja" que ya genera en Dominium (venta por medio de pago, retiro,
+// facturas y gastos); el ADMINISTRADOR lo aprueba, y solo entonces se vuelca a
+// CierreGeneral. Antes de aprobar no mueve un peso.
+//
+// Por qué una tabla intermedia y no un permiso sobre CierreGeneral: bolsas, resumen
+// y rentabilidad se derivan TODOS de filas de CierreGeneral, así que mantener el
+// parte fuera consigue el "no afecta saldos hasta aprobar" sin tocar ni un cálculo
+// existente.
+//
+// Flujo de datos de UNA SOLA DIRECCIÓN: el módulo Nequi ALIMENTA el parte (pre-llena
+// y contrasta la venta, vía getDaySummary), pero este módulo NUNCA escribe en Nequi
+// —ni un Movement—. Regla dura del proyecto, confirmada por el dueño.
+// ============================================================================
+
+model ParteTurno {
+  id            String      @id @default(cuid())
+  businessDayId String      @unique // un parte por turno, igual que CierreGeneral
+  businessDay   BusinessDay @relation(fields: [businessDayId], references: [id])
+
+  // BORRADOR: la vendedora lo está llenando · ENVIADO: lo mandó, espera al admin ·
+  // APROBADO: ya volcado a CierreGeneral (histórico de solo lectura).
+  // "Devolver" regresa a BORRADOR con notaAdmin — a propósito NO hay estado RECHAZADO,
+  // que sería un callejón sin salida.
+  estado String @default("BORRADOR")
+
+  // Venta por medio de pago, copiada del recibo del POS.
+  ventaEfectivo      Int @default(0)
+  ventaNequi         Int @default(0)
+  ventaTarjeta       Int @default(0)
+  ventaDaviplata     Int @default(0)
+  ventaTransferencia Int @default(0)
+  ventaCredito       Int @default(0)
+  ventaOtro          Int @default(0)
+  ventaSinFactura    Int @default(0)
+
+  retiroCierre Int     @default(0) // efectivo retirado al cerrar (va al sobre blanco)
+  realEfectivo Int? // efectivo contado físicamente en la caja principal
+  nota         String?
+  notaAdmin    String? // por qué el admin lo devolvió
+
+  registradoById String
+  registradoBy   User   @relation("ParteRegistradoPor", fields: [registradoById], references: [id])
+
+  enviadoAt    DateTime?
+  aprobadoAt   DateTime?
+  aprobadoById String?
+  aprobadoBy   User?     @relation("ParteAprobadoPor", fields: [aprobadoById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gastoItems   ParteTurnoGasto[]
+  facturaItems ParteTurnoFactura[]
+
+  @@index([estado])
+}
+
+// proveedorId es NOT NULL (a diferencia de CierreGeneralGasto, que lo tiene nullable por
+// compatibilidad con registros anteriores a 2026-07-19): esta tabla nace después de la regla
+// y la vendedora SIEMPRE elige de la lista — no puede crear proveedores.
+model ParteTurnoGasto {
+  id           String         @id @default(cuid())
+  parteTurnoId String
+  parteTurno   ParteTurno     @relation(fields: [parteTurnoId], references: [id], onDelete: Cascade)
+  categoriaId  String
+  categoria    CategoriaGasto @relation(fields: [categoriaId], references: [id])
+  proveedorId  String
+  proveedorRef Proveedor      @relation("ProveedorPartesGastos", fields: [proveedorId], references: [id])
+  monto        Int
+  descripcion  String?
+  metodoPago   String? // METODOS_PAGO_ITEM_MANUAL (null = EFECTIVO_CAJA)
+  createdAt    DateTime       @default(now())
+
+  @@index([parteTurnoId])
+}
+
+model ParteTurnoFactura {
+  id           String     @id @default(cuid())
+  parteTurnoId String
+  parteTurno   ParteTurno @relation(fields: [parteTurnoId], references: [id], onDelete: Cascade)
+  proveedorId  String
+  proveedorRef Proveedor  @relation("ProveedorPartesFacturas", fields: [proveedorId], references: [id])
+  monto        Int
+  descripcion  String?
+  metodoPago   String? // METODOS_PAGO_ITEM_MANUAL (null = EFECTIVO_CAJA)
+  createdAt    DateTime   @default(now())
+
+  @@index([parteTurnoId])
 }

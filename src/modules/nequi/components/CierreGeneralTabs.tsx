@@ -6,13 +6,15 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/cierre/general", label: "Movimientos" },
   { href: "/cierre/general/resumen", label: "Resumen" },
+  { href: "/cierre/general/partes", label: "Partes de turno" },
   { href: "/cierre/general/proveedores", label: "Proveedores" },
 ];
 
 // Secciones del Cierre general (distinto de TurnoTabs, que elige turno dentro de cada sección).
 // Navega entre rutas reales: Movimientos es la captura del cierre del día; Resumen es la foto
-// de solo lectura con indicadores; Proveedores es un catálogo sin fecha/turno.
-export function CierreGeneralTabs() {
+// de solo lectura con indicadores; Partes de turno son los cierres que mandan las vendedoras
+// esperando aprobación; Proveedores es un catálogo sin fecha/turno.
+export function CierreGeneralTabs({ partesPendientes = 0 }: { partesPendientes?: number }) {
   const pathname = usePathname();
 
   return (
@@ -28,6 +30,11 @@ export function CierreGeneralTabs() {
             }`}
           >
             {tab.label}
+            {tab.href === "/cierre/general/partes" && partesPendientes > 0 && (
+              <span className="ml-1.5 rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                {partesPendientes}
+              </span>
+            )}
           </Link>
         );
       })}

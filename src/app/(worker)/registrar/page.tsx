@@ -5,6 +5,9 @@ import { CierreDesgloseCard } from "@/modules/nequi/components/CierreDesgloseCar
 import { MovementForm } from "@/modules/nequi/components/MovementForm";
 import { MovementList } from "@/modules/nequi/components/MovementList";
 import { PoteBlancoCard } from "@/modules/nequi/components/PoteBlancoCard";
+import { CerrarTurnoBanner } from "@/modules/parteturno/components/CerrarTurnoBanner";
+import { getParteTurno } from "@/modules/parteturno/queries";
+import type { ParteEstado } from "@/modules/parteturno/types";
 import { ListaPreciosFlotante } from "@/modules/licores/components/ListaPreciosFlotante";
 import {
   getClientesLicorParaVender,
@@ -53,6 +56,7 @@ export default async function RegistrarPage() {
     licoresClientes,
     misVentasLicor,
     pockets,
+    parte,
   ] = await Promise.all([
     getMyTodayMovements(user.id),
     getMyCommissionSources(user.id),
@@ -62,6 +66,7 @@ export default async function RegistrarPage() {
     getClientesLicorParaVender(),
     getMisVentasDelDia(user.id, todayBogota()),
     getPockets(),
+    getParteTurno(todayBogota(), activeShift),
   ]);
 
   // Mismo número que ve el admin en "Tus bolsillos" → Comisiones → Efectivo.
@@ -129,6 +134,11 @@ export default async function RegistrarPage() {
 
   return (
     <div className="space-y-4">
+      <CerrarTurnoBanner
+        estado={(parte?.estado as ParteEstado | undefined) ?? null}
+        turnoCerrado={shiftInfo.shiftStatus[activeShift] === "CLOSED"}
+      />
+
       {closedShifts.length === 2 ? (
         <p className="rounded-xl bg-amber-50 p-3 text-center text-sm font-medium text-amber-700">
           Los dos turnos de hoy ya fueron cerrados. No se pueden registrar más movimientos.
