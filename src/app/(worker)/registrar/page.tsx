@@ -4,6 +4,7 @@ import { BaseFundCard } from "@/modules/nequi/components/BaseFundCard";
 import { CierreDesgloseCard } from "@/modules/nequi/components/CierreDesgloseCard";
 import { MovementForm } from "@/modules/nequi/components/MovementForm";
 import { MovementList } from "@/modules/nequi/components/MovementList";
+import { PoteBlancoCard } from "@/modules/nequi/components/PoteBlancoCard";
 import { ListaPreciosFlotante } from "@/modules/licores/components/ListaPreciosFlotante";
 import {
   getClientesLicorParaVender,
@@ -18,6 +19,7 @@ import {
   getDaySummary,
   getMyCommissionSources,
   getMyTodayMovements,
+  getPockets,
   getTodayShiftInfo,
 } from "@/modules/nequi/queries";
 import {
@@ -42,16 +44,28 @@ export default async function RegistrarPage() {
       ? otherShift
       : shiftInfo.defaultShift;
 
-  const [{ movements }, sources, baseFund, summary, licores, licoresClientes, misVentasLicor] =
-    await Promise.all([
-      getMyTodayMovements(user.id),
-      getMyCommissionSources(user.id),
-      getBaseFund(),
-      getDaySummary(undefined, activeShift),
-      getProductosParaVender(),
-      getClientesLicorParaVender(),
-      getMisVentasDelDia(user.id, todayBogota()),
-    ]);
+  const [
+    { movements },
+    sources,
+    baseFund,
+    summary,
+    licores,
+    licoresClientes,
+    misVentasLicor,
+    pockets,
+  ] = await Promise.all([
+    getMyTodayMovements(user.id),
+    getMyCommissionSources(user.id),
+    getBaseFund(),
+    getDaySummary(undefined, activeShift),
+    getProductosParaVender(),
+    getClientesLicorParaVender(),
+    getMisVentasDelDia(user.id, todayBogota()),
+    getPockets(),
+  ]);
+
+  // Mismo número que ve el admin en "Tus bolsillos" → Comisiones → Efectivo.
+  const poteBlanco = pockets.COMISION.efectivo ?? 0;
 
   // "Mis movimientos de hoy" con las ventas de licor incluidas (pedido del dueño, 2026-07-19):
   // - Una venta en Nequi/Efectivo YA está en la lista (es un Movement real); solo se marca
@@ -140,6 +154,8 @@ export default async function RegistrarPage() {
           {desglose && (
             <CierreDesgloseCard desglose={desglose} turnoLabel={SHIFT_LABELS[activeShift]} />
           )}
+
+          <PoteBlancoCard efectivo={poteBlanco} />
 
           <BaseFundCard
             cashPortion={baseFund.cashPortion}
