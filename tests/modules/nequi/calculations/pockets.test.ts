@@ -171,12 +171,12 @@ describe("calcularApartadoEnBolsillos", () => {
     expect(r.licoresDisponible).toBe(0);
     expect(r.pendienteOtroDisponible).toBe(0);
     expect(r.totalApartado).toBe(5_000);
-    expect(r.efectivoAparte).toBe(0); // sin reparto, no hay efectivo que separar
   });
 
   // Bug 2026-08-10: una venta de licores EN EFECTIVO ($20.000, todo efectivo) subía el disponible
   // del bolsillo y por tanto el totalApartado, bajando el Disponible de Nequi como si fuera Nequi.
-  it("del bolsillo apartado solo cuenta la porción en Nequi; el efectivo va a efectivoAparte", () => {
+  // El efectivo NO debe afectar el apartado (vive solo como la parte "efectivo" del bolsillo).
+  it("del bolsillo apartado solo cuenta la porción en Nequi; el efectivo no baja el apartado", () => {
     const r = calcularApartadoEnBolsillos({
       COMISION: pocket(0),
       LICORES_JHOANN: pocket(20_000, 20_000), // disponible 20.000, TODO en efectivo
@@ -186,10 +186,9 @@ describe("calcularApartadoEnBolsillos", () => {
     });
     expect(r.licoresDisponible).toBe(0); // 20.000 − 20.000 (porción Nequi)
     expect(r.totalApartado).toBe(0); // no aparta nada de Nequi
-    expect(r.efectivoAparte).toBe(20_000); // se cuenta aparte
   });
 
-  it("bolsillo mixto: aparta solo la parte Nequi y reporta el efectivo aparte", () => {
+  it("bolsillo mixto: aparta solo la parte Nequi (el efectivo no cuenta)", () => {
     const r = calcularApartadoEnBolsillos({
       COMISION: pocket(0),
       LICORES_JHOANN: pocket(50_000, 20_000), // 30.000 en Nequi + 20.000 en efectivo
@@ -199,8 +198,7 @@ describe("calcularApartadoEnBolsillos", () => {
     });
     expect(r.licoresDisponible).toBe(30_000);
     expect(r.fuxionDisponible).toBe(6_000);
-    expect(r.totalApartado).toBe(36_000); // 30.000 + 6.000
-    expect(r.efectivoAparte).toBe(24_000); // 20.000 + 4.000
+    expect(r.totalApartado).toBe(36_000); // 30.000 + 6.000 (el efectivo 24.000 no entra)
   });
 
   it("efectivo negativo (se pagó más cash del que entró): la porción Nequi supera el disponible", () => {
@@ -214,7 +212,6 @@ describe("calcularApartadoEnBolsillos", () => {
     });
     expect(r.licoresDisponible).toBe(150);
     expect(r.totalApartado).toBe(150);
-    expect(r.efectivoAparte).toBe(-50);
   });
 });
 

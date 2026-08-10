@@ -15,7 +15,6 @@ export function DisponibleCard({
   baseDisponible,
   pendienteOtroDisponible,
   totalApartado,
-  efectivoAparte,
   baseFundNequiPortion,
 }: {
   saldoEsperado: number | null;
@@ -25,7 +24,6 @@ export function DisponibleCard({
   baseDisponible: number;
   pendienteOtroDisponible: number;
   totalApartado: number;
-  efectivoAparte: number;
   baseFundNequiPortion: number;
 }) {
   const router = useRouter();
@@ -138,19 +136,7 @@ export function DisponibleCard({
           <span>📥 Pendiente / Otro</span>
           <span>${pendienteOtroDisponible.toLocaleString("es-CO")}</span>
         </div>
-        {efectivoAparte !== 0 && (
-          <div className="mt-1 flex justify-between border-t border-gray-50 pt-1 text-amber-600">
-            <span>💵 En efectivo (fuera de Nequi)</span>
-            <span>${efectivoAparte.toLocaleString("es-CO")}</span>
-          </div>
-        )}
       </div>
-      {efectivoAparte !== 0 && (
-        <p className="mt-2 text-xs text-amber-600">
-          El efectivo de los bolsillos (p. ej. cerveza vendida en efectivo) se cuenta aparte: es plata
-          física, no baja el disponible de Nequi. Los montos de arriba son la parte que sí vive en Nequi.
-        </p>
-      )}
 
       {open && (
         <div className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 p-4 sm:items-center">

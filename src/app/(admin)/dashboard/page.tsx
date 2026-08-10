@@ -171,7 +171,6 @@ export default async function DashboardPage({
             baseDisponible={apartado.baseDisponible}
             pendienteOtroDisponible={apartado.pendienteOtroDisponible}
             totalApartado={apartado.totalApartado}
-            efectivoAparte={apartado.efectivoAparte}
             baseFundNequiPortion={baseFund.nequiPortion}
           />
           <PocketsCard pockets={pockets} />
