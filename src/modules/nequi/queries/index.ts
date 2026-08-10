@@ -255,18 +255,32 @@ export async function getPockets(): Promise<Record<PocketBucket, PocketResumen>>
       openingEfectivoByBucket.get(bucket) ?? 0
     );
   }
-  // Reparto visual Nequi/efectivo solo para Comisiones (no participa en transferencias,
-  // así que se calcula antes de aplicarlas sin riesgo de desfase).
-  result.COMISION = {
-    ...result.COMISION,
-    ...calcularRepartoPorMedio(
-      "COMISION",
+  const afterTransfers = aplicarTransferencias(result, transfers) as Record<PocketBucket, PocketResumen>;
+  // Reparto Nequi/efectivo de CADA bolsillo (antes solo Comisiones). La porción en efectivo se
+  // deriva de los movimientos + saldo inicial (medio de pago real); la porción Nequi es el resto
+  // del disponible ya transferido, así el invariante nequi + efectivo = disponible se mantiene.
+  // Con esto calcularApartadoEnBolsillos aparta solo la porción Nequi de cada bolsillo: una venta
+  // de licores en efectivo (flujo normal) ya NO baja el disponible de Nequi.
+  //
+  // LIMITACIÓN CONOCIDA: transferPocketFunds mueve el disponible TOTAL de un bolsillo (incluye su
+  // efectivo). Si el admin transfiere a mano la parte en efectivo de un bolsillo hacia OTRO bolsillo
+  // real, el destino la verá como Nequi (el reparto por medio no sigue transferencias) y volvería a
+  // bajar el disponible. Es una acción manual poco común y fuera del flujo diario; el fix pendiente
+  // sería que las transferencias operen/validen sobre la porción Nequi. Ver reporte /superfable 2026-08-10.
+  for (const bucket of POCKET_BUCKETS) {
+    const { efectivo } = calcularRepartoPorMedio(
+      bucket,
       mapped,
-      openingByBucket.get("COMISION") ?? 0,
-      openingEfectivoByBucket.get("COMISION") ?? 0
-    ),
-  };
-  return aplicarTransferencias(result, transfers) as Record<PocketBucket, PocketResumen>;
+      openingByBucket.get(bucket) ?? 0,
+      openingEfectivoByBucket.get(bucket) ?? 0
+    );
+    afterTransfers[bucket] = {
+      ...afterTransfers[bucket],
+      efectivo,
+      nequi: afterTransfers[bucket].disponible - efectivo,
+    };
+  }
+  return afterTransfers;
 }
 
 const cierreGeneralItemsInclude = {

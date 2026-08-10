@@ -116,13 +116,17 @@ describe("calcularRepartoPorMedio", () => {
   });
 });
 
-function pocket(disponible: number): PocketResumen {
+// `efectivo` opcional: cuando se pasa, simula un bolsillo que trae su reparto Nequi/efectivo
+// (como lo puebla getPockets). Sin él, el bolsillo queda "sin reparto" (efectivo undefined),
+// que es como se llamaba antes y debe seguir comportándose igual (porción Nequi = disponible).
+function pocket(disponible: number, efectivo?: number): PocketResumen {
   return {
     ingresos: Math.max(disponible, 0),
     egresos: 0,
     openingBalance: 0,
     openingEfectivo: 0,
     disponible,
+    ...(efectivo !== undefined ? { efectivo, nequi: disponible - efectivo } : {}),
   };
 }
 
@@ -167,6 +171,95 @@ describe("calcularApartadoEnBolsillos", () => {
     expect(r.licoresDisponible).toBe(0);
     expect(r.pendienteOtroDisponible).toBe(0);
     expect(r.totalApartado).toBe(5_000);
+    expect(r.efectivoAparte).toBe(0); // sin reparto, no hay efectivo que separar
+  });
+
+  // Bug 2026-08-10: una venta de licores EN EFECTIVO ($20.000, todo efectivo) subía el disponible
+  // del bolsillo y por tanto el totalApartado, bajando el Disponible de Nequi como si fuera Nequi.
+  it("del bolsillo apartado solo cuenta la porción en Nequi; el efectivo va a efectivoAparte", () => {
+    const r = calcularApartadoEnBolsillos({
+      COMISION: pocket(0),
+      LICORES_JHOANN: pocket(20_000, 20_000), // disponible 20.000, TODO en efectivo
+      FUXION: pocket(0),
+      BASE_FACTURAS: pocket(0),
+      PENDIENTE_OTRO: pocket(0),
+    });
+    expect(r.licoresDisponible).toBe(0); // 20.000 − 20.000 (porción Nequi)
+    expect(r.totalApartado).toBe(0); // no aparta nada de Nequi
+    expect(r.efectivoAparte).toBe(20_000); // se cuenta aparte
+  });
+
+  it("bolsillo mixto: aparta solo la parte Nequi y reporta el efectivo aparte", () => {
+    const r = calcularApartadoEnBolsillos({
+      COMISION: pocket(0),
+      LICORES_JHOANN: pocket(50_000, 20_000), // 30.000 en Nequi + 20.000 en efectivo
+      FUXION: pocket(10_000, 4_000), // Fuxion también arreglado (mismo bug latente)
+      BASE_FACTURAS: pocket(0),
+      PENDIENTE_OTRO: pocket(0),
+    });
+    expect(r.licoresDisponible).toBe(30_000);
+    expect(r.fuxionDisponible).toBe(6_000);
+    expect(r.totalApartado).toBe(36_000); // 30.000 + 6.000
+    expect(r.efectivoAparte).toBe(24_000); // 20.000 + 4.000
+  });
+
+  it("efectivo negativo (se pagó más cash del que entró): la porción Nequi supera el disponible", () => {
+    // disponible 100, efectivo −50 ⇒ porción Nequi = disponible − efectivo = 150
+    const r = calcularApartadoEnBolsillos({
+      COMISION: pocket(0),
+      LICORES_JHOANN: pocket(100, -50),
+      FUXION: pocket(0),
+      BASE_FACTURAS: pocket(0),
+      PENDIENTE_OTRO: pocket(0),
+    });
+    expect(r.licoresDisponible).toBe(150);
+    expect(r.totalApartado).toBe(150);
+    expect(r.efectivoAparte).toBe(-50);
+  });
+});
+
+// Regresión directa del bug del dueño (2026-08-10): una venta de cerveza en efectivo NO puede
+// mover el Disponible de Nequi, porque ese efectivo nunca entró a la cuenta Nequi (saldoEsperado
+// solo cuenta Nequi). Antes del fix bajaba el disponible por el monto de la venta.
+describe("una venta de licores en efectivo no cambia el Disponible de Nequi", () => {
+  const saldoEsperado = 1_000_000; // solo Nequi; una venta en efectivo no lo mueve
+
+  const sinVenta = {
+    COMISION: pocket(0),
+    LICORES_JHOANN: pocket(0, 0),
+    FUXION: pocket(0),
+    BASE_FACTURAS: pocket(0),
+    PENDIENTE_OTRO: pocket(0),
+  };
+  const conVentaEfectivo = {
+    ...sinVenta,
+    LICORES_JHOANN: pocket(20_000, 20_000), // +$20.000, todo en efectivo
+  };
+
+  it("el disponible es el mismo con o sin la venta en efectivo", () => {
+    const dispSin = calcularDisponible(
+      saldoEsperado,
+      calcularApartadoEnBolsillos(sinVenta).totalApartado
+    );
+    const dispCon = calcularDisponible(
+      saldoEsperado,
+      calcularApartadoEnBolsillos(conVentaEfectivo).totalApartado
+    );
+    expect(dispSin).toBe(1_000_000);
+    expect(dispCon).toBe(1_000_000); // no bajó por la venta en efectivo
+    expect(dispCon).toBe(dispSin);
+  });
+
+  it("en cambio, una venta de licores en Nequi sí aparta plata de Nequi", () => {
+    const conVentaNequi = {
+      ...sinVenta,
+      LICORES_JHOANN: pocket(20_000, 0), // $20.000 todo en Nequi
+    };
+    const dispCon = calcularDisponible(
+      saldoEsperado,
+      calcularApartadoEnBolsillos(conVentaNequi).totalApartado
+    );
+    expect(dispCon).toBe(980_000); // sí baja $20.000 (esa plata sí está en Nequi, apartada)
   });
 });
 

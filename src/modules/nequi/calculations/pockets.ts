@@ -75,8 +75,16 @@ export function calcularRepartoPorMedio(
 // Resumen de dinero apartado en bolsillos. Comisiones NO aporta al total apartado: su dinero
 // queda dentro del Disponible (igual que la base para consignaciones), no comprometido en un
 // bolsillo. Los otros cuatro bolsillos (Licores, Fuxion, Base, Pendiente/Otro) sí se apartan.
-// Suma el disponible de cada bolsillo apartado (clamped a ≥0 para no inflar con saldos negativos).
-// comisionesDisponible se conserva solo para mostrarlo en la tarjeta, no entra en totalApartado.
+//
+// CLAVE (2026-08-10): del disponible de cada bolsillo solo se aparta la PORCIÓN EN NEQUI. El
+// saldo esperado que alimenta el Disponible es solo Nequi (ver calcularSaldoEsperado), así que
+// el efectivo de un bolsillo — p.ej. una venta de Licores Jhoann cobrada en efectivo — es plata
+// física que nunca entró a la cuenta Nequi y NO debe descontarse del disponible de Nequi. Ese
+// efectivo se reporta aparte en `efectivoAparte` (se muestra, pero no compromete plata de Nequi).
+// Porción Nequi = disponible − efectivo (robusto ante transferencias: el efectivo es
+// independiente de ellas, ver getPockets). Se clampa a ≥0 para no inflar con saldos negativos.
+// Los *Disponible de los cuatro bolsillos apartados son ya su porción en Nequi; comisionesDisponible
+// se conserva completo (solo para mostrarlo), no entra en totalApartado.
 export interface ApartadoResumen {
   comisionesDisponible: number;
   licoresDisponible: number;
@@ -84,21 +92,33 @@ export interface ApartadoResumen {
   baseDisponible: number;
   pendienteOtroDisponible: number;
   totalApartado: number;
+  efectivoAparte: number; // efectivo de los bolsillos apartados que NO vive en Nequi (no baja el disponible)
 }
 
 export function calcularApartadoEnBolsillos(pockets: Record<string, PocketResumen>): ApartadoResumen {
+  // Porción en Nequi de un bolsillo = disponible − efectivo (clamped a ≥0). Cuando el bolsillo no
+  // trae reparto (efectivo undefined, p.ej. en tests o bolsillos sin efectivo) equivale al disponible.
+  const nequiPortion = (p?: PocketResumen) => Math.max(0, (p?.disponible ?? 0) - (p?.efectivo ?? 0));
+  const efectivoDe = (p?: PocketResumen) => p?.efectivo ?? 0;
+
   const comisiones = Math.max(0, pockets.COMISION?.disponible ?? 0);
-  const licores = Math.max(0, pockets.LICORES_JHOANN?.disponible ?? 0);
-  const fuxion = Math.max(0, pockets.FUXION?.disponible ?? 0);
-  const base = Math.max(0, pockets.BASE_FACTURAS?.disponible ?? 0);
-  const pendienteOtro = Math.max(0, pockets.PENDIENTE_OTRO?.disponible ?? 0);
+  const licores = nequiPortion(pockets.LICORES_JHOANN);
+  const fuxion = nequiPortion(pockets.FUXION);
+  const base = nequiPortion(pockets.BASE_FACTURAS);
+  const pendienteOtro = nequiPortion(pockets.PENDIENTE_OTRO);
+  const efectivoAparte =
+    efectivoDe(pockets.LICORES_JHOANN) +
+    efectivoDe(pockets.FUXION) +
+    efectivoDe(pockets.BASE_FACTURAS) +
+    efectivoDe(pockets.PENDIENTE_OTRO);
   return {
     comisionesDisponible: comisiones,
     licoresDisponible: licores,
     fuxionDisponible: fuxion,
     baseDisponible: base,
     pendienteOtroDisponible: pendienteOtro,
-    totalApartado: licores + fuxion + base + pendienteOtro, // sin comisiones (queda en el Disponible)
+    totalApartado: licores + fuxion + base + pendienteOtro, // solo porciones Nequi; sin comisiones
+    efectivoAparte,
   };
 }
 
