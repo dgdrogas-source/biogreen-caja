@@ -29,7 +29,13 @@ export type CasoPrecio =
 export interface PrecioVentaResultado {
   costoTotal: number;
   precioFinal: number;
-  /** Margen real que deja precioFinal sobre costoTotal, como fracción (0.32 = 32%). Solo para la vista admin. */
+  /**
+   * Rentabilidad real de precioFinal, como fracción (0.20 = 20%) — margen sobre el PRECIO DE
+   * VENTA (precioFinal − costoTotal) / precioFinal, no sobre el costo. Ojo: MARGEN_IDEAL_* y
+   * MARGEN_PISO_* de arriba sí son markup sobre costo (fórmula "cost-plus" del Excel original
+   * del dueño, costo × (1 + margen)) — son dos magnitudes distintas a propósito. Esta es solo
+   * para mostrarle al admin la rentabilidad tal como él la piensa. Solo vista admin.
+   */
   margenResultante: number;
   caso: CasoPrecio;
 }
@@ -85,7 +91,7 @@ export function calcularPrecioVenta(input: PrecioVentaInput): PrecioVentaResulta
   }
 
   const precioFinal = redondearA100(precioCrudo);
-  const margenResultante = costoTotal > 0 ? (precioFinal - costoTotal) / costoTotal : 0;
+  const margenResultante = precioFinal > 0 ? (precioFinal - costoTotal) / precioFinal : 0;
 
   return { costoTotal, precioFinal, margenResultante, caso };
 }

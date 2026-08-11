@@ -67,6 +67,22 @@ describe("calcularPrecioVenta — caso real de la entrevista (costo 12.438, sin 
   });
 });
 
+describe("calcularPrecioVenta — margenResultante es rentabilidad sobre el PRECIO, no markup sobre costo", () => {
+  it("caso real reportado por el dueño: costo 5.575 con IVA, competencia 9.500/9.600/8.700/8.900", () => {
+    const r = calcularPrecioVenta({
+      costoSinIva: 5_575,
+      tieneIva: true,
+      descuento: "NINGUNO",
+      preciosCompetencia: [9_500, 9_600, 8_700, 8_900],
+    });
+    // costoTotal = 5.575 × 1.19 = 6.634,25; precioFinal = 8.300 (igual a la captura del dueño)
+    expect(r.costoTotal).toBeCloseTo(6_634.25);
+    expect(r.precioFinal).toBe(8_300);
+    // (8.300 − 6.634,25) / 8.300 ≈ 20.1% — NO (8.300 − 6.634,25) / 6.634,25 ≈ 25.1% (ese era el bug)
+    expect(r.margenResultante).toBeCloseTo(0.2007, 3);
+  });
+});
+
 describe("calcularPrecioVenta — casos de negocio (ejemplos del dueño)", () => {
   it("sobra margen: precio ideal (50.000) por debajo del más barato (70.000) → sube a maximizar", () => {
     // costoTotal tal que ×1.35 = 50.000 → costoTotal ≈ 37.037
