@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/permissions";
 import { LogoutButton } from "@/components/LogoutButton";
+import { CalculadoraPrecioFlotante } from "@/modules/precios/components/CalculadoraPrecioFlotante";
 
 // Menú del programa Caja Nequi (vive detrás del botón "Cierre Nequi" de /inicio).
 // "Clientes" se movió al Cierre general (decisión del dueño, 2026-07-15).
@@ -44,6 +45,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </nav>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 p-4">{children}</main>
+      <CalculadoraPrecioFlotante vista="admin" />
     </div>
   );
 }

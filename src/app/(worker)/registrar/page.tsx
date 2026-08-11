@@ -9,6 +9,7 @@ import { CerrarTurnoBanner } from "@/modules/parteturno/components/CerrarTurnoBa
 import { getParteTurno } from "@/modules/parteturno/queries";
 import type { ParteEstado } from "@/modules/parteturno/types";
 import { ListaPreciosFlotante } from "@/modules/licores/components/ListaPreciosFlotante";
+import { CalculadoraPrecioFlotante } from "@/modules/precios/components/CalculadoraPrecioFlotante";
 import {
   getClientesLicorParaVender,
   getMisVentasDelDia,
@@ -183,6 +184,7 @@ export default async function RegistrarPage() {
       </div>
 
       <ListaPreciosFlotante productos={licores} />
+      <CalculadoraPrecioFlotante vista="vendedora" />
     </div>
   );
 }
