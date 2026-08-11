@@ -7,6 +7,16 @@
 // PROMEDIO de los competidores, pero eso podía dejarte más caro que varios de ellos si uno
 // solo se disparaba de precio (un outlier). El dueño confirmó que el objetivo real es
 // compararse contra el MÁS BARATO, no el promedio.
+//
+// Revisión 1 (mismo día): priorizar la RENTABILIDAD sobre el precio de mercado. Los % de
+// margen ya NO son markup sobre costo (costo×(1+m)) — son margen real sobre el PRECIO DE VENTA
+// (precio = costo / (1 - m)). Ideal 35%/27% (sin/con IVA), piso 30%/20% al ceder frente al
+// más barato.
+//
+// Revisión 2 (mismo día): en vez de que el sistema elija un único precio automáticamente, se
+// muestran las 3 opciones y decide la persona: IDEAL (margen pleno, sin mirar mercado), BUENA
+// (recomendación anclada al más barato del mercado, puede no alcanzar el piso) y LA QUE TOCA
+// (el piso de margen mínimo — el precio de emergencia cuando ni la buena alcanza).
 
 export type Descuento = "NINGUNO" | "COPI" | "MULTI";
 
@@ -21,29 +31,34 @@ export interface PrecioVentaInput {
   preciosCompetencia: number[];
 }
 
-export type CasoPrecio =
-  | "SOBRA_MARGEN" // el precio con margen ideal ya queda por debajo del más barato: se sube para maximizar ganancia
-  | "CEDE_MARGEN" // el margen ideal no alcanza para competir: se cede a un 2° lugar
-  | "TOCA_PISO"; // ni cediendo se alcanza el mercado: gana el piso de margen mínimo
+// Cómo salió el precio "bueno": si el margen ideal ya quedaba por debajo del más barato del
+// mercado (se subió para capturar más ganancia sin dejar de ser el más barato), o si tocó
+// ceder margen para acercarse al más barato (2° lugar).
+export type CasoBueno = "SOBRA_MARGEN" | "CEDE_MARGEN";
 
 export interface PrecioVentaResultado {
   costoTotal: number;
-  precioFinal: number;
-  /**
-   * Rentabilidad real de precioFinal, como fracción (0.20 = 20%) — margen sobre el PRECIO DE
-   * VENTA (precioFinal − costoTotal) / precioFinal, no sobre el costo. Ojo: MARGEN_IDEAL_* y
-   * MARGEN_PISO_* de arriba sí son markup sobre costo (fórmula "cost-plus" del Excel original
-   * del dueño, costo × (1 + margen)) — son dos magnitudes distintas a propósito. Esta es solo
-   * para mostrarle al admin la rentabilidad tal como él la piensa. Solo vista admin.
-   */
-  margenResultante: number;
-  caso: CasoPrecio;
+
+  precioIdeal: number;
+  /** Margen objetivo usado para precioIdeal, como fracción (0.35 = 35%). Solo vista admin. */
+  margenIdealPct: number;
+
+  precioBueno: number;
+  /** Margen real que deja precioBueno, como fracción — puede caer por debajo del piso (o incluso ser negativo) si el mercado es muy barato. Solo vista admin. */
+  margenBueno: number;
+  casoBueno: CasoBueno;
+
+  precioPiso: number;
+  /** Margen mínimo usado para precioPiso, como fracción (0.30 = 30%). Solo vista admin. */
+  margenPisoPct: number;
 }
 
+// Margen real sobre el PRECIO DE VENTA (no markup sobre costo): margen = (precio-costo)/precio.
+// "Ideal" = lo que se cobra si no hay que ceder frente al mercado. "Piso" = mínimo absoluto.
 const MARGEN_IDEAL_SIN_IVA = 0.35;
-const MARGEN_IDEAL_CON_IVA = 0.2;
+const MARGEN_IDEAL_CON_IVA = 0.27;
 const MARGEN_PISO_SIN_IVA = 0.3;
-const MARGEN_PISO_CON_IVA = 0.15;
+const MARGEN_PISO_CON_IVA = 0.2;
 const COLCHON = 0.05;
 
 export const PRECIOS_COMPETENCIA_MINIMOS = 3;
@@ -68,30 +83,36 @@ export function calcularPrecioVenta(input: PrecioVentaInput): PrecioVentaResulta
   const { costoSinIva, tieneIva, descuento, preciosCompetencia } = input;
 
   const costoTotal = calcularCostoTotal(costoSinIva, tieneIva, descuento);
-  const margenIdeal = tieneIva ? MARGEN_IDEAL_CON_IVA : MARGEN_IDEAL_SIN_IVA;
-  const margenPiso = tieneIva ? MARGEN_PISO_CON_IVA : MARGEN_PISO_SIN_IVA;
+  const margenIdealPct = tieneIva ? MARGEN_IDEAL_CON_IVA : MARGEN_IDEAL_SIN_IVA;
+  const margenPisoPct = tieneIva ? MARGEN_PISO_CON_IVA : MARGEN_PISO_SIN_IVA;
 
-  const precioObjetivo = costoTotal * (1 + margenIdeal);
-  const precioPiso = costoTotal * (1 + margenPiso);
+  const precioIdealCrudo = costoTotal / (1 - margenIdealPct);
+  const precioPisoCrudo = costoTotal / (1 - margenPisoPct);
   const masBarato = Math.min(...preciosCompetencia);
 
-  let precioCrudo: number;
-  let caso: CasoPrecio;
-  if (precioObjetivo <= masBarato) {
-    precioCrudo = Math.max(precioObjetivo, masBarato * (1 - COLCHON));
-    caso = "SOBRA_MARGEN";
+  let precioBuenoCrudo: number;
+  let casoBueno: CasoBueno;
+  if (precioIdealCrudo <= masBarato) {
+    precioBuenoCrudo = Math.max(precioIdealCrudo, masBarato * (1 - COLCHON));
+    casoBueno = "SOBRA_MARGEN";
   } else {
-    precioCrudo = masBarato * (1 + COLCHON);
-    caso = "CEDE_MARGEN";
+    precioBuenoCrudo = masBarato * (1 + COLCHON);
+    casoBueno = "CEDE_MARGEN";
   }
 
-  if (precioCrudo < precioPiso) {
-    precioCrudo = precioPiso;
-    caso = "TOCA_PISO";
-  }
+  const precioIdeal = redondearA100(precioIdealCrudo);
+  const precioBueno = redondearA100(precioBuenoCrudo);
+  const precioPiso = redondearA100(precioPisoCrudo);
+  const margenBueno = precioBueno > 0 ? (precioBueno - costoTotal) / precioBueno : 0;
 
-  const precioFinal = redondearA100(precioCrudo);
-  const margenResultante = precioFinal > 0 ? (precioFinal - costoTotal) / precioFinal : 0;
-
-  return { costoTotal, precioFinal, margenResultante, caso };
+  return {
+    costoTotal,
+    precioIdeal,
+    margenIdealPct,
+    precioBueno,
+    margenBueno,
+    casoBueno,
+    precioPiso,
+    margenPisoPct,
+  };
 }

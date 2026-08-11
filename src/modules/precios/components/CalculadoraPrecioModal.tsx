@@ -4,15 +4,14 @@ import { useMemo, useState } from "react";
 import {
   calcularPrecioVenta,
   requiereMasPrecios,
-  type CasoPrecio,
+  type CasoBueno,
   type Descuento,
 } from "@/modules/precios/calculations/precioVenta";
 import { MoneyInput } from "./MoneyInput";
 
-const MENSAJE_CASO: Record<CasoPrecio, string> = {
+const MENSAJE_CASO_BUENO: Record<CasoBueno, string> = {
   SOBRA_MARGEN: "Manteniéndote como el más barato del mercado",
-  CEDE_MARGEN: "Quedando en 2do lugar frente a la competencia",
-  TOCA_PISO: "Protegiendo tu margen mínimo (no alcanza a competir en precio)",
+  CEDE_MARGEN: "Quedando cerca del más barato de la competencia",
 };
 
 export function CalculadoraPrecioModal({
@@ -128,18 +127,46 @@ export function CalculadoraPrecioModal({
           )}
 
           {resultado && (
-            <div className="rounded-xl bg-emerald-50 p-4 text-center">
-              <p className="text-xs text-emerald-700">Precio sugerido</p>
-              <p className="text-2xl font-bold text-emerald-800">
-                ${resultado.precioFinal.toLocaleString("es-CO")}
-              </p>
-              {vista === "admin" && (
-                <div className="mt-2 space-y-0.5 border-t border-emerald-200 pt-2 text-left text-xs text-emerald-700">
-                  <p>Costo real: ${Math.round(resultado.costoTotal).toLocaleString("es-CO")}</p>
-                  <p>Margen: {(resultado.margenResultante * 100).toFixed(1)}%</p>
-                  <p>{MENSAJE_CASO[resultado.caso]}</p>
-                </div>
-              )}
+            <div className="space-y-2">
+              <div className="rounded-xl bg-sky-50 p-3">
+                <p className="text-xs font-medium text-sky-700">Ideal</p>
+                <p className="text-xl font-bold text-sky-900">
+                  ${resultado.precioIdeal.toLocaleString("es-CO")}
+                </p>
+                {vista === "admin" && (
+                  <p className="mt-0.5 text-xs text-sky-700">
+                    Margen {(resultado.margenIdealPct * 100).toFixed(0)}% — sin mirar mercado
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-xl bg-emerald-50 p-3">
+                <p className="text-xs font-medium text-emerald-700">Buena</p>
+                <p className="text-xl font-bold text-emerald-900">
+                  ${resultado.precioBueno.toLocaleString("es-CO")}
+                </p>
+                {vista === "admin" && (
+                  <div className="mt-0.5 space-y-0.5 text-xs text-emerald-700">
+                    <p>Margen {(resultado.margenBueno * 100).toFixed(1)}%</p>
+                    <p>{MENSAJE_CASO_BUENO[resultado.casoBueno]}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl bg-amber-50 p-3">
+                <p className="text-xs font-medium text-amber-700">La que toca</p>
+                <p className="text-xl font-bold text-amber-900">
+                  ${resultado.precioPiso.toLocaleString("es-CO")}
+                </p>
+                {vista === "admin" && (
+                  <p className="mt-0.5 text-xs text-amber-700">
+                    Margen mínimo {(resultado.margenPisoPct * 100).toFixed(0)}%
+                    {resultado.precioBueno < resultado.precioPiso
+                      ? " — la buena no lo alcanza"
+                      : ""}
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>
