@@ -14,9 +14,19 @@
 // más barato.
 //
 // Revisión 2 (mismo día): en vez de que el sistema elija un único precio automáticamente, se
-// muestran las 3 opciones y decide la persona: IDEAL (margen pleno, sin mirar mercado), BUENA
-// (recomendación anclada al más barato del mercado, puede no alcanzar el piso) y LA QUE TOCA
-// (el piso de margen mínimo — el precio de emergencia cuando ni la buena alcanza).
+// muestran las 3 opciones y decide la persona: IDEAL, BUENA (recomendación de mercado) y LA
+// QUE TOCA (piso de margen mínimo).
+//
+// Revisión 3 (mismo día): dos bugs de la revisión 2. (a) IDEAL ignoraba el mercado del todo,
+// así que BUENA podía salir MÁS ALTA que IDEAL cuando el mercado daba margen de sobra — quedaba
+// desordenado y "ideal" dejaba plata sobre la mesa. Ahora IDEAL = el mejor precio defendible:
+// si el mercado permite más que el margen objetivo, lo captura (igual que hacía BUENA); si no,
+// se queda en el margen objetivo. (b) BUENA no tenía piso propio: con un dato de competencia
+// absurdamente bajo (o un error de tipeo) podía sugerir un precio en PÉRDIDA. Ahora BUENA nunca
+// baja del piso — si el mercado forzaría menos que el piso, BUENA queda clavada en el piso
+// (mismo valor que "la que toca", caso TOCA_PISO). Con esto, precioIdeal >= precioBueno >=
+// precioPiso queda garantizado por construcción (útil: la UI ya no necesita reordenar nada,
+// el orden descendente sale solo).
 
 export type Descuento = "NINGUNO" | "COPI" | "MULTI";
 
@@ -32,19 +42,20 @@ export interface PrecioVentaInput {
 }
 
 // Cómo salió el precio "bueno": si el margen ideal ya quedaba por debajo del más barato del
-// mercado (se subió para capturar más ganancia sin dejar de ser el más barato), o si tocó
-// ceder margen para acercarse al más barato (2° lugar).
-export type CasoBueno = "SOBRA_MARGEN" | "CEDE_MARGEN";
+// mercado (se subió para capturar más ganancia sin dejar de ser el más barato), si tocó ceder
+// margen para acercarse al más barato (2° lugar), o si ni cediendo se alcanzaba el piso y este
+// tuvo que tomar el control (mercado imposible o dato de competencia absurdo).
+export type CasoBueno = "SOBRA_MARGEN" | "CEDE_MARGEN" | "TOCA_PISO";
 
 export interface PrecioVentaResultado {
   costoTotal: number;
 
   precioIdeal: number;
-  /** Margen objetivo usado para precioIdeal, como fracción (0.35 = 35%). Solo vista admin. */
-  margenIdealPct: number;
+  /** Margen real que deja precioIdeal, como fracción (0.35 = 35%) — igual al margen objetivo salvo que el mercado haya permitido capturar más. Solo vista admin. */
+  margenIdeal: number;
 
   precioBueno: number;
-  /** Margen real que deja precioBueno, como fracción — puede caer por debajo del piso (o incluso ser negativo) si el mercado es muy barato. Solo vista admin. */
+  /** Margen real que deja precioBueno, como fracción. Nunca por debajo de margenPisoPct (ver casoBueno=TOCA_PISO). Solo vista admin. */
   margenBueno: number;
   casoBueno: CasoBueno;
 
@@ -54,7 +65,7 @@ export interface PrecioVentaResultado {
 }
 
 // Margen real sobre el PRECIO DE VENTA (no markup sobre costo): margen = (precio-costo)/precio.
-// "Ideal" = lo que se cobra si no hay que ceder frente al mercado. "Piso" = mínimo absoluto.
+// "Ideal" = el mejor precio defendible. "Piso" = mínimo absoluto, nunca se cruza.
 const MARGEN_IDEAL_SIN_IVA = 0.35;
 const MARGEN_IDEAL_CON_IVA = 0.27;
 const MARGEN_PISO_SIN_IVA = 0.3;
@@ -79,38 +90,55 @@ function calcularCostoTotal(costoSinIva: number, tieneIva: boolean, descuento: D
   return costoSinIva;
 }
 
+function margenDe(precio: number, costoTotal: number): number {
+  return precio > 0 ? (precio - costoTotal) / precio : 0;
+}
+
 export function calcularPrecioVenta(input: PrecioVentaInput): PrecioVentaResultado {
   const { costoSinIva, tieneIva, descuento, preciosCompetencia } = input;
 
   const costoTotal = calcularCostoTotal(costoSinIva, tieneIva, descuento);
-  const margenIdealPct = tieneIva ? MARGEN_IDEAL_CON_IVA : MARGEN_IDEAL_SIN_IVA;
+  const margenIdealObjetivo = tieneIva ? MARGEN_IDEAL_CON_IVA : MARGEN_IDEAL_SIN_IVA;
   const margenPisoPct = tieneIva ? MARGEN_PISO_CON_IVA : MARGEN_PISO_SIN_IVA;
 
-  const precioIdealCrudo = costoTotal / (1 - margenIdealPct);
+  const precioIdealBase = costoTotal / (1 - margenIdealObjetivo);
   const precioPisoCrudo = costoTotal / (1 - margenPisoPct);
   const masBarato = Math.min(...preciosCompetencia);
 
-  let precioBuenoCrudo: number;
-  let casoBueno: CasoBueno;
-  if (precioIdealCrudo <= masBarato) {
-    precioBuenoCrudo = Math.max(precioIdealCrudo, masBarato * (1 - COLCHON));
-    casoBueno = "SOBRA_MARGEN";
+  // Recomendación de mercado, sin piso todavía: sube a capturar margen extra si el mercado da
+  // espacio (SOBRA_MARGEN), o cede hacia el más barato si el margen objetivo no es competitivo
+  // (CEDE_MARGEN).
+  let recomendacionCruda: number;
+  let casoMercado: "SOBRA_MARGEN" | "CEDE_MARGEN";
+  if (precioIdealBase <= masBarato) {
+    recomendacionCruda = Math.max(precioIdealBase, masBarato * (1 - COLCHON));
+    casoMercado = "SOBRA_MARGEN";
   } else {
-    precioBuenoCrudo = masBarato * (1 + COLCHON);
-    casoBueno = "CEDE_MARGEN";
+    recomendacionCruda = masBarato * (1 + COLCHON);
+    casoMercado = "CEDE_MARGEN";
   }
+
+  // BUENA nunca baja del piso — si la recomendación de mercado cae por debajo (mercado
+  // imposible o dato de competencia absurdo), el piso toma el control.
+  const tocoPiso = recomendacionCruda < precioPisoCrudo;
+  const precioBuenoCrudo = Math.max(recomendacionCruda, precioPisoCrudo);
+  const casoBueno: CasoBueno = tocoPiso ? "TOCA_PISO" : casoMercado;
+
+  // IDEAL captura el mismo upside que BUENA cuando el mercado lo permite; nunca queda por
+  // debajo de BUENA (así el orden Ideal ≥ Buena ≥ Piso queda garantizado, también tras redondear
+  // — redondearA100 es monótona).
+  const precioIdealCrudo = Math.max(precioIdealBase, precioBuenoCrudo);
 
   const precioIdeal = redondearA100(precioIdealCrudo);
   const precioBueno = redondearA100(precioBuenoCrudo);
   const precioPiso = redondearA100(precioPisoCrudo);
-  const margenBueno = precioBueno > 0 ? (precioBueno - costoTotal) / precioBueno : 0;
 
   return {
     costoTotal,
     precioIdeal,
-    margenIdealPct,
+    margenIdeal: margenDe(precioIdeal, costoTotal),
     precioBueno,
-    margenBueno,
+    margenBueno: margenDe(precioBueno, costoTotal),
     casoBueno,
     precioPiso,
     margenPisoPct,

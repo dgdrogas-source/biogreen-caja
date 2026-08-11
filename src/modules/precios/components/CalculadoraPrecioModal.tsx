@@ -12,6 +12,7 @@ import { MoneyInput } from "./MoneyInput";
 const MENSAJE_CASO_BUENO: Record<CasoBueno, string> = {
   SOBRA_MARGEN: "Manteniéndote como el más barato del mercado",
   CEDE_MARGEN: "Quedando cerca del más barato de la competencia",
+  TOCA_PISO: "El mercado no da para más — protegiendo tu margen mínimo",
 };
 
 export function CalculadoraPrecioModal({
@@ -135,7 +136,7 @@ export function CalculadoraPrecioModal({
                 </p>
                 {vista === "admin" && (
                   <p className="mt-0.5 text-xs text-sky-700">
-                    Margen {(resultado.margenIdealPct * 100).toFixed(0)}% — sin mirar mercado
+                    Margen {(resultado.margenIdeal * 100).toFixed(1)}%
                   </p>
                 )}
               </div>
@@ -161,9 +162,6 @@ export function CalculadoraPrecioModal({
                 {vista === "admin" && (
                   <p className="mt-0.5 text-xs text-amber-700">
                     Margen mínimo {(resultado.margenPisoPct * 100).toFixed(0)}%
-                    {resultado.precioBueno < resultado.precioPiso
-                      ? " — la buena no lo alcanza"
-                      : ""}
                   </p>
                 )}
               </div>
