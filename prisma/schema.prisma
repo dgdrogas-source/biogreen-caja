@@ -53,6 +53,7 @@ model BusinessDay {
   closedAt               DateTime?
   closedById             String?
   closedBy               User?     @relation(fields: [closedById], references: [id])
+  closingNote            String? // observación del cierre (motivo del descuadre, etc.); editable en cualquier momento
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 

@@ -557,6 +557,12 @@ const statements = [
   // a propósito — ver la nota en schema.prisma.
   'ALTER TABLE "CierreGeneralGasto" ADD COLUMN IF NOT EXISTS "parteTurnoId" TEXT;',
   'ALTER TABLE "CierreGeneralFactura" ADD COLUMN IF NOT EXISTS "parteTurnoId" TEXT;',
+
+  // ---------------------------------------------------------------------------
+  // Observación del cierre de turno (2026-08-19). Ver
+  // prisma/migrations/20260819000000_business_day_closing_note/.
+  // ---------------------------------------------------------------------------
+  'ALTER TABLE "BusinessDay" ADD COLUMN IF NOT EXISTS "closingNote" TEXT;',
 ];
 
 let aplicado = false;

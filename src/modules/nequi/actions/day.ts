@@ -157,6 +157,44 @@ export async function closeDay(
   }
 }
 
+const noteSchema = z.string().trim().max(500, "Máximo 500 caracteres").optional();
+
+// Observación libre del cierre (motivo del descuadre, etc.). Independiente de
+// closeDay: se puede escribir antes de cerrar, al cerrar, o días después al
+// entender qué pasó. No participa del cuadre ni de ningún cálculo.
+export async function setClosingNote(
+  date: string,
+  shift: Shift,
+  note: string | null
+): Promise<ActionResult> {
+  try {
+    const user = await requireAdminSession();
+    const s = shiftSchema.parse(shift);
+    const value = note ? noteSchema.parse(note) || null : null;
+    const day = await getOrCreateDay(date, s);
+
+    await prisma.$transaction([
+      prisma.businessDay.update({ where: { id: day.id }, data: { closingNote: value } }),
+      prisma.auditLog.create({
+        data: {
+          businessDayId: day.id,
+          action: "UPDATE",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({
+            observacionCierre: { before: day.closingNote, after: value },
+          }),
+        },
+      }),
+    ]);
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof z.ZodError) return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" };
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
 export async function reopenDay(date: string, shift: Shift): Promise<ActionResult> {
   try {
     const user = await requireAdminSession();

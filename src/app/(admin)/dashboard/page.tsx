@@ -157,6 +157,7 @@ export default async function DashboardPage({
             openingBalance={day.openingBalance}
             saldoEsperado={saldoEsperado}
             closingRealBalance={day.closingRealBalance}
+            closingNote={day.closingNote}
           />
           {desglose && <CierreDesgloseCard desglose={desglose} />}
           <BaseFundCard

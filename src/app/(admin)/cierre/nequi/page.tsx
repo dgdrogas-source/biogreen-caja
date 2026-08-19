@@ -83,6 +83,7 @@ export default async function CierreNequiPage({
         openingBalance={day.openingBalance}
         saldoEsperado={saldoEsperado}
         closingRealBalance={day.closingRealBalance}
+        closingNote={day.closingNote}
       />
 
       {/* Cambio #5 — historial de descuadres, filtrable por fecha y turno. */}
@@ -131,6 +132,7 @@ export default async function CierreNequiPage({
                   <th className="px-2 py-2 text-right">Real</th>
                   <th className="px-2 py-2 text-right">Descuadre</th>
                   <th className="px-2 py-2">Cerró</th>
+                  <th className="px-2 py-2">Nota</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -163,6 +165,9 @@ export default async function CierreNequiPage({
                         )}
                       </td>
                       <td className="px-2 py-2 text-xs text-gray-500">{d.closedBy?.name ?? "—"}</td>
+                      <td className="max-w-[220px] truncate px-2 py-2 text-xs text-gray-500" title={d.closingNote ?? undefined}>
+                        {d.closingNote || "—"}
+                      </td>
                     </tr>
                   );
                 })}

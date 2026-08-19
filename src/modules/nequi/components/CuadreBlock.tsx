@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { closeDay, reopenDay, setOpeningBalance } from "../actions/day";
+import { closeDay, reopenDay, setClosingNote, setOpeningBalance } from "../actions/day";
 import { SHIFT_LABELS, type Shift } from "../types";
 import { MoneyInput } from "./MoneyInput";
 
@@ -13,6 +13,7 @@ export function CuadreBlock({
   openingBalance,
   saldoEsperado,
   closingRealBalance,
+  closingNote,
 }: {
   date: string;
   shift: Shift;
@@ -20,6 +21,7 @@ export function CuadreBlock({
   openingBalance: number | null;
   saldoEsperado: number | null;
   closingRealBalance: number | null;
+  closingNote?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -27,6 +29,9 @@ export function CuadreBlock({
   const [real, setReal] = useState<number | null>(closingRealBalance);
   const [editingOpening, setEditingOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState(closingNote ?? "");
+  const [noteSaved, setNoteSaved] = useState(false);
+  const [savingNote, startNoteTransition] = useTransition();
 
   const diferencia =
     real !== null && saldoEsperado !== null ? real - saldoEsperado : null;
@@ -59,6 +64,17 @@ export function CuadreBlock({
       const r = await closeDay(date, shift, real);
       if (r.ok) router.refresh();
       else setError(r.error);
+    });
+  }
+
+  function saveNote() {
+    startNoteTransition(async () => {
+      const r = await setClosingNote(date, shift, note.trim() || null);
+      if (r.ok) {
+        setNoteSaved(true);
+        setTimeout(() => setNoteSaved(false), 2000);
+        router.refresh();
+      } else setError(r.error);
     });
   }
 
@@ -183,6 +199,29 @@ export function CuadreBlock({
                   ).toLocaleString("es-CO")}`}
             </div>
           )}
+
+          <div>
+            <label className="mb-1 block text-sm text-gray-500">Observaciones (opcional)</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="Ej: no cuadró por mala facturación, descuadre de $2.000 por movimiento no registrado…"
+              className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+            />
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-xs text-gray-400">Se guarda aparte, puedes editarla cuando quieras</span>
+              <button
+                type="button"
+                onClick={saveNote}
+                disabled={savingNote || note.trim() === (closingNote ?? "")}
+                className="rounded-lg px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+              >
+                {noteSaved ? "✓ Guardada" : savingNote ? "Guardando..." : "Guardar nota"}
+              </button>
+            </div>
+          </div>
 
           {status === "OPEN" ? (
             <button

@@ -1,7 +1,8 @@
-import Link from "next/link";
+import { Suspense } from "react";
 import { requireAdmin } from "@/lib/permissions";
 import { LogoutButton } from "@/components/LogoutButton";
 import { CalculadoraPrecioFlotante } from "@/modules/precios/components/CalculadoraPrecioFlotante";
+import { AdminNav, AdminNavFallback } from "@/modules/nequi/components/AdminNav";
 
 // Menú del programa Caja Nequi (vive detrás del botón "Cierre Nequi" de /inicio).
 // "Clientes" se movió al Cierre general (decisión del dueño, 2026-07-15).
@@ -31,17 +32,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <LogoutButton />
         </div>
         <nav className="mx-auto max-w-5xl overflow-x-auto px-4">
-          <div className="flex gap-1 pb-2">
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
+          <Suspense fallback={<AdminNavFallback items={NAV} />}>
+            <AdminNav items={NAV} />
+          </Suspense>
         </nav>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 p-4">{children}</main>
