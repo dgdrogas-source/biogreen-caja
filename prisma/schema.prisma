@@ -36,6 +36,10 @@ model User {
   licorVentas            LicorVenta[]
   licorAbonos            LicorAbono[]
   licorCierres           LicorCierre[]
+  fuxionCompras          FuxionCompra[]
+  fuxionVentas           FuxionVenta[]
+  fuxionAbonos           FuxionAbono[]
+  fuxionCierres          FuxionCierre[]
   partesRegistrados      ParteTurno[]  @relation("ParteRegistradoPor")
   partesAprobados        ParteTurno[]  @relation("ParteAprobadoPor")
 }
@@ -806,4 +810,175 @@ model ParteTurnoFactura {
   createdAt    DateTime   @default(now())
 
   @@index([parteTurnoId])
+}
+
+// ============================================================================
+// MÓDULO FUXION (2026-08-20). Módulo NUEVO e INDEPENDIENTE, mismo patrón aislado que
+// `licores` y `mensual`. Controla la mercancía de Fuxion (sobres), que hasta hoy solo
+// existía como plata: el movimiento `VENTA_FUXION` y el bolsillo `FUXION` ya existían en
+// el módulo Nequi, pero nadie sabía qué producto se vendió ni cuántos quedaban.
+//
+// Decisiones del dueño (2026-08-20):
+//   - Solo FUXION. Los suplementos (Ensure/Glucerna) quedan FUERA del alcance.
+//   - El proveedor (Kenny) es un proveedor normal: el valor de la compra SE DIGITA.
+//     No se modela precio de lista ni descuento; el costo unitario se deriva.
+//   - La bolsa trae 28 sobres: valor PRECARGADO pero editable (hubo una de 7).
+//   - La compra a crédito se paga COMPLETA, de una sola vez → no hay abonos parciales,
+//     por eso el pago vive como 3 columnas en FuxionCompra y no como tabla aparte.
+//   - Se arranca de CERO: por eso `inventarioInicial` (Licores no lo tiene, empezó en 0).
+// ============================================================================
+
+model FuxionProducto {
+  id     String @id @default(cuid())
+  nombre String @unique
+
+  precioVenta       Int     @default(0) // precio ACTUAL; las ventas congelan el suyo
+  inventarioInicial Int     @default(0) // conteo físico al arrancar el módulo
+  stockMinimo       Int     @default(6) // umbral de la alerta de stock bajo
+  activo            Boolean @default(true) // "eliminar" con historial = desactivar
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  compras FuxionCompra[]
+  ventas  FuxionVenta[]
+}
+
+// Compra al proveedor (solo admin). El costo unitario se DERIVA: valorTotal / cantidad.
+model FuxionCompra {
+  id         String         @id @default(cuid())
+  productoId String
+  producto   FuxionProducto @relation(fields: [productoId], references: [id])
+
+  date        String // YYYY-MM-DD (America/Bogota)
+  cantidad    Int     @default(28) // una bolsa; editable
+  valorTotal  Int // pesos que se pagan por TODA la compra (se digita)
+  proveedor   String? // "Kenny"
+  descripcion String?
+  metodoPago  String // NEQUI | EFECTIVO | CREDITO
+  movementId  String? // Movement (GASTO_FARMACIA) ligado; solo si NEQUI/EFECTIVO
+
+  // Deuda con el proveedor. Solo aplica a las compras con metodoPago = CREDITO: la bolsa
+  // se paga COMPLETA cuando se termina de vender, así que basta con marcarla pagada.
+  pagadaAt       String? // YYYY-MM-DD; null = todavía se le debe
+  pagoMetodoPago String? // EFECTIVO | NEQUI
+  pagoMovementId String? // Movement (GASTO_FARMACIA) del pago; sale plata de la caja
+
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime? // soft delete
+
+  fuxionCierreId String?
+  fuxionCierre   FuxionCierre? @relation(fields: [fuxionCierreId], references: [id], onDelete: SetNull)
+
+  @@index([productoId, deletedAt])
+  @@index([date])
+  @@index([fuxionCierreId])
+}
+
+// Venta (la registra la vendedora desde el pop-up de "Venta Fuxion").
+// precioUnitario y costoUnitario quedan CONGELADOS: cambiar el precio del producto después
+// no altera el margen ya registrado.
+model FuxionVenta {
+  id         String         @id @default(cuid())
+  productoId String
+  producto   FuxionProducto @relation(fields: [productoId], references: [id])
+
+  date           String // YYYY-MM-DD
+  shift          Int // 1 | 2
+  cantidad       Int
+  precioUnitario Int // congelado al vender
+  costoUnitario  Int // promedio ponderado de las compras a ese momento (congelado)
+  metodoPago     String // NEQUI | EFECTIVO | TARJETA | DAVIPLATA | TRANSFERENCIA | CREDITO
+  descuento      Boolean @default(false) // true si se vendió a un precio distinto al de lista
+  movementId     String? // Movement (VENTA_FUXION) ligado; solo NEQUI/EFECTIVO
+  nota           String?
+
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  // Obligatorio SOLO cuando metodoPago = CREDITO. Cartera propia de Fuxion, aparte de la de
+  // la farmacia y de la de licores.
+  clienteId String?
+  cliente   FuxionCliente? @relation(fields: [clienteId], references: [id])
+
+  fuxionCierreId String?
+  fuxionCierre   FuxionCierre? @relation(fields: [fuxionCierreId], references: [id], onDelete: SetNull)
+
+  @@index([productoId, deletedAt])
+  @@index([date])
+  @@index([clienteId, deletedAt])
+  @@index([fuxionCierreId])
+}
+
+model FuxionCliente {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  telefono  String?
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ventas FuxionVenta[]
+  abonos FuxionAbono[]
+}
+
+// Pago de un cliente contra su deuda de Fuxion. Solo 2 medios, iguales a las modalidades
+// del cierre. NO crea Movement en Nequi: el corte de Fuxion ya lo cuenta.
+model FuxionAbono {
+  id        String        @id @default(cuid())
+  clienteId String
+  cliente   FuxionCliente @relation(fields: [clienteId], references: [id])
+
+  date      String // YYYY-MM-DD
+  monto     Int
+  medioPago String // EFECTIVO | PLATAFORMA
+  nota      String?
+
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  fuxionCierreId String?
+  fuxionCierre   FuxionCierre? @relation(fields: [fuxionCierreId], references: [id], onDelete: SetNull)
+
+  @@index([clienteId, deletedAt])
+  @@index([date])
+  @@index([fuxionCierreId])
+}
+
+// Cierre de Fuxion: ESPORÁDICO, modelo de CORTE (idéntico a LicorCierre). Se lleva todo lo
+// que tenga fuxionCierreId = null y lo marca POR ID dentro de la transacción.
+model FuxionCierre {
+  id   String @id @default(cuid())
+  date String // YYYY-MM-DD en que se hizo el corte
+
+  ventasEfectivo    Int @default(0)
+  ventasPlataforma  Int @default(0)
+  ventasCredito     Int @default(0) // informativo: salió mercancía, entró deuda
+  abonosEfectivo    Int @default(0)
+  abonosPlataforma  Int @default(0)
+  comprasEfectivo   Int @default(0)
+  comprasPlataforma Int @default(0)
+  pagosEfectivo     Int @default(0) // pagos al proveedor hechos en efectivo
+  pagosPlataforma   Int @default(0)
+
+  efectivoEsperado Int @default(0) // ventas ef. + abonos ef. − compras ef. − pagos ef.
+  efectivoContado  Int @default(0)
+  diferencia       Int @default(0) // contado − esperado (+ sobró / − faltó)
+
+  nota        String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  ventas  FuxionVenta[]
+  compras FuxionCompra[]
+  abonos  FuxionAbono[]
+
+  @@index([date])
 }

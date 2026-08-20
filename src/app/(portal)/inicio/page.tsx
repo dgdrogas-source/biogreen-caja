@@ -26,6 +26,11 @@ const OPCIONES = [
     titulo: "🍺 Licores",
     descripcion: "Cervezas: inventario, compras, ventas, ganancia y alertas de stock.",
   },
+  {
+    href: "/fuxion",
+    titulo: "💊 Fuxion",
+    descripcion: "Fuxion: inventario, compras, ventas, deuda con el proveedor y cartera.",
+  },
 ];
 
 export default async function InicioPage() {

@@ -29,6 +29,10 @@ import {
   borrarLicorLigadoAMovement,
   licorLigadoAMovement,
 } from "@/modules/licores/server/movementLink";
+import {
+  borrarFuxionLigadoAMovement,
+  fuxionLigadoAMovement,
+} from "@/modules/fuxion/server/movementLink";
 import { getOrCreateDay } from "../server/businessDay";
 import { getBaseFund, getCurrentShift, getDaySummary, getPockets } from "../queries";
 
@@ -260,6 +264,16 @@ export async function updateMovement(input: MovementUpdateInput): Promise<Action
       };
     }
 
+    // Mismo caso para Fuxion: el movimiento lleva pegado un producto y una cantidad, así que
+    // editar aquí solo el monto los dejaría diciendo cosas distintas.
+    const fuxionEnEdicion = await fuxionLigadoAMovement(movement.id);
+    if (fuxionEnEdicion) {
+      return {
+        ok: false,
+        error: `Esta ${fuxionEnEdicion.tipo} de Fuxion (${fuxionEnEdicion.descripcion}) se registró en el módulo Fuxion. Bórrala y vuelve a registrarla para corregirla.`,
+      };
+    }
+
     if (user.role !== "ADMIN") {
       if (movement.registeredById !== user.id) return { ok: false, error: "Solo puedes editar tus propios registros" };
       if (movement.businessDay.date !== todayBogota()) return { ok: false, error: "Solo puedes editar registros del día actual" };
@@ -404,12 +418,26 @@ export async function deleteMovement(id: string): Promise<ActionResult> {
       };
     }
 
+    // Igual para Fuxion: borrar aquí tiene que devolver la mercancía al inventario, y eso no
+    // se puede si ya entró a un corte.
+    const fuxion = await fuxionLigadoAMovement(movement.id);
+    if (fuxion?.yaCerrado) {
+      return {
+        ok: false,
+        error: `Esta ${fuxion.tipo} de Fuxion (${fuxion.descripcion}) ya entró a un cierre de Fuxion. Deshaz ese cierre antes de borrarla.`,
+      };
+    }
+
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       await tx.movement.update({ where: { id: movement.id }, data: { deletedAt: now } });
 
       // Arrastra la venta/compra de cerveza para que el inventario se reajuste.
       await borrarLicorLigadoAMovement(tx, movement.id, user.id);
+
+      // Lo mismo del lado de Fuxion (si el movimiento era un pago al proveedor, deshace el
+      // pago en vez de borrar la compra).
+      await borrarFuxionLigadoAMovement(tx, movement.id, user.id);
 
       // Revertir el efecto del movimiento sobre el reparto de la base.
       await adjustBase(

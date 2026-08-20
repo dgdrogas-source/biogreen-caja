@@ -16,6 +16,13 @@ import {
   getProductosParaVender,
 } from "@/modules/licores/queries";
 import { LICOR_MEDIO_PAGO_LABELS, type LicorMedioPago } from "@/modules/licores/types";
+import { ListaFuxionFlotante } from "@/modules/fuxion/components/ListaFuxionFlotante";
+import {
+  getClientesFuxionParaVender,
+  getMisVentasDelDia as getMisVentasFuxionDelDia,
+  getProductosParaVender as getProductosFuxionParaVender,
+} from "@/modules/fuxion/queries";
+import { FUXION_MEDIO_PAGO_LABELS, type FuxionMedioPago } from "@/modules/fuxion/types";
 import type { MovementItem } from "@/modules/nequi/components/MovementList";
 import { desglosarCuadre } from "@/modules/nequi/calculations/cuadre";
 import {
@@ -58,6 +65,9 @@ export default async function RegistrarPage() {
     misVentasLicor,
     pockets,
     parte,
+    fuxion,
+    fuxionClientes,
+    misVentasFuxion,
   ] = await Promise.all([
     getMyTodayMovements(user.id),
     getMyCommissionSources(user.id),
@@ -68,6 +78,9 @@ export default async function RegistrarPage() {
     getMisVentasDelDia(user.id, todayBogota()),
     getPockets(),
     getParteTurno(todayBogota(), activeShift),
+    getProductosFuxionParaVender(),
+    getClientesFuxionParaVender(),
+    getMisVentasFuxionDelDia(user.id, todayBogota()),
   ]);
 
   // Mismo número que ve el admin en "Tus bolsillos" → Comisiones → Efectivo.
@@ -81,6 +94,9 @@ export default async function RegistrarPage() {
   const movementIdsDeLicor = new Set(
     misVentasLicor.map((v) => v.movementId).filter((id): id is string => id !== null)
   );
+  const movementIdsDeFuxion = new Set(
+    misVentasFuxion.map((v) => v.movementId).filter((id): id is string => id !== null)
+  );
   const filasMovimientos = movements.map((m) => ({
     ts: m.registeredAt.getTime(),
     item: {
@@ -93,6 +109,7 @@ export default async function RegistrarPage() {
       isSystemGenerated: m.isSystemGenerated,
       registeredAt: `T${m.businessDay.shift} · ${formatTimeCo(m.registeredAt)}`,
       esVentaLicor: movementIdsDeLicor.has(m.id),
+      esVentaFuxion: movementIdsDeFuxion.has(m.id),
     } satisfies MovementItem,
   }));
   const filasLicorSinMovimiento = misVentasLicor
@@ -114,7 +131,33 @@ export default async function RegistrarPage() {
           LICOR_MEDIO_PAGO_LABELS[v.metodoPago as LicorMedioPago] ?? v.metodoPago,
       } satisfies MovementItem,
     }));
-  const misMovimientos = [...filasMovimientos, ...filasLicorSinMovimiento]
+  // Mismas dos reglas para Fuxion: con Nequi/Efectivo la fila ya existe (solo se marca), y
+  // sin Movement se inyecta como fila informativa que no entra al cuadre.
+  const filasFuxionSinMovimiento = misVentasFuxion
+    .filter((v) => v.movementId === null)
+    .map((v) => ({
+      ts: v.createdAt.getTime(),
+      item: {
+        id: `fuxion-${v.id}`,
+        type: "VENTA_FUXION",
+        direction: "INCOME",
+        amount: v.precioUnitario * v.cantidad,
+        paymentMethod: v.metodoPago,
+        note: `${v.cantidad} × ${v.producto.nombre}${v.nota ? ` — ${v.nota}` : ""}`,
+        isSystemGenerated: false,
+        registeredAt: `T${v.shift} · ${formatTimeCo(v.createdAt)}`,
+        esVentaFuxion: true,
+        fuxionVentaId: v.id,
+        metodoPagoLabel:
+          FUXION_MEDIO_PAGO_LABELS[v.metodoPago as FuxionMedioPago] ?? v.metodoPago,
+      } satisfies MovementItem,
+    }));
+
+  const misMovimientos = [
+    ...filasMovimientos,
+    ...filasLicorSinMovimiento,
+    ...filasFuxionSinMovimiento,
+  ]
     .sort((a, b) => b.ts - a.ts)
     .map((f) => f.item);
 
@@ -159,6 +202,8 @@ export default async function RegistrarPage() {
           shiftStatus={shiftInfo.shiftStatus}
           licoresProductos={licores}
           licoresClientes={licoresClientes}
+          fuxionProductos={fuxion}
+          fuxionClientes={fuxionClientes}
         />
 
         <div className="space-y-4">
@@ -185,6 +230,7 @@ export default async function RegistrarPage() {
 
       <ListaPreciosFlotante productos={licores} />
       <CalculadoraPrecioFlotante vista="vendedora" />
+      <ListaFuxionFlotante productos={fuxion} />
     </div>
   );
 }

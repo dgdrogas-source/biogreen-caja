@@ -174,6 +174,65 @@ y solo se puede deshacer el **último** cierre.
 las 4 rutas (`/licores`, `/productos`, `/clientes`, `/cierre`).
 **Falta la prueba funcional del dueño en la web.**
 
+## 💊 MÓDULO FUXION (2026-08-20) — CONSTRUIDO, PENDIENTE DEPLOY
+
+5º botón en `/inicio` → `/fuxion`. Módulo NUEVO e independiente en `src/modules/fuxion/`
+(mismo patrón aislado que `licores`). Hasta hoy Fuxion existía **solo como plata**: el
+movimiento `VENTA_FUXION` y el bolsillo `FUXION` ya estaban en el módulo Nequi, pero nadie
+sabía qué producto se vendió ni cuántos sobres quedaban. Es prácticamente Licores calcado.
+
+**Alcance decidido por el dueño (2026-08-20):** SOLO Fuxion. Los **suplementos**
+(Ensure/Glucerna) quedan **fuera** y siguen controlándose en el Excel.
+
+**Tablas propias:** `FuxionProducto` (+`inventarioInicial`, que Licores NO tiene),
+`FuxionCompra`, `FuxionVenta`, `FuxionCliente`, `FuxionAbono`, `FuxionCierre`.
+
+**Reglas de negocio confirmadas:**
+- Stock = **inventario inicial** + Σ compras − Σ ventas. Se arranca de CERO con el conteo
+  físico cargado a mano (el histórico del Excel NO se migra: su inventario inicial está
+  parcheado con números negativos y daría stock falso).
+- El proveedor (Kenny) es un **proveedor normal**: el valor de la compra **SE DIGITA** y
+  puede subir. El costo unitario se deriva (`valorTotal / cantidad`) y se **CONGELA** en cada
+  venta junto con el precio. Nada de precios de lista ni porcentajes en el sistema.
+- Una bolsa trae **28 sobres**: valor **precargado pero editable** (en el histórico hubo una
+  compra de 7 unidades).
+- **Compra a CRÉDITO** (a diferencia de Licores): no sale plata al comprar. La bolsa se paga
+  **COMPLETA, de una sola vez**, cuando se termina de vender — no hay abonos parciales, por
+  eso el pago vive como 3 columnas de `FuxionCompra` (`pagadaAt`, `pagoMetodoPago`,
+  `pagoMovementId`) y no como tabla aparte.
+- El aviso **"ya vendiste la bolsa, toca pagar"** sale de `calculations/deudaProveedor.ts`:
+  consume el inventario en **FIFO** y marca `tocaPagar` cuando la bolsa se agotó y sigue sin
+  pagarse. Aparece como banner en `/fuxion` y en `/fuxion/proveedor`.
+- Economía real de una bolsa: cuesta 117.385 (4.192/sobre), se vende a 5.500 → **36.615 de
+  ganancia, ≈24 %**.
+- Cartera, cierre por corte y permisos: **idénticos a Licores**.
+
+**Registro único, nunca doble** (misma regla dura): `server/movementLink.ts` crea él mismo el
+`Movement` (`VENTA_FUXION`, bolsillo `FUXION`) solo con **NEQUI/EFECTIVO**. ⚠️ Al desplegar,
+**avisar a la vendedora que deje de registrar "Venta Fuxion" a mano** o todo se cuenta doble.
+
+**Puente inverso (Nequi → Fuxion):** `movements.ts` llama a `fuxionLigadoAMovement` y
+`borrarFuxionLigadoAMovement`, igual que ya hacía con Licores. Extra propio de Fuxion: si el
+Movement borrado era el **pago al proveedor**, se **deshace el pago** (la bolsa vuelve a
+quedar debiéndose) en vez de borrar la compra.
+
+**Archivos compartidos tocados (5, todo aditivo — 423 inserciones / 6 borradas, y esas 6 son
+líneas extendidas):** `nequi/actions/movements.ts`, `nequi/components/MovementForm.tsx`,
+`nequi/components/MovementList.tsx`, `(worker)/registrar/page.tsx`, `(portal)/inicio/page.tsx`.
+Sin las props `fuxionProductos`/`fuxionClientes`, `MovementForm` se comporta **exactamente**
+como antes.
+
+**UI:** pop-up desde el botón "Venta Fuxion" que ya existía · **botón flotante 💊** en
+`/registrar` en `fixed bottom-36 left-4` (la 1ª y 2ª fila de abajo-izquierda ya las ocupan
+🍺 licores y 🧮 calculadora; la derecha es del conmutador de tema) · rutas admin `/fuxion`,
+`/fuxion/productos`, `/fuxion/proveedor`, `/fuxion/clientes`, `/fuxion/cierre`.
+
+**Verificado aquí:** `tsc` limpio, **330/330 tests** (56 nuevos en
+`tests/modules/fuxion/calculations/`), `next build` OK con las 5 rutas. Se comprobó por
+mutación que los tests no son vacuos (reintroducir el bug de "compra en efectivo cuenta como
+deuda" hace fallar su test).
+**Falta la prueba funcional del dueño en la web.**
+
 ## 🔴 Pendiente / por dónde seguir
 1. **UI + actions de diferencias**: registrar sobrante/faltante con razón (enum: cliente pagó por método incorrecto, olvidó abono a crédito, error de facturación, pago mal recibido, otro), resolverlas moviendo el monto entre medios de pago, con historial de cambios comentado. Sin umbral tolerable (toda diferencia se registra). BD ya lista.
 2. **Selector de método de pago** al agregar gastos/facturas (columna `metodoPago` ya existe; hoy null = EFECTIVO). Importa para calcular cuánto efectivo debería quedar en caja.

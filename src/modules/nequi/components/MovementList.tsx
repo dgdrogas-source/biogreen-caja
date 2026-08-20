@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteMovement, updateMovement } from "../actions/movements";
 import { eliminarVentaLicor } from "@/modules/licores/actions/ventas";
+import { eliminarVentaFuxion } from "@/modules/fuxion/actions/ventas";
 import { MOVEMENT_LABELS, type MovementType, type PaymentMethod } from "../types";
 import { MoneyInput } from "./MoneyInput";
 
@@ -24,6 +25,10 @@ export interface MovementItem {
   // Solo en las ventas SIN movimiento en Nequi (tarjeta/Daviplata/transferencia/crédito):
   // la fila es informativa — no entra al cuadre — y borrar va por eliminarVentaLicor.
   licorVentaId?: string;
+  // Mismo par de campos para las ventas de FUXION (2026-08-20). Se mantienen separados de
+  // los de licor porque cada módulo borra por su propia acción.
+  esVentaFuxion?: boolean;
+  fuxionVentaId?: string;
   metodoPagoLabel?: string; // etiqueta del medio cuando no es Nequi/Efectivo
 }
 
@@ -73,14 +78,18 @@ export function MovementList({
   function remove(m: MovementItem) {
     const msg = m.esVentaLicor
       ? "¿Borrar esta venta de cerveza? El inventario se reajusta y el cambio queda registrado."
-      : "¿Seguro que quieres borrar este movimiento? El cambio quedará registrado.";
+      : m.esVentaFuxion
+        ? "¿Borrar esta venta de Fuxion? El inventario se reajusta y el cambio queda registrado."
+        : "¿Seguro que quieres borrar este movimiento? El cambio quedará registrado.";
     if (!confirm(msg)) return;
     startTransition(async () => {
-      // Venta de licor sin movimiento en Nequi: se borra directo en el módulo Licores.
+      // Venta sin movimiento en Nequi: se borra directo en su propio módulo.
       // Con movimiento, deleteMovement arrastra la venta ligada (y su 4x1000).
       const result = m.licorVentaId
         ? await eliminarVentaLicor(m.licorVentaId)
-        : await deleteMovement(m.id);
+        : m.fuxionVentaId
+          ? await eliminarVentaFuxion(m.fuxionVentaId)
+          : await deleteMovement(m.id);
       if (result.ok) router.refresh();
       else setError(result.error);
     });
@@ -176,7 +185,9 @@ export function MovementList({
                   )}
                   {/* Venta de licor que no pasó por Nequi/caja: se muestra para que la
                       vendedora la vea, pero no suma al cuadre del turno. */}
-                  {m.licorVentaId && <span className="text-gray-400"> · no entra al cuadre</span>}
+                  {(m.licorVentaId || m.fuxionVentaId) && (
+                    <span className="text-gray-400"> · no entra al cuadre</span>
+                  )}
                 </p>
                 {m.note && <p className="truncate text-xs text-gray-400">{m.note}</p>}
               </div>
@@ -192,7 +203,7 @@ export function MovementList({
                   <div className="flex gap-1">
                     {/* Una venta de licor no se edita en línea: lleva producto y cantidad
                         pegados. Se borra y se vuelve a registrar desde el pop-up. */}
-                    {!m.esVentaLicor && (
+                    {!m.esVentaLicor && !m.esVentaFuxion && (
                       <button
                         type="button"
                         onClick={() => startEdit(m)}

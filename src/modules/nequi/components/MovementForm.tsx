@@ -10,6 +10,11 @@ import {
   type ProductoOpcion,
 } from "@/modules/licores/components/VentaLicorModal";
 import {
+  VentaFuxionModal,
+  type ClienteFuxionOpcion,
+  type ProductoFuxionOpcion,
+} from "@/modules/fuxion/components/VentaFuxionModal";
+import {
   MOVEMENT_DIRECTIONS,
   MOVEMENT_LABELS,
   POCKET_BUCKETS,
@@ -59,6 +64,8 @@ export function MovementForm({
   today,
   licoresProductos,
   licoresClientes = [],
+  fuxionProductos,
+  fuxionClientes = [],
 }: {
   types: MovementType[];
   commissionSources: CommissionSource[];
@@ -72,9 +79,14 @@ export function MovementForm({
   licoresProductos?: ProductoOpcion[];
   // Clientes de la cartera de licores (para vender fiado desde el pop-up).
   licoresClientes?: ClienteOpcion[];
+  // Igual que licoresProductos pero para Fuxion: si vienen, "Venta Fuxion" abre el pop-up del
+  // módulo Fuxion. Sin la prop el botón se comporta EXACTAMENTE como antes.
+  fuxionProductos?: ProductoFuxionOpcion[];
+  fuxionClientes?: ClienteFuxionOpcion[];
 }) {
   const router = useRouter();
   const [licorModalAbierto, setLicorModalAbierto] = useState(false);
+  const [fuxionModalAbierto, setFuxionModalAbierto] = useState(false);
   const [pending, startTransition] = useTransition();
   // Turno sugerido por la hora; si ese ya está cerrado y el otro no, arranca en el abierto.
   const otherShift: Shift = defaultShift === 1 ? 2 : 1;
@@ -209,6 +221,11 @@ export function MovementForm({
               // el formulario suelto no sabría de cuál cerveza se trata.
               if (t === "VENTA_LICORES_JHOANN" && licoresProductos) {
                 setLicorModalAbierto(true);
+                return;
+              }
+              // Misma razón para Fuxion: el formulario suelto no sabría qué producto salió.
+              if (t === "VENTA_FUXION" && fuxionProductos) {
+                setFuxionModalAbierto(true);
                 return;
               }
               setType(t);
@@ -352,6 +369,15 @@ export function MovementForm({
           clientes={licoresClientes}
           shift={shift}
           onClose={() => setLicorModalAbierto(false)}
+        />
+      )}
+
+      {fuxionModalAbierto && fuxionProductos && (
+        <VentaFuxionModal
+          productos={fuxionProductos}
+          clientes={fuxionClientes}
+          shift={shift}
+          onClose={() => setFuxionModalAbierto(false)}
         />
       )}
     </div>
