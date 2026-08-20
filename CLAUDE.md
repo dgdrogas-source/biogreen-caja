@@ -205,6 +205,10 @@ sabía qué producto se vendió ni cuántos sobres quedaban. Es prácticamente L
   pagarse. Aparece como banner en `/fuxion` y en `/fuxion/proveedor`.
 - Economía real de una bolsa: cuesta 117.385 (4.192/sobre), se vende a 5.500 → **36.615 de
   ganancia, ≈24 %**.
+- ⚠️ **El bolsillo "Fuxion" lo descuentan EFECTIVO y NEQUI por igual** (confirmado por el
+  dueño, 2026-08-20). Es **DISTINTO de Licores**, donde el bolsillo solo se descuenta pagando
+  por Nequi porque allá acumula únicamente plata de Nequi. El sobre de Fuxion mezcla efectivo
+  y digital, así que los dos lo tocan. No unificar las dos reglas "por consistencia".
 - Cartera, cierre por corte y permisos: **idénticos a Licores**.
 
 **Registro único, nunca doble** (misma regla dura): `server/movementLink.ts` crea él mismo el

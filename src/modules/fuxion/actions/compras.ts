@@ -24,8 +24,10 @@ const compraSchema = z.object({
   proveedor: z.string().trim().max(80).optional(),
   descripcion: z.string().trim().max(300).optional(),
   metodoPago: z.enum(FUXION_MEDIOS_PAGO_COMPRA), // EFECTIVO | NEQUI | CREDITO
-  // ¿El gasto sale del bolsillo "Fuxion"? Solo aplica pagando por NEQUI: el bolsillo es un
-  // acumulado sobre plata de Nequi (mismo criterio que el módulo Licores).
+  // ¿El gasto sale del bolsillo "Fuxion"? Aplica con EFECTIVO y con NEQUI por igual
+  // (confirmado por el dueño, 2026-08-20). OJO: es DISTINTO de Licores, donde el bolsillo
+  // solo se descuenta pagando por Nequi porque allá acumula únicamente plata de Nequi.
+  // El sobre de Fuxion mezcla efectivo y digital, así que los dos lo descuentan.
   descontarDelBolsillo: z.boolean().default(true),
 });
 
@@ -68,8 +70,7 @@ export async function registrarCompraFuxion(input: CompraFuxionInput): Promise<A
             direction: "EXPENSE",
             amount: data.valorTotal,
             paymentMethod: data.metodoPago as "NEQUI" | "EFECTIVO",
-            pettyCashBucket:
-              data.descontarDelBolsillo && data.metodoPago === "NEQUI" ? "FUXION" : null,
+            pettyCashBucket: data.descontarDelBolsillo ? "FUXION" : null,
             note: `Compra ${data.cantidad} × ${producto.nombre}${data.proveedor ? ` — ${data.proveedor}` : ""}`,
             userId: user.id,
           })

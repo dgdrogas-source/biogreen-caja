@@ -227,17 +227,16 @@ function FilaBolsa({ bolsa, hoy }: { bolsa: BolsaFila; hoy: string }) {
             </div>
           </div>
 
-          {metodoPago === "NEQUI" && (
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={descontarDelBolsillo}
-                onChange={(e) => setDescontarDelBolsillo(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              Descontar del bolsillo &quot;Fuxion&quot;
-            </label>
-          )}
+          {/* Lo descuentan EFECTIVO y NEQUI por igual, y el pago siempre es uno de los dos. */}
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={descontarDelBolsillo}
+              onChange={(e) => setDescontarDelBolsillo(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Descontar del bolsillo &quot;Fuxion&quot;
+          </label>
 
           <p className="text-xs text-gray-500">
             Se paga la bolsa completa: {pesos(bolsa.valorTotal)}. Queda registrado como gasto en el

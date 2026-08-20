@@ -25,8 +25,8 @@ const pagoSchema = z.object({
   compraId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
   metodoPago: z.enum(FUXION_MEDIOS_PAGO_PROVEEDOR), // EFECTIVO | NEQUI
-  // ¿Sale del bolsillo "Fuxion"? Igual que en las compras: el bolsillo acumula plata de
-  // Nequi, así que un pago en efectivo no lo descuenta.
+  // ¿Sale del bolsillo "Fuxion"? Igual que en las compras: lo descuentan EFECTIVO y NEQUI
+  // por igual (confirmado por el dueño, 2026-08-20).
   descontarDelBolsillo: z.boolean().default(true),
 });
 
@@ -64,8 +64,7 @@ export async function marcarCompraPagada(input: PagoProveedorInput): Promise<Act
         direction: "EXPENSE",
         amount: compra.valorTotal,
         paymentMethod: data.metodoPago,
-        pettyCashBucket:
-          data.descontarDelBolsillo && data.metodoPago === "NEQUI" ? "FUXION" : null,
+        pettyCashBucket: data.descontarDelBolsillo ? "FUXION" : null,
         note: `Pago proveedor Fuxion — ${compra.cantidad} × ${compra.producto.nombre}${compra.proveedor ? ` (${compra.proveedor})` : ""}`,
         userId: user.id,
       });

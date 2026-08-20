@@ -194,7 +194,9 @@ export function CompraFuxionForm({
             </p>
           </div>
 
-          {metodoPago === "NEQUI" && (
+          {/* El bolsillo de Fuxion lo descuentan EFECTIVO y NEQUI por igual (a diferencia de
+              Licores). Con CREDITO no sale plata todavía, así que no hay nada que descontar. */}
+          {metodoPago !== "CREDITO" && (
             <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
               <input
                 type="checkbox"
