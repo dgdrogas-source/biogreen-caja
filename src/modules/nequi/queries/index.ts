@@ -1,7 +1,7 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { addDays, diffDays, nowBogotaHHMM, startOfIsoWeek, startOfMonth, todayBogota } from "@/lib/dates";
+import { addDays, dayOfWeek, diffDays, nowBogotaHHMM, startOfIsoWeek, startOfMonth, todayBogota } from "@/lib/dates";
 import { calcularBolsasAcumuladas, type BolsaCierreInput } from "../calculations/bolsas";
 import { calcularSaldoCliente, calcularSaldosPorCliente } from "../calculations/clientes";
 import { calcularCierreGeneral } from "../calculations/cierreGeneral";
@@ -30,7 +30,7 @@ import {
   type PocketResumen,
 } from "../calculations/pockets";
 import { compararMetricas, promedioMensual, sumarMetricas, type MetricasPeriodo } from "../calculations/tendencias";
-import { DEFAULT_SHIFT_CONFIGS, turnoPorHora } from "../calculations/turnos";
+import { DEFAULT_SHIFT_CONFIGS, esDiaTurnoUnico, turnoPorHora } from "../calculations/turnos";
 import {
   BASE_FIJA_EFECTIVO_CAJA,
   PLATAFORMAS,
@@ -54,9 +54,18 @@ export async function getShiftConfigs() {
   return DEFAULT_SHIFT_CONFIGS.map((c) => ({ ...c, updatedAt: new Date() }));
 }
 
-// Turno POR DEFECTO según la hora actual de Bogotá y los horarios configurados.
+// Días de la semana marcados como "turno único" (ej. domingo): ese día el turno se queda
+// fijo en 1, sin sugerir el 2 por la hora. Sin filas (BD sin sembrar) → ningún día lo es.
+export async function getDiasTurnoUnico() {
+  return prisma.diaTurnoUnico.findMany({ orderBy: { dayOfWeek: "asc" } });
+}
+
+// Turno POR DEFECTO según la hora actual de Bogotá y los horarios configurados — salvo que
+// hoy sea un día marcado como "turno único", en cuyo caso siempre es el 1 (ver
+// esDiaTurnoUnico). Sigue siendo solo una SUGERENCIA: quien registra puede cambiar a mano.
 export async function getCurrentShift(): Promise<Shift> {
-  const configs = await getShiftConfigs();
+  const [configs, dias] = await Promise.all([getShiftConfigs(), getDiasTurnoUnico()]);
+  if (esDiaTurnoUnico(dayOfWeek(todayBogota()), dias)) return 1;
   return turnoPorHora(nowBogotaHHMM(), configs);
 }
 

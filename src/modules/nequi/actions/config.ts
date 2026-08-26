@@ -66,3 +66,61 @@ export async function setShiftConfig(
     return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
   }
 }
+
+const DIA_LABELS: Record<number, string> = {
+  0: "Domingo",
+  1: "Lunes",
+  2: "Martes",
+  3: "Miércoles",
+  4: "Jueves",
+  5: "Viernes",
+  6: "Sábado",
+};
+
+const diaTurnoUnicoSchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  activo: z.boolean(),
+});
+
+// Activa/desactiva "turno único" para un día de la semana: ese día el turno sugerido se
+// queda fijo en 1, sin importar la hora (ver esDiaTurnoUnico / getCurrentShift). Solo cambia
+// la SUGERENCIA por defecto — quien registra siempre puede pasar a mano al turno 2 ese día.
+export async function setDiaTurnoUnico(dayOfWeek: number, activo: boolean): Promise<ActionResult> {
+  try {
+    const session = await auth();
+    if (!session?.user) return { ok: false, error: "No autorizado" };
+    if (session.user.role !== "ADMIN")
+      return { ok: false, error: "Solo el administrador puede cambiar esta opción" };
+
+    const data = diaTurnoUnicoSchema.parse({ dayOfWeek, activo });
+
+    const current = await prisma.diaTurnoUnico.findUnique({ where: { dayOfWeek: data.dayOfWeek } });
+    if (current && current.activo === data.activo) return { ok: true };
+
+    await prisma.$transaction([
+      prisma.diaTurnoUnico.upsert({
+        where: { dayOfWeek: data.dayOfWeek },
+        update: { activo: data.activo },
+        create: { dayOfWeek: data.dayOfWeek, activo: data.activo },
+      }),
+      prisma.auditLog.create({
+        data: {
+          action: "SET_DIA_TURNO_UNICO",
+          changedById: session.user.id,
+          fieldChanges: JSON.stringify({
+            [DIA_LABELS[data.dayOfWeek]]: {
+              before: current?.activo ?? false,
+              after: data.activo,
+            },
+          }),
+        },
+      }),
+    ]);
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof z.ZodError) return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" };
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}

@@ -27,12 +27,17 @@ export function addDays(dateStr: string, days: number): string {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
+// Día de la semana de una fecha YYYY-MM-DD: 0=domingo … 6=sábado (aritmética pura de
+// calendario, sin zona horaria — igual que addDays/startOfIsoWeek).
+export function dayOfWeek(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
 // Lunes de la semana ISO (lunes-domingo) a la que pertenece la fecha. Ej: un domingo
 // devuelve el lunes 6 días antes (la semana "actual" incluye ese domingo).
 export function startOfIsoWeek(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const dayOfWeek = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=domingo..6=sábado
-  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  const daysSinceMonday = (dayOfWeek(dateStr) + 6) % 7;
   return addDays(dateStr, -daysSinceMonday);
 }
 

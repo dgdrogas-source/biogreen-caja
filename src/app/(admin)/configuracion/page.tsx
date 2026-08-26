@@ -1,11 +1,13 @@
 import { requireAdmin } from "@/lib/permissions";
 import { BolsasGeneralesConfig } from "@/modules/nequi/components/BolsasGeneralesConfig";
 import { CategoriasGastoConfig } from "@/modules/nequi/components/CategoriasGastoConfig";
+import { DiasTurnoUnicoConfig } from "@/modules/nequi/components/DiasTurnoUnicoConfig";
 import { PocketBalancesConfig } from "@/modules/nequi/components/PocketBalancesConfig";
 import { ShiftConfigForm } from "@/modules/nequi/components/ShiftConfigForm";
 import {
   getBolsasGenerales,
   getCategoriasGasto,
+  getDiasTurnoUnico,
   getPockets,
   getShiftConfigs,
 } from "@/modules/nequi/queries";
@@ -16,9 +18,10 @@ import { BOLSA_GENERAL_BUCKETS, POCKET_BUCKETS, type Shift } from "@/modules/neq
 // Cierre general agrega aquí: categorías de gasto (editables) y las bolsas 70/30.
 export default async function ConfiguracionPage() {
   await requireAdmin();
-  const [pockets, shiftConfigs, categorias, bolsas] = await Promise.all([
+  const [pockets, shiftConfigs, diasTurnoUnico, categorias, bolsas] = await Promise.all([
     getPockets(),
     getShiftConfigs(),
+    getDiasTurnoUnico(),
     getCategoriasGasto(),
     getBolsasGenerales(),
   ]);
@@ -57,6 +60,10 @@ export default async function ConfiguracionPage() {
           startTime: c.startTime,
           endTime: c.endTime,
         }))}
+      />
+
+      <DiasTurnoUnicoConfig
+        items={diasTurnoUnico.map((d) => ({ dayOfWeek: d.dayOfWeek, activo: d.activo }))}
       />
     </div>
   );

@@ -31,3 +31,15 @@ export function turnoPorHora(horaHHMM: string, configs: ShiftConfigRow[]): Shift
 export function turnoSiguiente(date: string, shift: Shift): { date: string; shift: Shift } {
   return shift === 1 ? { date, shift: 2 } : { date: addDays(date, 1), shift: 1 };
 }
+
+export interface DiaTurnoUnicoRow {
+  dayOfWeek: number; // 0=domingo…6=sábado
+  activo: boolean;
+}
+
+// ¿El día de la semana dado está marcado como "turno único" (el dueño configuró que ese día
+// solo abre un turno, ej. domingo)? Si no hay fila para ese día (BD sin sembrar todavía),
+// por defecto NO es turno único — nunca se asume una restricción que nadie configuró.
+export function esDiaTurnoUnico(dow: number, dias: DiaTurnoUnicoRow[]): boolean {
+  return dias.find((d) => d.dayOfWeek === dow)?.activo ?? false;
+}

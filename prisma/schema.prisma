@@ -78,6 +78,17 @@ model ShiftConfig {
   updatedAt DateTime @updatedAt
 }
 
+// Días de la semana en que el turno se queda fijo en 1 todo el día — no se sugiere el 2
+// automáticamente por la hora (ej. domingo, si ese día solo se abre un turno). Editable
+// desde Configuración; sigue siendo solo una SUGERENCIA, igual que ShiftConfig: quien
+// registra puede cambiar a mano al turno 2 si de verdad lo necesita ese día.
+// dayOfWeek: 0=domingo … 6=sábado (mismo criterio que Date#getUTCDay()).
+model DiaTurnoUnico {
+  dayOfWeek Int      @id
+  activo    Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}
+
 model Movement {
   id            String  @id @default(cuid())
   businessDayId String

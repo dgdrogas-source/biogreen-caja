@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SHIFT_CONFIGS,
+  esDiaTurnoUnico,
   turnoPorHora,
   turnoSiguiente,
 } from "@/modules/nequi/calculations/turnos";
@@ -40,6 +41,27 @@ describe("turnoPorHora", () => {
   it("sin configuración usa los horarios por defecto", () => {
     expect(turnoPorHora("08:00", [])).toBe(1);
     expect(turnoPorHora("15:00", [])).toBe(2);
+  });
+});
+
+describe("esDiaTurnoUnico", () => {
+  const dias = [
+    { dayOfWeek: 0, activo: true }, // domingo
+    { dayOfWeek: 1, activo: false },
+    { dayOfWeek: 2, activo: false },
+  ];
+
+  it("domingo (0) activo → true", () => {
+    expect(esDiaTurnoUnico(0, dias)).toBe(true);
+  });
+
+  it("lunes (1) inactivo → false", () => {
+    expect(esDiaTurnoUnico(1, dias)).toBe(false);
+  });
+
+  it("día sin fila configurada (ej. BD sin sembrar) → false, nunca asume restricción", () => {
+    expect(esDiaTurnoUnico(5, dias)).toBe(false);
+    expect(esDiaTurnoUnico(3, [])).toBe(false);
   });
 });
 

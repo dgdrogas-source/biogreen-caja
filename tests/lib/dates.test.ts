@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { diffDays, startOfIsoWeek, startOfMonth } from "@/lib/dates";
+import { dayOfWeek, diffDays, startOfIsoWeek, startOfMonth } from "@/lib/dates";
+
+describe("dayOfWeek", () => {
+  it("domingo → 0", () => {
+    expect(dayOfWeek("2026-07-19")).toBe(0);
+  });
+
+  it("lunes → 1", () => {
+    expect(dayOfWeek("2026-07-13")).toBe(1);
+  });
+
+  it("sábado → 6", () => {
+    expect(dayOfWeek("2026-07-18")).toBe(6);
+  });
+});
 
 describe("startOfIsoWeek", () => {
   it("un lunes devuelve la misma fecha", () => {
