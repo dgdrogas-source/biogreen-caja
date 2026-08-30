@@ -90,11 +90,22 @@ export function MovementForm({
   const [pending, startTransition] = useTransition();
   // Turno sugerido por la hora; si ese ya está cerrado y el otro no, arranca en el abierto.
   const otherShift: Shift = defaultShift === 1 ? 2 : 1;
-  const initialShift: Shift =
+  const sugerido: Shift =
     shiftStatus[defaultShift] === "CLOSED" && shiftStatus[otherShift] !== "CLOSED"
       ? otherShift
       : defaultShift;
-  const [shift, setShift] = useState<Shift>(initialShift);
+  const [shift, setShift] = useState<Shift>(sugerido);
+  // La página se queda abierta cruzando la hora de cambio de turno (pasó el sábado
+  // 2026-08-29: toda la tarde se registró en el Turno 1). El servidor ya mandaba el turno
+  // nuevo en cada router.refresh(), pero useState congela su valor inicial y el selector
+  // seguía en el de la mañana. Se resincroniza mientras nadie lo haya tocado; una elección
+  // manual se respeta y no se pisa (hasta recargar la página).
+  const [elegidoAMano, setElegidoAMano] = useState(false);
+  const [sugeridoPrevio, setSugeridoPrevio] = useState<Shift>(sugerido);
+  if (sugerido !== sugeridoPrevio) {
+    setSugeridoPrevio(sugerido);
+    if (!elegidoAMano) setShift(sugerido);
+  }
   const [date, setDate] = useState<string>(today ?? "");
   // ¿Se está registrando en una fecha distinta a hoy? (solo aplica en modo admin)
   const backdated = allowDateChange && !!today && date !== today;
@@ -195,7 +206,10 @@ export function MovementForm({
               <button
                 key={s}
                 type="button"
-                onClick={() => setShift(s)}
+                onClick={() => {
+                  setElegidoAMano(true);
+                  setShift(s);
+                }}
                 disabled={closed}
                 className={`rounded-lg border-2 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
                   shift === s

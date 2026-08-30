@@ -47,11 +47,16 @@ import { getOrCreateDay } from "../server/businessDay";
 
 export type MovementWithUser = Awaited<ReturnType<typeof getDayMovements>>[number];
 
-// Horarios de los turnos (con respaldo a los valores por defecto si falta el seed).
+// Horarios de los turnos. SIEMPRE devuelve los dos: al que le falte fila en la BD se le
+// completa con su valor por defecto. Antes, si existía la fila del turno 1 pero no la del 2,
+// se devolvía solo la del 1 — y como Configuración dibuja una tarjeta por fila, el turno 2
+// no se podía configurar desde la web (quedaba con un horario por defecto invisible que
+// nadie había elegido). turnoPorHora ya hacía este mismo respaldo por su cuenta.
 export async function getShiftConfigs() {
   const rows = await prisma.shiftConfig.findMany({ orderBy: { shift: "asc" } });
-  if (rows.length > 0) return rows;
-  return DEFAULT_SHIFT_CONFIGS.map((c) => ({ ...c, updatedAt: new Date() }));
+  return DEFAULT_SHIFT_CONFIGS.map(
+    (def) => rows.find((r) => r.shift === def.shift) ?? { ...def, updatedAt: new Date() }
+  );
 }
 
 // Días de la semana marcados como "turno único" (ej. domingo): ese día el turno se queda
