@@ -177,7 +177,7 @@ export function MovimientosManualesCard({
         <button
           type="button"
           onClick={() => setAbierto(true)}
-          className="mt-3 w-full rounded-xl border-2 border-dashed border-gray-300 py-2.5 text-sm font-medium text-gray-500 hover:border-emerald-400 hover:text-emerald-700"
+          className="btn-inverso mt-3 rounded-lg px-4 py-2 text-sm font-semibold"
         >
           + Agregar movimiento
         </button>

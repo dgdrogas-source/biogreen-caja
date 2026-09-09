@@ -49,6 +49,14 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   PARTE_TURNO_DEVOLVER: { label: "Devolvió un parte de turno", style: "bg-amber-50 text-amber-700" },
   PARTE_TURNO_REABRIR: { label: "Reabrió un parte aprobado para corregir", style: "bg-amber-50 text-amber-700" },
   PARTE_TURNO_LIMPIEZA: { label: "Descartó los partes de turno anteriores a hoy", style: "bg-red-50 text-red-600" },
+  CIERRE_DIARIO_SALDO_CC: { label: "Confirmó el saldo de Cuenta Corriente", style: "bg-emerald-50 text-emerald-700" },
+  CIERRE_DIARIO_SALDO_DAVIPLATA: { label: "Confirmó el saldo de Daviplata", style: "bg-emerald-50 text-emerald-700" },
+  CIERRE_DIARIO_NOTA: { label: "Guardó la nota del cierre", style: "bg-gray-100 text-gray-700" },
+  CIERRE_DIARIO_DATAFONO: { label: "Registró el cierre del datáfono", style: "bg-blue-50 text-blue-700" },
+  CIERRE_DIARIO_CALCE_TARJETA: { label: "Confirmó el calce de una tarjeta", style: "bg-emerald-50 text-emerald-700" },
+  CIERRE_DIARIO_MOVIMIENTO_MANUAL_CREATE: { label: "Agregó un movimiento manual", style: "bg-emerald-50 text-emerald-700" },
+  CIERRE_DIARIO_MOVIMIENTO_MANUAL_DELETE: { label: "Quitó un movimiento manual", style: "bg-red-50 text-red-600" },
+  CIERRE_DIARIO_RESET: { label: "Reinició el módulo Cierre Diario", style: "bg-red-50 text-red-600" },
 };
 
 function formatValue(v: unknown): string {

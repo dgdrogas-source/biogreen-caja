@@ -9,6 +9,7 @@ import { CuentaCorrienteCard } from "@/modules/cierreDiario/components/CuentaCor
 import { DatafonoForm } from "@/modules/cierreDiario/components/DatafonoForm";
 import { DaviplataCard } from "@/modules/cierreDiario/components/DaviplataCard";
 import { MovimientosManualesCard } from "@/modules/cierreDiario/components/MovimientosManualesCard";
+import { NotaCierreCard } from "@/modules/cierreDiario/components/NotaCierreCard";
 import { PendientesTarjetaCard } from "@/modules/cierreDiario/components/PendientesTarjetaCard";
 import { ReiniciarCierreDiarioButton } from "@/modules/cierreDiario/components/ReiniciarCierreDiarioButton";
 import {
@@ -80,27 +81,27 @@ export default async function CierreDiarioPage() {
         Turnos registrados hoy: {ventas.turnosRegistrados.length === 0 ? "ninguno todavía" : ventas.turnosRegistrados.join(", ")}
       </p>
 
-      <CuentaCorrienteCard
-        date={date}
-        ultimaConfirmacion={ultimaConfirmacionCC}
-        diasSinConfirmar={diasSinConfirmar}
-        diasHueco={diasHueco}
-        transferenciasRango={transferenciasRango}
-        tarjetaLlegadaRango={tarjetaLlegadaRango}
-        ingresosManualesRango={ingresosManualesCC}
-        egresosManualesRango={egresosManualesCC}
-        saldoEsperado={saldoEsperadoCC}
-        saldoRealInicial={cierre?.saldoRealCC ?? null}
-        notaInicial={cierre?.notaCC ?? ""}
-        pendientesVencidos={pendientesVencidos.map((p) => ({ montoVendido: p.montoVendido }))}
-      />
+      <div className="grid items-start gap-4 md:grid-cols-2">
+        <CuentaCorrienteCard
+          date={date}
+          ultimaConfirmacion={ultimaConfirmacionCC}
+          diasSinConfirmar={diasSinConfirmar}
+          diasHueco={diasHueco}
+          transferenciasRango={transferenciasRango}
+          tarjetaLlegadaRango={tarjetaLlegadaRango}
+          ingresosManualesRango={ingresosManualesCC}
+          egresosManualesRango={egresosManualesCC}
+          saldoEsperado={saldoEsperadoCC}
+          saldoRealInicial={cierre?.saldoRealCC ?? null}
+          pendientesVencidos={pendientesVencidos.map((p) => ({ montoVendido: p.montoVendido }))}
+        />
 
-      <DaviplataCard
-        date={date}
-        ventaEsperada={ventas.daviplata}
-        saldoRealInicial={cierre?.saldoRealDaviplata ?? null}
-        notaInicial={cierre?.notaDaviplata ?? ""}
-      />
+        <DaviplataCard
+          date={date}
+          ventaEsperada={ventas.daviplata}
+          saldoRealInicial={cierre?.saldoRealDaviplata ?? null}
+        />
+      </div>
 
       <PendientesTarjetaCard
         items={pendientes.map((p) => ({
@@ -140,6 +141,8 @@ export default async function CierreDiarioPage() {
           impuesto4x1000: m.impuesto4x1000,
         }))}
       />
+
+      <NotaCierreCard date={date} notaInicial={cierre?.notaCC ?? ""} />
 
       {/* Cartera: los clientes/créditos pertenecen a Cierre Diario (decisión del dueño, 2026-07-15).
           Antes se enlazaba desde la página de Cierre General, ahora retirada. */}

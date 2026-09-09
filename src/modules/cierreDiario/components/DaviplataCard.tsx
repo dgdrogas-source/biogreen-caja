@@ -11,17 +11,14 @@ export function DaviplataCard({
   date,
   ventaEsperada,
   saldoRealInicial,
-  notaInicial,
 }: {
   date: string;
   ventaEsperada: number;
   saldoRealInicial: number | null;
-  notaInicial: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [saldoReal, setSaldoReal] = useState<number | null>(saldoRealInicial);
-  const [nota, setNota] = useState(notaInicial);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
 
@@ -36,7 +33,7 @@ export function DaviplataCard({
     setError(null);
     setOk(false);
     startTransition(async () => {
-      const r = await confirmarSaldoDaviplata({ date, saldoReal, nota: nota || undefined });
+      const r = await confirmarSaldoDaviplata({ date, saldoReal });
       if (r.ok) {
         setOk(true);
         router.refresh();
@@ -60,9 +57,15 @@ export function DaviplataCard({
         )}
       </div>
 
-      <div className="flex justify-between text-sm">
-        <span className="text-gray-500">Ventas Daviplata (boucher Dominium, ambos turnos)</span>
-        <span className="font-semibold text-gray-900">${ventaEsperada.toLocaleString("es-CO")}</span>
+      <div className="space-y-1 text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-500">Ventas Daviplata (boucher Dominium, ambos turnos)</span>
+          <span className="text-gray-700">${ventaEsperada.toLocaleString("es-CO")}</span>
+        </div>
+        <div className="flex justify-between border-t border-gray-100 pt-1.5 font-semibold text-gray-900">
+          <span>Saldo esperado</span>
+          <span>${ventaEsperada.toLocaleString("es-CO")}</span>
+        </div>
       </div>
 
       <div className="mt-3 border-t border-dashed border-gray-200 pt-3">
@@ -81,14 +84,9 @@ export function DaviplataCard({
         )}
 
         {diferencia !== null && !cuadra && (
-          <textarea
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            rows={2}
-            maxLength={300}
-            placeholder="Nota: ¿qué se encontró, o se dejó pendiente investigar?"
-            className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-          />
+          <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+            Deja constancia abajo, en <strong>Nota del cierre</strong>.
+          </p>
         )}
 
         {error && <p className="mt-2 text-center text-sm text-red-600">{error}</p>}

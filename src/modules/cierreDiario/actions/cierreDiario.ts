@@ -20,12 +20,12 @@ const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida");
 const confirmarSaldoSchema = z.object({
   date: dateSchema,
   saldoReal: z.number().int(),
-  nota: z.string().max(300).optional(),
 });
 
 // Confirma el saldo real de Cuenta Corriente observado en el banco. Si ya había un saldo
 // confirmado para este día, lo reemplaza (la administradora puede volver a mirar el banco y
-// corregir).
+// corregir). La nota del cierre se guarda aparte (guardarNotaCierre) — confirmar un saldo NO
+// la toca.
 export async function confirmarSaldoCuentaCorriente(
   input: z.infer<typeof confirmarSaldoSchema>
 ): Promise<ActionResult> {
@@ -36,11 +36,10 @@ export async function confirmarSaldoCuentaCorriente(
     await prisma.$transaction([
       prisma.cierreDiario.upsert({
         where: { date: d.date },
-        update: { saldoRealCC: d.saldoReal, notaCC: d.nota ?? null, cerradoById: user.id, cerradoAt: new Date() },
+        update: { saldoRealCC: d.saldoReal, cerradoById: user.id, cerradoAt: new Date() },
         create: {
           date: d.date,
           saldoRealCC: d.saldoReal,
-          notaCC: d.nota ?? null,
           cerradoById: user.id,
           cerradoAt: new Date(),
         },
@@ -72,14 +71,50 @@ export async function confirmarSaldoDaviplata(
     await prisma.$transaction([
       prisma.cierreDiario.upsert({
         where: { date: d.date },
-        update: { saldoRealDaviplata: d.saldoReal, notaDaviplata: d.nota ?? null },
-        create: { date: d.date, saldoRealDaviplata: d.saldoReal, notaDaviplata: d.nota ?? null },
+        update: { saldoRealDaviplata: d.saldoReal },
+        create: { date: d.date, saldoRealDaviplata: d.saldoReal },
       }),
       prisma.auditLog.create({
         data: {
           action: "CIERRE_DIARIO_SALDO_DAVIPLATA",
           changedById: user.id,
           fieldChanges: JSON.stringify({ dia: { before: null, after: d.date }, saldoReal: { before: null, after: d.saldoReal } }),
+        },
+      }),
+    ]);
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof z.ZodError) return { ok: false, error: e.issues[0]?.message ?? "Datos inválidos" };
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
+const notaSchema = z.object({
+  date: dateSchema,
+  nota: z.string().max(600),
+});
+
+// Nota del cierre del día (una sola, tarjeta propia en la pantalla). Se guarda en
+// CierreDiario.notaCC. `notaDaviplata` queda en la BD sin uso (deprecada).
+export async function guardarNotaCierre(input: z.infer<typeof notaSchema>): Promise<ActionResult> {
+  try {
+    const user = await requireAdmin();
+    const d = notaSchema.parse(input);
+    const nota = d.nota.trim() || null;
+
+    await prisma.$transaction([
+      prisma.cierreDiario.upsert({
+        where: { date: d.date },
+        update: { notaCC: nota },
+        create: { date: d.date, notaCC: nota },
+      }),
+      prisma.auditLog.create({
+        data: {
+          action: "CIERRE_DIARIO_NOTA",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({ dia: { before: null, after: d.date } }),
         },
       }),
     ]);

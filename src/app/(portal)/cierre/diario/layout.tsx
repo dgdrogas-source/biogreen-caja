@@ -9,13 +9,13 @@ export default async function CierreDiarioLayout({ children }: { children: React
   const partesPendientes = await contarPartesPendientes();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="mx-auto max-w-4xl space-y-4">
       <Link href="/inicio" className="text-sm text-emerald-700 hover:underline">
         ← Inicio
       </Link>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-bold text-gray-800">Cierre Diario</h1>
+        <h1 className="text-xl font-bold text-gray-800">Cierre bancario</h1>
         <nav className="flex gap-1 rounded-xl bg-gray-100 p-1 text-sm">
           <Link
             href="/cierre/diario"

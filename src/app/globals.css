@@ -142,3 +142,20 @@ body {
 }
 [data-theme] input::placeholder,
 [data-theme] textarea::placeholder { color: var(--th-muted); }
+
+/* ---- Botón "inverso" (secundario prominente) ----
+   Claro: botón oscuro, texto claro. Oscuro/Noche: botón claro, texto oscuro —
+   como en el mockup de Cierre bancario ("Confirmar calce", "+ Agregar movimiento").
+   Es una regla de clase (no utilidad), así que combina con clases Tailwind de
+   layout (padding, radio, tipografía) sin que estas la pisen. */
+.btn-inverso {
+  background-color: #18181b;
+  color: #fafafa;
+  transition: background-color 0.12s;
+}
+.btn-inverso:hover:not(:disabled) { background-color: #303034; }
+[data-theme] .btn-inverso {
+  background-color: var(--th-text-1);
+  color: var(--th-bg);
+}
+[data-theme] .btn-inverso:hover:not(:disabled) { background-color: var(--th-text-2); }

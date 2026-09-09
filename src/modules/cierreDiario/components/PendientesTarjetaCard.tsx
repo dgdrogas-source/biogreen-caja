@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { formatDateCo, todayBogota } from "@/lib/dates";
+import { addDays, todayBogota } from "@/lib/dates";
 import { MoneyInput } from "@/modules/nequi/components/MoneyInput";
 import { confirmarCalceTarjeta } from "../actions/cierreDiario";
 import { calcularCalceTarjeta } from "../calculations/calceTarjeta";
@@ -13,6 +13,20 @@ export interface PendienteItem {
   dateOrigen: string;
   franquicia: Franquicia;
   montoVendido: number;
+}
+
+// "2026-09-08" → "08/09"
+function ddmm(fecha: string): string {
+  const [, m, d] = fecha.split("-");
+  return `${d}/${m}`;
+}
+
+// Rango estimado de llegada: 1 a 2 días de calendario desde la venta (aprox., sin modelar
+// festivos — la fecha real se digita al confirmar el calce).
+function esperado(dateOrigen: string): string {
+  const a = ddmm(addDays(dateOrigen, 1));
+  const b = ddmm(addDays(dateOrigen, 2));
+  return a === b ? a : `${a}–${b}`;
 }
 
 export function PendientesTarjetaCard({ items }: { items: PendienteItem[] }) {
@@ -52,28 +66,28 @@ export function PendientesTarjetaCard({ items }: { items: PendienteItem[] }) {
 
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
-      <h2 className="mb-1 text-base font-semibold text-gray-800">Pendiente por consignar</h2>
-      <p className="mb-3 text-xs text-gray-400">
-        Tarjeta ya vendida que todavía no ha llegado al banco. No cuenta como descuadre.
-      </p>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-base font-semibold text-gray-800">Pendiente por consignar</h2>
+        <span className="text-xs text-gray-400">No cuenta como descuadre</span>
+      </div>
 
       {items.length === 0 ? (
         <p className="py-2 text-sm text-gray-400">No hay pendientes.</p>
       ) : (
         <div className="space-y-2">
           {items.map((i) => (
-            <div key={i.id} className="rounded-xl border border-gray-100 p-3">
-              <div className="flex items-center justify-between text-sm">
+            <div key={i.id} className="rounded-xl bg-gray-50 p-3">
+              <div className="flex items-center justify-between gap-3 text-sm">
                 <div>
-                  <p className="font-medium text-gray-800">{FRANQUICIA_LABELS[i.franquicia]}</p>
-                  <p className="text-xs text-gray-400">Vendido {formatDateCo(i.dateOrigen)}</p>
+                  <p className="font-semibold text-gray-800">{FRANQUICIA_LABELS[i.franquicia]}</p>
+                  <p className="text-xs text-gray-400">esperado {esperado(i.dateOrigen)}</p>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-gray-900">${i.montoVendido.toLocaleString("es-CO")}</p>
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold text-gray-900">${i.montoVendido.toLocaleString("es-CO")}</span>
                   <button
                     type="button"
-                    onClick={() => abrir(i)}
-                    className="text-xs font-medium text-emerald-700 hover:underline"
+                    onClick={() => (abriendoId === i.id ? setAbriendoId(null) : abrir(i))}
+                    className="btn-inverso whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold"
                   >
                     Confirmar calce
                   </button>
@@ -81,7 +95,7 @@ export function PendientesTarjetaCard({ items }: { items: PendienteItem[] }) {
               </div>
 
               {abriendoId === i.id && (
-                <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                <div className="mt-3 space-y-2 border-t border-gray-200 pt-3">
                   <label className="block text-xs text-gray-500">Monto que consignó el banco</label>
                   <MoneyInput value={montoConsignado} onChange={setMontoConsignado} />
                   <label className="block text-xs text-gray-500">Fecha de la consignación</label>

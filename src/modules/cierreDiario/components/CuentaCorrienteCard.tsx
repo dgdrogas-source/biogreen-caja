@@ -14,6 +14,17 @@ const CLASIFICACION_ESTILO: Record<ClasificacionDiferencia, { texto: string; cla
   REAL: { texto: "Diferencia real", clase: "bg-red-50 text-red-700", punto: "bg-red-500" },
 };
 
+// "2026-09-08" → "08/09"
+function ddmm(fecha: string): string {
+  const [, m, d] = fecha.split("-");
+  return `${d}/${m}`;
+}
+
+// -373374 → "-$373.374" (el signo va antes del $, no "$-373.374")
+function pesos(n: number): string {
+  return `${n < 0 ? "-" : ""}$${Math.abs(n).toLocaleString("es-CO")}`;
+}
+
 export function CuentaCorrienteCard({
   date,
   ultimaConfirmacion,
@@ -25,7 +36,6 @@ export function CuentaCorrienteCard({
   egresosManualesRango,
   saldoEsperado,
   saldoRealInicial,
-  notaInicial,
   pendientesVencidos,
 }: {
   date: string;
@@ -38,13 +48,11 @@ export function CuentaCorrienteCard({
   egresosManualesRango: number;
   saldoEsperado: number | null;
   saldoRealInicial: number | null;
-  notaInicial: string;
   pendientesVencidos: { montoVendido: number }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [saldoReal, setSaldoReal] = useState<number | null>(saldoRealInicial);
-  const [nota, setNota] = useState(notaInicial);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
 
@@ -54,7 +62,13 @@ export function CuentaCorrienteCard({
 
   // diasHueco > 0 → la mamá lleva días sin confirmar y el esperado suma los movimientos de
   // todo el hueco, no solo los de hoy.
-  const sufijoPeriodo = diasHueco > 0 ? " (del período sin confirmar)" : "";
+  const sufijo = diasHueco > 0 ? " del período" : " de hoy";
+  const etiquetaAncla =
+    ultimaConfirmacion === null
+      ? ""
+      : diasSinConfirmar === 1
+        ? "Saldo confirmado ayer"
+        : `Saldo confirmado ${ddmm(ultimaConfirmacion.date)}`;
 
   function confirmar() {
     if (saldoReal === null) {
@@ -64,7 +78,7 @@ export function CuentaCorrienteCard({
     setError(null);
     setOk(false);
     startTransition(async () => {
-      const r = await confirmarSaldoCuentaCorriente({ date, saldoReal, nota: nota || undefined });
+      const r = await confirmarSaldoCuentaCorriente({ date, saldoReal });
       if (r.ok) {
         setOk(true);
         router.refresh();
@@ -101,32 +115,32 @@ export function CuentaCorrienteCard({
           )}
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">Saldo confirmado ({formatDateCo(ultimaConfirmacion.date)})</span>
+              <span className="text-gray-500">{etiquetaAncla}</span>
               <span className="text-gray-700">${ultimaConfirmacion.saldoRealCC.toLocaleString("es-CO")}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">+ Transferencias{sufijoPeriodo}</span>
+              <span className="text-gray-500">+ Transferencias{sufijo}</span>
               <span className="text-gray-700">${transferenciasRango.toLocaleString("es-CO")}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">+ Tarjeta llegada{sufijoPeriodo}</span>
+              <span className="text-gray-500">+ Tarjeta llegada{sufijo}</span>
               <span className="text-gray-700">${tarjetaLlegadaRango.toLocaleString("es-CO")}</span>
             </div>
             {ingresosManualesRango > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-500">+ Ingresos manuales{sufijoPeriodo}</span>
+                <span className="text-gray-500">+ Ingresos manuales{sufijo}</span>
                 <span className="text-gray-700">${ingresosManualesRango.toLocaleString("es-CO")}</span>
               </div>
             )}
             {egresosManualesRango > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-500">− Movimientos manuales{sufijoPeriodo}</span>
+                <span className="text-gray-500">− Movimientos manuales{sufijo}</span>
                 <span className="text-gray-700">${egresosManualesRango.toLocaleString("es-CO")}</span>
               </div>
             )}
             <div className="flex justify-between border-t border-gray-100 pt-1.5 font-semibold text-gray-900">
               <span>Saldo esperado</span>
-              <span>${(saldoEsperado ?? 0).toLocaleString("es-CO")}</span>
+              <span>{pesos(saldoEsperado ?? 0)}</span>
             </div>
           </div>
         </>
@@ -148,14 +162,9 @@ export function CuentaCorrienteCard({
         )}
 
         {clasificacion === "REAL" && (
-          <textarea
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            rows={2}
-            maxLength={300}
-            placeholder="Nota: ¿qué se encontró, o se dejó pendiente investigar?"
-            className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-          />
+          <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+            Diferencia sin explicar. Deja constancia abajo, en <strong>Nota del cierre</strong>.
+          </p>
         )}
 
         {error && <p className="mt-2 text-center text-sm text-red-600">{error}</p>}
