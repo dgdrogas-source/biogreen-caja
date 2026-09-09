@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { todayBogota } from "@/lib/dates";
+import { getUltimaConfirmacionCC } from "@/modules/cierreDiario/queries";
 import { cuadreDelParte } from "../calculations/parteTurno";
+import { yaSeDescartaronPartesViejos } from "../queries";
 import { requireAdminAction } from "../server/guards";
 import type { ActionResult } from "../types";
 
@@ -105,6 +108,76 @@ export async function reabrirParteTurno(parteId: string): Promise<ActionResult> 
         },
       }),
     ]);
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
+// Limpieza inicial: borra TODOS los partes de turno con fecha anterior a hoy, de cualquier
+// estado (pendientes, borradores y aprobados del flujo viejo con Cierre General). Sus
+// gastos/facturas se van en cascada (onDelete: Cascade). Pensado para usarse UNA vez, antes de
+// que Cierre Diario entre en firme — el dueño no quiere arrastrar cierres mal reportados de
+// antes. NO toca BusinessDay, Movimientos de Nequi, ni el AuditLog (el historial de quién
+// registró qué se conserva). Doble confirmación en la UI; solo admin.
+//
+// DOS guardias en servidor (además del gate de la UI), porque un botón de una pestaña vieja o
+// del bfcache podría dispararla otro día:
+//  1. si ya se corrió una vez (AuditLog PARTE_TURNO_LIMPIEZA) → no se repite.
+//  2. si ya hay una confirmación de saldo de Cuenta Corriente de un día anterior → NO se corre:
+//     borrar partes dentro de la cadena del esperado de CC la corrompería en silencio
+//     (sub-contaría ventaTransferencia). La limpieza es solo para ANTES de empezar a conciliar.
+export async function descartarPartesAnteriores(): Promise<ActionResult> {
+  try {
+    const user = await requireAdminAction();
+    const hoy = todayBogota();
+
+    if (await yaSeDescartaronPartesViejos()) {
+      return { ok: false, error: "La limpieza inicial ya se hizo una vez" };
+    }
+    if (await getUltimaConfirmacionCC(hoy)) {
+      return {
+        ok: false,
+        error:
+          "Ya hay saldos de Cuenta Corriente confirmados: la limpieza solo se puede hacer antes de empezar a conciliar.",
+      };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Re-chequeo dentro de la transacción: si otro clic casi simultáneo ya la corrió, no
+      // se vuelve a borrar ni se escribe un 2º log.
+      if ((await tx.auditLog.count({ where: { action: "PARTE_TURNO_LIMPIEZA" } })) > 0) return;
+
+      const viejos = await tx.parteTurno.findMany({
+        where: { businessDay: { date: { lt: hoy } } },
+        select: { id: true, businessDay: { select: { date: true, shift: true } } },
+      });
+      if (viejos.length === 0) return;
+
+      const borrados = await tx.parteTurno.deleteMany({
+        where: { id: { in: viejos.map((p) => p.id) } },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: "PARTE_TURNO_LIMPIEZA",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({
+            partesBorrados: { before: `${borrados.count} partes`, after: "ninguno" },
+            alcance: { before: null, after: `partes con fecha anterior a ${hoy}` },
+            turnos: {
+              before: viejos
+                .map((p) => `${p.businessDay.date} T${p.businessDay.shift}`)
+                .join(", ")
+                .slice(0, 500),
+              after: null,
+            },
+          }),
+        },
+      });
+    });
 
     revalidatePath("/", "layout");
     return { ok: true };

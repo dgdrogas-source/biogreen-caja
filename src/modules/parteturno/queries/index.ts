@@ -52,6 +52,20 @@ export async function contarPartesPendientes(): Promise<number> {
   return prisma.parteTurno.count({ where: { estado: "ENVIADO" } });
 }
 
+// Partes de turno con fecha ANTERIOR a `hoy`, de cualquier estado — para el botón de limpieza
+// inicial (descartar el histórico viejo antes de que Cierre Diario arranque en firme).
+export async function contarPartesAnteriores(hoy: string): Promise<number> {
+  return prisma.parteTurno.count({ where: { businessDay: { date: { lt: hoy } } } });
+}
+
+// El botón "Empezar en limpio" es de UN SOLO USO: en cuanto se corre una vez queda el
+// AuditLog PARTE_TURNO_LIMPIEZA y no se vuelve a mostrar (si no, mañana los partes de HOY
+// contarían como "anteriores" y se podrían borrar cierres legítimos por error).
+export async function yaSeDescartaronPartesViejos(): Promise<boolean> {
+  const n = await prisma.auditLog.count({ where: { action: "PARTE_TURNO_LIMPIEZA" } });
+  return n > 0;
+}
+
 // Un parte por id, con sus items y la fecha/turno del BusinessDay — para la pantalla de
 // corrección del admin (/cierre/diario/partes/[id]).
 export async function getParteTurnoPorId(id: string) {

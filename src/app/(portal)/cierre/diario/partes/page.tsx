@@ -10,11 +10,15 @@ import {
   ParteRevisionCard,
   type ParteRevision,
 } from "@/modules/parteturno/components/ParteRevisionCard";
+import { DescartarPartesViejosButton } from "@/modules/parteturno/components/DescartarPartesViejosButton";
 import { ReabrirParteButton } from "@/modules/parteturno/components/ReabrirParteButton";
+import { getUltimaConfirmacionCC } from "@/modules/cierreDiario/queries";
 import {
+  contarPartesAnteriores,
   getPartesAprobadosRecientes,
   getPartesEnCorreccion,
   getPartesPendientes,
+  yaSeDescartaronPartesViejos,
 } from "@/modules/parteturno/queries";
 
 // Partes de turno. Aprobar solo BLOQUEA el parte (deja de poder editarse) y deja constancia en
@@ -26,11 +30,18 @@ export default async function PartesDeTurnoPage() {
   await requireAdmin();
 
   const hoy = todayBogota();
-  const [pendientes, enCorreccion, aprobados] = await Promise.all([
+  const [pendientes, enCorreccion, aprobados, partesViejos, yaLimpio, anclaCC] = await Promise.all([
     getPartesPendientes(),
     getPartesEnCorreccion(hoy),
     getPartesAprobadosRecientes(addDays(hoy, -15)),
+    contarPartesAnteriores(hoy),
+    yaSeDescartaronPartesViejos(),
+    getUltimaConfirmacionCC(hoy),
   ]);
+  // El botón de limpieza inicial: de un solo uso, y solo ANTES de empezar a conciliar Cuenta
+  // Corriente (si ya hay un saldo confirmado de un día previo, borrar partes de la cadena la
+  // descuadraría — la acción lo bloquea también en servidor).
+  const mostrarLimpieza = !yaLimpio && anclaCC === null && partesViejos > 0;
 
   const revisiones: ParteRevision[] = pendientes.map((p) => {
     const fila: ParteTurnoFila = {
@@ -148,6 +159,8 @@ export default async function PartesDeTurnoPage() {
           </ul>
         )}
       </div>
+
+      {mostrarLimpieza && <DescartarPartesViejosButton cantidad={partesViejos} />}
     </div>
   );
 }
