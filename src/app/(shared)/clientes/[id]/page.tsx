@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireWorkerOrAdmin } from "@/lib/permissions";
 import { todayBogota } from "@/lib/dates";
-import { ClienteHistorial, type HistorialItem } from "@/modules/nequi/components/ClienteHistorial";
-import { getClienteDetalle } from "@/modules/nequi/queries";
+import { ClienteHistorial, type HistorialItem } from "@/modules/clientes/components/ClienteHistorial";
+import { getClienteDetalle } from "@/modules/clientes/queries";
 import type { MedioPago, Shift } from "@/modules/nequi/types";
 
 export default async function ClienteDetallePage({

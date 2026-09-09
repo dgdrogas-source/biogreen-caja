@@ -1,29 +1,22 @@
 import { requireAdmin } from "@/lib/permissions";
-import { BolsasGeneralesConfig } from "@/modules/nequi/components/BolsasGeneralesConfig";
-import { CategoriasGastoConfig } from "@/modules/nequi/components/CategoriasGastoConfig";
+import { CategoriasGastoConfig } from "@/modules/cierreDiario/components/CategoriasGastoConfig";
+import { getCategoriasGasto } from "@/modules/cierreDiario/queries";
 import { DiasTurnoUnicoConfig } from "@/modules/nequi/components/DiasTurnoUnicoConfig";
 import { PocketBalancesConfig } from "@/modules/nequi/components/PocketBalancesConfig";
 import { ShiftConfigForm } from "@/modules/nequi/components/ShiftConfigForm";
-import {
-  getBolsasGenerales,
-  getCategoriasGasto,
-  getDiasTurnoUnico,
-  getPockets,
-  getShiftConfigs,
-} from "@/modules/nequi/queries";
-import { BOLSA_GENERAL_BUCKETS, POCKET_BUCKETS, type Shift } from "@/modules/nequi/types";
+import { getDiasTurnoUnico, getPockets, getShiftConfigs } from "@/modules/nequi/queries";
+import { POCKET_BUCKETS, type Shift } from "@/modules/nequi/types";
 
 // Cambios #2 y #6 — una sola pestaña agrupa los saldos iniciales de los 5
-// bolsillos y los horarios de los turnos (para no saturar el menú). Fase 2 del
-// Cierre general agrega aquí: categorías de gasto (editables) y las bolsas 70/30.
+// bolsillos y los horarios de los turnos (para no saturar el menú). Categorías de gasto
+// (Cierre Diario / Parte de Turno) vive aquí también por comodidad.
 export default async function ConfiguracionPage() {
   await requireAdmin();
-  const [pockets, shiftConfigs, diasTurnoUnico, categorias, bolsas] = await Promise.all([
+  const [pockets, shiftConfigs, diasTurnoUnico, categorias] = await Promise.all([
     getPockets(),
     getShiftConfigs(),
     getDiasTurnoUnico(),
     getCategoriasGasto(),
-    getBolsasGenerales(),
   ]);
 
   return (
@@ -41,14 +34,6 @@ export default async function ConfiguracionPage() {
           bucket: b,
           openingBalance: pockets[b].openingBalance,
           disponible: pockets[b].disponible,
-        }))}
-      />
-
-      <BolsasGeneralesConfig
-        items={BOLSA_GENERAL_BUCKETS.map((b) => ({
-          bucket: b,
-          openingBalance: b === "REPOSICION" ? bolsas.openingReposicion : bolsas.openingGastos,
-          acumulado: b === "REPOSICION" ? bolsas.reposicion : bolsas.gastosUtilidad,
         }))}
       />
 

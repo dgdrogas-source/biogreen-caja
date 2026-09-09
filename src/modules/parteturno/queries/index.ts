@@ -52,18 +52,6 @@ export async function contarPartesPendientes(): Promise<number> {
   return prisma.parteTurno.count({ where: { estado: "ENVIADO" } });
 }
 
-// Lo que YA hay guardado en el Cierre general de ese turno. Sirve para mostrarle al admin la
-// comparación "qué hay hoy vs qué entra con el parte" antes de aprobar.
-export async function getCierreDelTurnoParaComparar(businessDayId: string) {
-  return prisma.cierreGeneral.findUnique({
-    where: { businessDayId },
-    include: {
-      gastoItems: { select: { monto: true } },
-      facturaItems: { select: { monto: true } },
-    },
-  });
-}
-
 // ---------------------------------------------------------------------------
 // NEQUI → PARTE (flujo de una sola dirección).
 //

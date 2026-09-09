@@ -1,8 +1,9 @@
 import { requireWorkerOrAdmin } from "@/lib/permissions";
 import { todayBogota } from "@/lib/dates";
-import { ClientesList } from "@/modules/nequi/components/ClientesList";
-import { NuevoClienteForm } from "@/modules/nequi/components/NuevoClienteForm";
-import { getClientesConSaldo, getCurrentShift } from "@/modules/nequi/queries";
+import { ClientesList } from "@/modules/clientes/components/ClientesList";
+import { NuevoClienteForm } from "@/modules/clientes/components/NuevoClienteForm";
+import { getClientesConSaldo } from "@/modules/clientes/queries";
+import { getCurrentShift } from "@/modules/nequi/queries";
 
 export default async function ClientesPage() {
   await requireWorkerOrAdmin();

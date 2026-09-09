@@ -12,9 +12,9 @@ const OPCIONES = [
     descripcion: "Todo el programa de Caja Nequi: resumen, movimientos, cuadre del turno.",
   },
   {
-    href: "/cierre/general",
-    titulo: "Cierre general",
-    descripcion: "Cierre completo de la farmacia: ventas, facturas, retiro, gastos y cuadre.",
+    href: "/cierre/diario",
+    titulo: "Cierre Diario",
+    descripcion: "Conciliación diaria entre lo vendido y el dinero real en banco y Daviplata.",
   },
   {
     href: "/cierre/mes",

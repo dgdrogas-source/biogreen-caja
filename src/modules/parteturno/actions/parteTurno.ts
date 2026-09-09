@@ -8,9 +8,9 @@ import { METODOS_PAGO_ITEM_MANUAL } from "@/modules/nequi/types";
 import { assertEditable, fechaPermitida, requireSesion } from "../server/guards";
 import type { ActionResult } from "../types";
 
-// Acciones de la VENDEDORA sobre su parte de turno. Ninguna escribe en el módulo Nequi ni en
-// CierreGeneral: el parte vive en sus propias tablas y no mueve un peso hasta que el admin lo
-// aprueba (ver actions/aprobacion.ts).
+// Acciones de la VENDEDORA sobre su parte de turno. Ninguna escribe en el módulo Nequi: el
+// parte vive en sus propias tablas y no afecta Cierre Diario hasta que el admin lo aprueba
+// (ver actions/aprobacion.ts) — aprobar solo bloquea el parte, no vuelca nada a otro lado.
 
 const nonNeg = z.number().int().nonnegative("No puede ser negativo");
 
@@ -23,6 +23,7 @@ const guardarSchema = turnoSchema.extend({
   ventaEfectivo: nonNeg,
   ventaNequi: nonNeg,
   ventaTarjeta: nonNeg,
+  ventaTarjetaDebito: nonNeg,
   ventaDaviplata: nonNeg,
   ventaTransferencia: nonNeg,
   ventaCredito: nonNeg,
@@ -53,6 +54,7 @@ export async function guardarParteTurno(input: GuardarParteInput): Promise<Actio
       ventaEfectivo: d.ventaEfectivo,
       ventaNequi: d.ventaNequi,
       ventaTarjeta: d.ventaTarjeta,
+      ventaTarjetaDebito: d.ventaTarjetaDebito,
       ventaDaviplata: d.ventaDaviplata,
       ventaTransferencia: d.ventaTransferencia,
       ventaCredito: d.ventaCredito,
@@ -82,6 +84,7 @@ export async function guardarParteTurno(input: GuardarParteInput): Promise<Actio
                 d.ventaEfectivo +
                 d.ventaNequi +
                 d.ventaTarjeta +
+                d.ventaTarjetaDebito +
                 d.ventaDaviplata +
                 d.ventaTransferencia +
                 d.ventaCredito +
@@ -101,7 +104,7 @@ export async function guardarParteTurno(input: GuardarParteInput): Promise<Actio
 }
 
 // Crea el parte "cascarón" si aún no existe, para poder colgarle un gasto/factura antes de
-// haber guardado las ventas (mismo patrón que ensureCierreGeneral).
+// haber guardado las ventas (mismo patrón que ensureMensualDia).
 async function ensureParte(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   businessDayId: string,

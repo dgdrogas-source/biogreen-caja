@@ -3,15 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { ensureCierreGeneral } from "@/modules/nequi/actions/cierreGeneral";
-import { sincronizarComisionTarjeta } from "@/modules/nequi/server/comisionTarjeta";
 import { cuadreDelParte } from "../calculations/parteTurno";
 import { requireAdminAction } from "../server/guards";
 import type { ActionResult } from "../types";
 
-// EL PUNTO DE CONTROL. Hasta aquí, nada de lo que registró la vendedora ha movido un peso:
-// bolsas, resumen y rentabilidad se derivan de CierreGeneral, y el parte vive en tablas
-// aparte. Aprobar es lo que lo vuelca.
+// EL PUNTO DE CONTROL. Hasta aquí, nada de lo que registró la vendedora ha movido un peso ni
+// afectado ninguna cuenta — el parte vive en sus propias tablas (ParteTurno/ParteTurnoGasto/
+// ParteTurnoFactura). Aprobar solo LOCK-ea el parte (ya no se puede editar ni devolver) y dejar
+// constancia en el AuditLog.
+//
+// Desde 2026-09-09 (retiro de Cierre General) aprobar NO vuelca nada a ningún otro lado: los
+// gastos/facturas del turno YA son filas reales desde que la vendedora los agregó
+// (agregarGastoParte/agregarFacturaParte, con assertEditable) — no hay nada que copiar. Cierre
+// Diario lee directo de los ParteTurno del día (ver cierreDiario/queries → getVentasDelDia),
+// no necesita que "aprobar" le escriba nada aparte.
 //
 // Sigue sin tocarse el módulo Nequi: no se crea ni un Movement.
 
@@ -19,17 +24,11 @@ export async function aprobarParteTurno(parteId: string): Promise<ActionResult> 
   try {
     const user = await requireAdminAction();
 
-    // Se congela el % vigente AHORA, igual que hace guardarCierreGeneral. Si no se congelara
-    // aquí, se repetiría el bug de los porcentajes que este proyecto ya pagó dos veces.
-    const cfg = await prisma.cierreGeneralConfig.findUnique({ where: { id: 1 } });
-    const porcentajeReposicion = cfg?.porcentajeReposicion ?? 70;
-    const porcentajeTercero = cfg?.porcentajeTercero ?? 0;
-
     await prisma.$transaction(async (tx) => {
       // El CANDADO va primero, y es un update CONDICIONAL: solo pasa a APROBADO si todavía
       // está en ENVIADO. Leer el estado y actualizarlo después no bastaría —entre las dos
       // consultas otra aprobación podría colarse (aislamiento read committed) y el parte se
-      // volcaría dos veces—. Con el update condicional, la segunda transacción espera al
+      // aprobaría dos veces—. Con el update condicional, la segunda transacción espera al
       // commit de la primera, vuelve a evaluar el WHERE y no afecta ninguna fila.
       const marcado = await tx.parteTurno.updateMany({
         where: { id: parteId, estado: "ENVIADO" },
@@ -44,64 +43,9 @@ export async function aprobarParteTurno(parteId: string): Promise<ActionResult> 
         include: { gastoItems: true, facturaItems: true },
       });
 
-      const cierre = await ensureCierreGeneral(tx, parte.businessDayId, user.id);
-
-      // El descuadre de caja se calcula con la MISMA fórmula del Cierre general (función pura
-      // testeada), no se copia de un campo que la vendedora hubiera podido teclear.
+      // El descuadre se calcula con la MISMA fórmula que ve la vendedora en su resumen
+      // (función pura testeada), no se copia de un campo que hubiera podido teclear.
       const cuadre = cuadreDelParte(parte);
-
-      // Las ventas, el retiro y el conteo SOBRESCRIBEN: son la foto del recibo del POS.
-      await tx.cierreGeneral.update({
-        where: { id: cierre.id },
-        data: {
-          porcentajeReposicion,
-          porcentajeTercero,
-          ventaEfectivo: parte.ventaEfectivo,
-          ventaNequi: parte.ventaNequi,
-          ventaTarjeta: parte.ventaTarjeta,
-          ventaDaviplata: parte.ventaDaviplata,
-          ventaTransferencia: parte.ventaTransferencia,
-          ventaCredito: parte.ventaCredito,
-          ventaOtro: parte.ventaOtro,
-          ventaSinFactura: parte.ventaSinFactura,
-          retiroCierre: parte.retiroCierre,
-          realEfectivo: parte.realEfectivo,
-          descuadre: cuadre.descuadre,
-          nota: parte.nota,
-        },
-      });
-
-      // Los gastos y facturas se AÑADEN: si el admin ya había registrado algo en ese turno,
-      // no se borra. Cada item queda marcado con su parteTurnoId (trazabilidad: "esto lo
-      // registró la vendedora").
-      if (parte.gastoItems.length > 0) {
-        await tx.cierreGeneralGasto.createMany({
-          data: parte.gastoItems.map((g) => ({
-            cierreGeneralId: cierre.id,
-            categoriaId: g.categoriaId,
-            proveedorId: g.proveedorId,
-            monto: g.monto,
-            descripcion: g.descripcion,
-            metodoPago: g.metodoPago,
-            parteTurnoId: parte.id,
-          })),
-        });
-      }
-      if (parte.facturaItems.length > 0) {
-        await tx.cierreGeneralFactura.createMany({
-          data: parte.facturaItems.map((f) => ({
-            cierreGeneralId: cierre.id,
-            proveedorId: f.proveedorId,
-            monto: f.monto,
-            descripcion: f.descripcion,
-            metodoPago: f.metodoPago,
-            parteTurnoId: parte.id,
-          })),
-        });
-      }
-
-      // Mismo gasto automático del 4% que crearía guardar el cierre a mano (helper compartido).
-      const montoComision = await sincronizarComisionTarjeta(tx, cierre.id, parte.ventaTarjeta);
 
       await tx.auditLog.create({
         data: {
@@ -110,9 +54,6 @@ export async function aprobarParteTurno(parteId: string): Promise<ActionResult> 
           changedById: user.id,
           fieldChanges: JSON.stringify({
             estado: { before: "ENVIADO", after: "APROBADO" },
-            gastosVolcados: { before: null, after: parte.gastoItems.length },
-            facturasVolcadas: { before: null, after: parte.facturaItems.length },
-            comisionTarjeta: { before: null, after: montoComision },
             descuadre: { before: null, after: cuadre.descuadre },
           }),
         },
@@ -132,8 +73,8 @@ const devolverSchema = z.object({
 });
 
 // Devuelve el parte a BORRADOR para que la vendedora lo corrija. Solo desde ENVIADO: un parte
-// ya APROBADO se corrige en la pantalla normal del Cierre general — deshacer el volcado sería
-// corregir dos sitios a la vez y es justo donde se pierden los datos.
+// ya APROBADO es histórico de solo lectura — deshacer una aprobación sería corregir dos sitios
+// a la vez y es justo donde se pierden los datos.
 export async function devolverParteTurno(
   input: z.infer<typeof devolverSchema>
 ): Promise<ActionResult> {
@@ -148,7 +89,7 @@ export async function devolverParteTurno(
         ok: false,
         error:
           parte.estado === "APROBADO"
-            ? "Este parte ya fue aprobado. Corrígelo desde el Cierre general del turno."
+            ? "Este parte ya fue aprobado y no se puede modificar."
             : "Este parte todavía está en borrador",
       };
     }

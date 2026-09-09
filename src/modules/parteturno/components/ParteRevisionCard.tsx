@@ -25,11 +25,6 @@ export interface ParteRevision {
   nota: string | null;
   gastos: ParteRevisionLinea[];
   facturas: ParteRevisionLinea[];
-  comisionTarjeta: number;
-  // Vista previa: qué quedará en el Cierre general si se aprueba.
-  previa: { reposicionNeta: number; utilidadDia: number; consignar: number };
-  // Qué hay YA guardado en el cierre de ese turno (para no aprobar a ciegas).
-  yaEnCierre: { ventaTotal: number; gastos: number; facturas: number } | null;
 }
 
 export function ParteRevisionCard({ parte }: { parte: ParteRevision }) {
@@ -59,8 +54,6 @@ export function ParteRevisionCard({ parte }: { parte: ParteRevision }) {
       } else setError(r.error);
     });
   }
-
-  const pisaVentas = (parte.yaEnCierre?.ventaTotal ?? 0) > 0;
 
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
@@ -144,62 +137,12 @@ export function ParteRevisionCard({ parte }: { parte: ParteRevision }) {
             </span>
           </div>
         )}
-        {parte.comisionTarjeta > 0 && (
-          <div className="flex justify-between">
-            <span className="text-gray-500">Comisión 4% de tarjeta (automática)</span>
-            <span className="text-gray-800">
-              ${parte.comisionTarjeta.toLocaleString("es-CO")}
-            </span>
-          </div>
-        )}
       </div>
 
       {parte.nota && (
         <p className="mb-3 rounded-lg bg-gray-50 p-2 text-xs text-gray-600">
           Nota de la vendedora: {parte.nota}
         </p>
-      )}
-
-      {/* Vista previa del resultado */}
-      <div className="mb-3 rounded-xl bg-emerald-50 p-3">
-        <p className="mb-1 text-xs font-semibold text-emerald-800">Si apruebas, quedará así</p>
-        <div className="space-y-0.5 text-sm text-emerald-900">
-          <div className="flex justify-between">
-            <span>Reposición neta</span>
-            <span className="font-medium">
-              ${Math.round(parte.previa.reposicionNeta).toLocaleString("es-CO")}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span>Utilidad del turno</span>
-            <span className="font-medium">
-              ${Math.round(parte.previa.utilidadDia).toLocaleString("es-CO")}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span>A consignar</span>
-            <span className="font-medium">
-              ${Math.round(parte.previa.consignar).toLocaleString("es-CO")}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Aviso de sobrescritura: no aprobar a ciegas */}
-      {parte.yaEnCierre && (
-        <div className="mb-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
-          <p className="font-semibold">Este turno ya tiene datos en el Cierre general</p>
-          <p className="mt-1">
-            Venta ${parte.yaEnCierre.ventaTotal.toLocaleString("es-CO")} · gastos $
-            {parte.yaEnCierre.gastos.toLocaleString("es-CO")} · facturas $
-            {parte.yaEnCierre.facturas.toLocaleString("es-CO")}.
-          </p>
-          <p className="mt-1">
-            {pisaVentas
-              ? "Al aprobar, la VENTA y el retiro se reemplazan por los del parte; los gastos y facturas se SUMAN a los que ya hay."
-              : "Al aprobar, los gastos y facturas del parte se SUMAN a los que ya hay."}
-          </p>
-        </div>
       )}
 
       {error && (

@@ -24,14 +24,11 @@ model User {
   auditLogs              AuditLog[]
   closedDays             BusinessDay[]
   pocketTransfers        PocketTransfer[]
-  cierresGenerales       CierreGeneral[]
   ventasCredito          VentaCredito[]
   abonosCredito          AbonoCredito[]
-  closureDifferences     ClosureDifference[]
-  closureDifferenceResoluciones ClosureDifferenceResolution[]
   mensualDias            MensualDia[]
-  tarjetaAbonos          TarjetaAbono[]
-  plataformaTransferencias PlataformaTransferencia[]
+  cierresDiarios         CierreDiario[]
+  movimientosManualesCierreDiario CierreDiarioMovimientoManual[]
   licorCompras           LicorCompra[]
   licorVentas            LicorVenta[]
   licorAbonos            LicorAbono[]
@@ -63,7 +60,6 @@ model BusinessDay {
 
   movements     Movement[]
   auditLogs     AuditLog[]
-  cierreGeneral CierreGeneral?
   parteTurno    ParteTurno?
 
   @@unique([date, shift])
@@ -167,20 +163,6 @@ model BaseFund {
   updatedAt    DateTime @updatedAt
 }
 
-// Config global del Cierre general (una sola fila, id=1). El % de reposición es editable
-// por el admin en cualquier momento; su complemento (gastos/utilidad) = 100 − este. Al
-// guardar un cierre se copia este % al cierre (CierreGeneral.porcentajeReposicion) para
-// congelar el historial. puntoEquilibrio = venta diaria mínima de referencia (semáforo).
-model CierreGeneralConfig {
-  id                   Int      @id @default(1)
-  porcentajeReposicion Int      @default(70)
-  // Tercer bucket del reparto (2026-07-19), default 0. Resta de gastos/utilidad, no de
-  // reposición. Los tres (reposición + tercero + gastos/utilidad) siempre suman 100%.
-  porcentajeTercero    Int      @default(0)
-  puntoEquilibrio      Int      @default(1100000)
-  updatedAt            DateTime @updatedAt
-}
-
 // Saldo inicial manual por bolsillo (ajuste puntual del dueño, fuera de
 // Movement/PocketTransfer). Solo existe fila para los bolsillos ajustados;
 // los demás se tratan como 0 (ver getPockets()).
@@ -191,71 +173,9 @@ model PocketBalance {
   updatedAt       DateTime @updatedAt
 }
 
-// "Cierre general" de la farmacia: un registro por turno (BusinessDay). Guarda la venta
-// desglosada por medio de pago (de Dominium) y los flujos del cierre (facturas, gastos,
-// retiro, consignación). El reparto 70/30, la utilidad y el cuadre se calculan en caliente
-// (ver calculations/cierreGeneral.ts). No toca el módulo Nequi.
-model CierreGeneral {
-  id            String      @id @default(cuid())
-  businessDayId String      @unique
-  businessDay   BusinessDay @relation(fields: [businessDayId], references: [id])
-
-  // Venta por medio de pago (esperado, de Dominium)
-  ventaEfectivo      Int @default(0)
-  ventaNequi         Int @default(0)
-  ventaTarjeta       Int @default(0)
-  ventaDaviplata     Int @default(0)
-  ventaTransferencia Int @default(0)
-  ventaCredito       Int @default(0)
-  ventaOtro          Int @default(0)
-  ventaSinFactura    Int @default(0)
-
-  // Real (para el cuadre): por ahora el crítico es el efectivo contado
-  realEfectivo Int?
-
-  // Flujos del cierre
-  // DEPRECADOS (Fase 2): ya no se escriben desde guardarCierreGeneral. Se conservan en la BD
-  // para no perder el histórico de cierres guardados en Fase 1 (fallback de lectura, ver
-  // calculations/cierreGeneralItems.ts → sumarConFallback). La fuente de verdad ahora son
-  // gastoItems/facturaItems (itemizados, con categoría).
-  facturasPagadas Int     @default(0) // @deprecated — usar facturaItems
-  gastosVarios    Int     @default(0) // @deprecated — usar gastoItems
-  retiroCierre    Int     @default(0) // efectivo retirado al cerrar
-  descuadre       Int? // sobra/falta observado (manual)
-  nota            String?
-  consignado      Boolean @default(false) // marcado manual: ¿ya se hizo la consignación pendiente?
-
-  // Snapshot del % de reposición vigente al guardar este cierre. "Congela el historial":
-  // cambiar el % global (CierreGeneralConfig) NO altera cierres ya guardados; solo los
-  // nuevos (o los que se re-guarden). Los cierres de Fase 1/2 quedan en 70 por el DEFAULT.
-  porcentajeReposicion Int @default(70)
-  // Snapshot del % tercero vigente al guardar (mismo patrón que porcentajeReposicion). 0 en
-  // los cierres anteriores a 2026-07-19 por el DEFAULT.
-  porcentajeTercero    Int @default(0)
-
-  createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  gastoItems    CierreGeneralGasto[]
-  facturaItems  CierreGeneralFactura[]
-  diferencias   ClosureDifference[]
-}
-
-// ---------- Bolsas acumuladas 70/30 ----------
-// Saldo inicial manual por bolsa (mismo patrón que PocketBalance.openingBalance, pero en
-// tabla propia y aislada: NO reutiliza pockets.ts/POCKET_BUCKETS ni Movement, a propósito,
-// para no arriesgar el módulo Nequi). El acumulado NO se persiste aquí: se calcula en caliente
-// sumando reposicionNeta/utilidadDia de TODOS los CierreGeneral (ver calculations/bolsas.ts)
-// más este openingBalance.
-model BolsaGeneral {
-  bucket         String   @id // REPOSICION | GASTOS_UTILIDAD
-  openingBalance Int      @default(0)
-  updatedAt      DateTime @updatedAt
-}
-
 // ---------- Gastos clasificados por categoría (editable por el admin) ----------
+// Antes compartida con "Cierre general" (retirado 2026-09-09); hoy la usa solo Parte de
+// Turno / Cierre Diario.
 model CategoriaGasto {
   id        String   @id @default(cuid())
   nombre    String   @unique
@@ -264,64 +184,15 @@ model CategoriaGasto {
   activa    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  gastos       CierreGeneralGasto[]
   partesGastos ParteTurnoGasto[]
-}
-
-// Gasto individual del turno. Reemplaza el input directo CierreGeneral.gastosVarios (deprecado).
-// El total del turno = suma de estos items.
-model CierreGeneralGasto {
-  id              String         @id @default(cuid())
-  cierreGeneralId String
-  cierreGeneral   CierreGeneral  @relation(fields: [cierreGeneralId], references: [id], onDelete: Cascade)
-  categoriaId     String
-  categoria       CategoriaGasto @relation(fields: [categoriaId], references: [id])
-  monto           Int
-  descripcion     String?
-  metodoPago      String? // EFECTIVO_CAJA | EFECTIVO_SOBRE | NEQUI | DAVIPLATA | DATAFONO | TRANSFERENCIA | DESCONTADO_ORIGEN | OTRO (null = EFECTIVO_CAJA)
-  proveedorId     String? // Proveedor tipo GASTO (opcional: no todo gasto tiene un proveedor externo)
-  proveedorRef    Proveedor?     @relation("ProveedorGastos", fields: [proveedorId], references: [id])
-  // true = gasto creado por el sistema (4% de tarjeta, o 4x1000 de una transferencia interna).
-  // Se re-ajusta solo al re-guardar el cierre / se borra en cascada con su transferencia; la
-  // dueña no lo edita a mano.
-  autoGenerado    Boolean        @default(false)
-  // Parte de turno del que salió este gasto (2026-07-29). Columna SUELTA a propósito, sin
-  // relación Prisma (mismo criterio que LicorVenta.movementId): es trazabilidad —"esto lo
-  // registró la vendedora en su parte"—, no una restricción referencial. Null = lo registró
-  // el admin directamente, o es anterior al módulo Parte de turno.
-  parteTurnoId    String?
-  createdAt       DateTime       @default(now())
-
-  plataformaTransferencia PlataformaTransferencia?
-
-  @@index([cierreGeneralId])
-  @@index([proveedorId])
-}
-
-// Factura de proveedor pagada, itemizada. Reemplaza CierreGeneral.facturasPagadas (deprecado).
-model CierreGeneralFactura {
-  id              String        @id @default(cuid())
-  cierreGeneralId String
-  cierreGeneral   CierreGeneral @relation(fields: [cierreGeneralId], references: [id], onDelete: Cascade)
-  proveedor       String? // @deprecated — texto libre legado; usar proveedorId (Proveedor tipo COSTO)
-  proveedorId     String?
-  proveedorRef    Proveedor?    @relation("ProveedorFacturas", fields: [proveedorId], references: [id])
-  monto           Int
-  descripcion     String?
-  metodoPago      String? // EFECTIVO | NEQUI | DAVIPLATA | TRANSFERENCIA | OTRO (null = se asume EFECTIVO)
-  // Ver la nota de CierreGeneralGasto.parteTurnoId — columna suelta de trazabilidad.
-  parteTurnoId    String?
-  createdAt       DateTime      @default(now())
-
-  @@index([cierreGeneralId])
-  @@index([proveedorId])
 }
 
 // ---------- Proveedores (Costo/facturas y Gastos, editable por el admin) ----------
 // Un proveedor es de UN tipo (COSTO o GASTO); si el dueño necesita el mismo nombre en ambos
 // contextos, crea dos registros (2026-07-15, confirmado con el dueño). "Eliminar" desactiva
 // si el proveedor ya tiene facturas/gastos asociados (protege el histórico); se borra
-// físicamente solo si nunca se usó (mismo patrón que CategoriaGasto).
+// físicamente solo si nunca se usó (mismo patrón que CategoriaGasto). Antes compartido con
+// "Cierre general" (retirado 2026-09-09); hoy lo usa solo Parte de Turno / Cierre Diario.
 model Proveedor {
   id        String   @id @default(cuid())
   nombre    String
@@ -329,13 +200,10 @@ model Proveedor {
   activa    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  // Cómo cobra habitualmente (2026-07-17, Fase 2 saldos por plataforma): al elegir este
-  // proveedor en el formulario de gastos/facturas, se pre-selecciona este método (ella puede
-  // cambiarlo). Evita rotar plata innecesariamente — paga desde donde el proveedor cobra.
+  // Cómo cobra habitualmente: al elegir este proveedor en el formulario de gastos/facturas,
+  // se pre-selecciona este método (se puede cambiar).
   medioPagoHabitual String? // EFECTIVO_CAJA | EFECTIVO_SOBRE | NEQUI | DAVIPLATA | DATAFONO | TRANSFERENCIA | OTRO
 
-  facturas CierreGeneralFactura[] @relation("ProveedorFacturas")
-  gastos   CierreGeneralGasto[] @relation("ProveedorGastos")
   partesFacturas ParteTurnoFactura[] @relation("ProveedorPartesFacturas")
   partesGastos   ParteTurnoGasto[]   @relation("ProveedorPartesGastos")
 
@@ -356,7 +224,7 @@ model Cliente {
 
 // date/shift son columnas sueltas (NO FK a BusinessDay a propósito): una venta a crédito se
 // registra en cualquier momento del día, no atada al ciclo de apertura/cierre de turno de
-// Nequi. El campo "Crédito" de CierreGeneral (venta por medio, de Dominium) sigue siendo un
+// Nequi. El campo "Crédito" del Parte de Turno (venta por medio, de Dominium) sigue siendo un
 // número de control aparte — no se fuerza a que cuadren exacto, son dos fuentes distintas.
 // deletedAt = soft delete (mismo patrón que Movement), para poder editar/borrar sin perder auditoría.
 model VentaCredito {
@@ -392,43 +260,6 @@ model AbonoCredito {
 
   @@index([clienteId])
   @@index([date])
-}
-
-// ---------- Registro de sobrante/faltante con resolución ----------
-// Cuando hay diferencia en el cierre, se registra aquí con la razón y cómo se resolvió.
-model ClosureDifference {
-  id              String                      @id @default(cuid())
-  cierreGeneralId String
-  cierreGeneral   CierreGeneral               @relation(fields: [cierreGeneralId], references: [id], onDelete: Cascade)
-  tipo            String // SOBRANTE | FALTANTE
-  monto           Int
-  razonProbable   String // enum: Cliente pagó por método incorrecto, Olvido abono crédito, Error facturación, Pago incorrecto, Otro
-  descripcion     String? // notas libres del admin
-  estado          String @default("PENDIENTE_RESOLUCION") // PENDIENTE_RESOLUCION | RESUELTO
-  createdById     String
-  createdBy       User     @relation(fields: [createdById], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  resoluciones ClosureDifferenceResolution[]
-
-  @@index([cierreGeneralId])
-}
-
-// Cómo se resolvió una diferencia (ej: mover dinero de una plataforma a otra).
-model ClosureDifferenceResolution {
-  id          String             @id @default(cuid())
-  differenciaId String
-  diferencia  ClosureDifference  @relation(fields: [differenciaId], references: [id], onDelete: Cascade)
-  tipoAjuste  String // Transferencia entre métodos, Crear abono crédito, Registrar pago faltante, Otro
-  detalles    String? // ej: "Pasar $20k de datáfono a Nequi"
-  monto       Int
-  confirmado  Boolean @default(false)
-  createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-
-  @@index([differenciaId])
 }
 
 // ============================================================================
@@ -500,68 +331,6 @@ model MensualDiferencia {
   createdAt    DateTime   @default(now())
 
   @@index([mensualDiaId])
-}
-
-// ============================================================================
-// SALDOS POR PLATAFORMA (Cierre general, 2026-07-17). Ver el diseño en CLAUDE.md.
-// El saldo de cada plataforma se calcula EN CALIENTE (calculations/plataformas.ts) sumando
-// ventas/pagos/abonos/transferencias; estas tablas solo guardan lo que no se puede derivar.
-// ============================================================================
-
-// Saldo inicial manual por plataforma (mismo patrón que BolsaGeneral). Solo hay fila para
-// las plataformas ajustadas; el resto se trata como 0.
-model PlataformaSaldoInicial {
-  plataforma     String   @id // SOBRE_BLANCO | NEQUI | BANCO | DAVIPLATA
-  openingBalance Int      @default(0)
-  updatedAt      DateTime @updatedAt
-}
-
-// Ledger de abonos de tarjeta confirmados por la dueña (el banco abona la venta en NETO —
-// venta − 4% — al día siguiente, y puede abonar parcial). Cada clic de "ya llegó" es una
-// fila. El pendiente = Σ(venta tarjeta × 96%) − Σ abonos (se calcula, no se guarda).
-model TarjetaAbono {
-  id          String   @id @default(cuid())
-  date        String // YYYY-MM-DD en que la dueña confirma el abono
-  monto       Int // neto que entró al banco (lo que ella ve en la app)
-  nota        String?
-  createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-
-  @@index([date])
-}
-
-// Movimiento real de plata entre plataformas propias (ej. Banco → Nequi para juntar lo de
-// facturas). El dinero llega COMPLETO; el 4x1000 se cobra aparte y reduce la plataforma
-// origen (impuesto4x1000). Aislado a propósito de PocketTransfer del módulo Nequi.
-// Fila única (id=1). Corrige el "pendiente de tarjeta" mostrado el día que se activa la
-// función: sin esto, sumaría TODA la venta histórica con tarjeta como si nunca se hubiera
-// abonado. La dueña la fija una vez al monto que ya sabe que el banco le pagó en el pasado.
-// Solo afecta lo que se MUESTRA como pendiente — no toca el saldo de ninguna plataforma.
-model TarjetaConfig {
-  id                     Int      @id @default(1)
-  ajustePendienteInicial Int      @default(0)
-  updatedAt              DateTime @updatedAt
-}
-
-model PlataformaTransferencia {
-  id             String   @id @default(cuid())
-  fromPlataforma String // SOBRE_BLANCO | NEQUI | BANCO | DAVIPLATA
-  toPlataforma   String
-  monto          Int
-  impuesto4x1000 Int      @default(0) // 4x1000 que el banco cobró por el movimiento (reduce el origen)
-  nota           String?
-  createdById    String
-  createdBy      User     @relation(fields: [createdById], references: [id])
-  createdAt      DateTime @default(now())
-  // Gasto DESCONTADO_ORIGEN creado automáticamente cuando impuesto4x1000 > 0 (Fase 2), para
-  // que el 4x1000 SÍ reduzca la bolsa de gastos (el saldo de plataforma ya lo descuenta por
-  // su cuenta arriba — este gasto es solo para la contabilidad de la bolsa). Se borra en
-  // cascada si se elimina el movimiento.
-  gastoGeneradoId String?             @unique
-  gastoGenerado   CierreGeneralGasto? @relation(fields: [gastoGeneradoId], references: [id], onDelete: SetNull)
-
-  @@index([createdAt])
 }
 
 // ============================================================================
@@ -732,15 +501,15 @@ model LicorCierre {
 }
 
 // ============================================================================
-// MÓDULO PARTE DE TURNO (2026-07-29). La vendedora registra al cambio de turno el
-// "Cuadre de Caja" que ya genera en Dominium (venta por medio de pago, retiro,
-// facturas y gastos); el ADMINISTRADOR lo aprueba, y solo entonces se vuelca a
-// CierreGeneral. Antes de aprobar no mueve un peso.
+// MÓDULO PARTE DE TURNO (2026-07-29; desacoplado de Cierre General el 2026-09-09). La
+// vendedora registra al cambio de turno el "Cuadre de Caja" que ya genera en Dominium
+// (venta por medio de pago, retiro, facturas y gastos); el ADMINISTRADOR lo aprueba.
 //
-// Por qué una tabla intermedia y no un permiso sobre CierreGeneral: bolsas, resumen
-// y rentabilidad se derivan TODOS de filas de CierreGeneral, así que mantener el
-// parte fuera consigue el "no afecta saldos hasta aprobar" sin tocar ni un cálculo
-// existente.
+// Desde 2026-09-09 aprobar NO vuelca nada a ningún otro lado: los gastos/facturas son
+// filas reales de ParteTurnoGasto/ParteTurnoFactura desde que la vendedora las agrega,
+// y Cierre Diario lee la venta directo de estas filas (cierreDiario/queries →
+// getVentasDelDia). Aprobar solo BLOQUEA el parte (ya no se edita ni se devuelve) y deja
+// constancia en AuditLog.
 //
 // Flujo de datos de UNA SOLA DIRECCIÓN: el módulo Nequi ALIMENTA el parte (pre-llena
 // y contrasta la venta, vía getDaySummary), pero este módulo NUNCA escribe en Nequi
@@ -749,11 +518,11 @@ model LicorCierre {
 
 model ParteTurno {
   id            String      @id @default(cuid())
-  businessDayId String      @unique // un parte por turno, igual que CierreGeneral
+  businessDayId String      @unique // un parte por turno
   businessDay   BusinessDay @relation(fields: [businessDayId], references: [id])
 
   // BORRADOR: la vendedora lo está llenando · ENVIADO: lo mandó, espera al admin ·
-  // APROBADO: ya volcado a CierreGeneral (histórico de solo lectura).
+  // APROBADO: bloqueado, histórico de solo lectura (aprobar no vuelca nada, ver arriba).
   // "Devolver" regresa a BORRADOR con notaAdmin — a propósito NO hay estado RECHAZADO,
   // que sería un callejón sin salida.
   estado String @default("BORRADOR")
@@ -761,7 +530,8 @@ model ParteTurno {
   // Venta por medio de pago, copiada del recibo del POS.
   ventaEfectivo      Int @default(0)
   ventaNequi         Int @default(0)
-  ventaTarjeta       Int @default(0)
+  ventaTarjeta       Int @default(0) // Tarjeta Crédito
+  ventaTarjetaDebito Int @default(0) // Cierre Diario (2026-09-09): antes iba mezclada con ventaTarjeta
   ventaDaviplata     Int @default(0)
   ventaTransferencia Int @default(0)
   ventaCredito       Int @default(0)
@@ -790,9 +560,8 @@ model ParteTurno {
   @@index([estado])
 }
 
-// proveedorId es NOT NULL (a diferencia de CierreGeneralGasto, que lo tiene nullable por
-// compatibilidad con registros anteriores a 2026-07-19): esta tabla nace después de la regla
-// y la vendedora SIEMPRE elige de la lista — no puede crear proveedores.
+// proveedorId es NOT NULL: esta tabla nace después de la regla de "proveedor obligatorio"
+// (2026-07-19) y la vendedora SIEMPRE elige de la lista — no puede crear proveedores.
 model ParteTurnoGasto {
   id           String         @id @default(cuid())
   parteTurnoId String
@@ -821,6 +590,82 @@ model ParteTurnoFactura {
   createdAt    DateTime   @default(now())
 
   @@index([parteTurnoId])
+}
+
+// ============================================================================
+// MÓDULO CIERRE DIARIO (2026-09-09). Reemplaza a "Cierre general": concilia lo que Dominium
+// (vía Parte de Turno) registró como vendido en Cuenta Corriente y Daviplata contra el dinero
+// real observado en el banco. A nivel de DÍA calendario, no de turno (el banco no distingue
+// turnos) — por eso no tiene relación a BusinessDay, igual que VentaCredito/AbonoCredito.
+// Ver .claude/PROCESO-CIERRE-DIARIO.md para el proceso completo.
+// ============================================================================
+
+model CierreDiario {
+  date                  String    @id // YYYY-MM-DD
+  saldoConfirmadoAyerCC Int? // saldo real de Cuenta Corriente confirmado el día anterior
+  saldoRealCC           Int? // saldo real observado hoy en el banco (Cuenta Corriente)
+  notaCC                String? // explicación cuando la diferencia de CC es real
+  saldoRealDaviplata    Int? // saldo real observado hoy en Daviplata
+  notaDaviplata         String?
+  cerradoById           String?
+  cerradoBy             User?     @relation(fields: [cerradoById], references: [id])
+  cerradoAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+// Cierre de lote del datáfono (una vez al día, no por turno): desglose de tarjeta por
+// franquicia. Dominium solo da el total combinado; el datáfono es el único que separa.
+model CierreDiarioDatafono {
+  date      String   @id // YYYY-MM-DD
+  createdAt DateTime @default(now())
+
+  franquicias CierreDiarioDatafonoFranquicia[]
+}
+
+model CierreDiarioDatafonoFranquicia {
+  id           String               @id @default(cuid())
+  datafonoDate String
+  datafono     CierreDiarioDatafono @relation(fields: [datafonoDate], references: [date], onDelete: Cascade)
+  franquicia   String // FRANQUICIAS (cierreDiario/types.ts): VISA | MASTERCARD | OTRA
+  montoVendido Int
+
+  @@index([datafonoDate])
+}
+
+// Tarjeta vendida un día que todavía no ha llegado al banco (1-2 días hábiles). Se calza
+// (aproximado, ~4% de comisión variable, nunca exacto) contra la consignación real, por
+// franquicia, cuando llega.
+model CierreDiarioPendienteTarjeta {
+  id              String   @id @default(cuid())
+  dateOrigen      String // YYYY-MM-DD en que se vendió
+  franquicia      String
+  montoVendido    Int
+  montoConsignado Int?
+  fechaConsignado String? // YYYY-MM-DD
+  resuelto        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([dateOrigen])
+  @@index([resuelto])
+}
+
+// Movimientos que Dominium no conoce (arriendo, nómina, retiros, cuotas de manejo,
+// transferencias entre cuentas propias) — antes se llevaban de memoria. El 4x1000 solo
+// aplica a egresos de CUENTA_CORRIENTE (Daviplata no lo paga).
+model CierreDiarioMovimientoManual {
+  id             String   @id @default(cuid())
+  date           String // YYYY-MM-DD
+  descripcion    String
+  tipo           String // INGRESO | EGRESO
+  cuenta         String // CUENTA_CORRIENTE | DAVIPLATA
+  monto          Int
+  impuesto4x1000 Int      @default(0)
+  createdById    String
+  createdBy      User     @relation(fields: [createdById], references: [id])
+  createdAt      DateTime @default(now())
+
+  @@index([date])
 }
 
 // ============================================================================

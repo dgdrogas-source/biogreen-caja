@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { todayBogota } from "@/lib/dates";
 
-// Mismo patrón que src/modules/mensual/server/helpers.ts y actions/cierreGeneral.ts: el guard
+// Mismo patrón que src/modules/mensual/server/helpers.ts: el guard
 // LANZA (no redirige), para que el catch de la acción lo convierta en { ok:false, error }.
 
 export async function requireSesion() {

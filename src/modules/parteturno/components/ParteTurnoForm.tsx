@@ -2,8 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
-import { calcularCierreGeneral } from "@/modules/nequi/calculations/cierreGeneral";
-import { cierreInputDesdeFila } from "@/modules/nequi/calculations/cierreGeneralItems";
 import { MoneyInput } from "@/modules/nequi/components/MoneyInput";
 import {
   MEDIOS_PAGO,
@@ -16,7 +14,6 @@ import { enviarParteTurno, guardarParteTurno } from "../actions/parteTurno";
 import {
   cuadreDelParte,
   diferenciasConNequi,
-  parteComoFilaCierre,
   totalesParte,
   type ParteItem,
   type ParteTurnoFila,
@@ -29,6 +26,7 @@ export interface ParteInicial {
   estado: ParteEstado;
   notaAdmin: string | null;
   ventas: Record<MedioPago, number>;
+  ventaTarjetaDebito: number;
   ventaSinFactura: number;
   retiroCierre: number;
   realEfectivo: number | null;
@@ -52,8 +50,6 @@ export function ParteTurnoForm({
   shift,
   inicial,
   nequi,
-  configPorcentajeReposicion,
-  configPorcentajeTercero,
   slotFacturas,
   slotGastos,
 }: {
@@ -61,8 +57,6 @@ export function ParteTurnoForm({
   shift: Shift;
   inicial: ParteInicial | null;
   nequi: VentaFarmaciaNequi;
-  configPorcentajeReposicion: number;
-  configPorcentajeTercero: number;
   slotFacturas: ReactNode;
   slotGastos: ReactNode;
 }) {
@@ -83,6 +77,9 @@ export function ParteTurnoForm({
     : { ...VACIO, NEQUI: nequi.nequi || null, EFECTIVO: nequi.efectivo || null };
 
   const [ventas, setVentasState] = useState(inicialVentas);
+  const [ventaTarjetaDebito, setVentaTarjetaDebitoState] = useState<number | null>(
+    inicial?.ventaTarjetaDebito ?? null
+  );
   const [ventaSinFactura, setVentaSinFacturaState] = useState<number | null>(
     inicial?.ventaSinFactura ?? null
   );
@@ -103,17 +100,19 @@ export function ParteTurnoForm({
   }
   const setVenta = (medio: MedioPago) =>
     marcar<number | null>((v) => setVentasState((prev) => ({ ...prev, [medio]: v })));
+  const setVentaTarjetaDebito = marcar(setVentaTarjetaDebitoState);
   const setVentaSinFactura = marcar(setVentaSinFacturaState);
   const setRetiroCierre = marcar(setRetiroCierreState);
   const setRealEfectivo = marcar(setRealEfectivoState);
   const setNota = marcar(setNotaState);
 
-  // Estado local → forma del parte, para calcular la vista previa con las MISMAS funciones
-  // puras que usa el servidor al aprobar.
+  // Estado local → forma del parte, para calcular con las MISMAS funciones puras que usa el
+  // servidor al aprobar.
   const fila: ParteTurnoFila = {
     ventaEfectivo: ventas.EFECTIVO ?? 0,
     ventaNequi: ventas.NEQUI ?? 0,
     ventaTarjeta: ventas.TARJETA ?? 0,
+    ventaTarjetaDebito: ventaTarjetaDebito ?? 0,
     ventaDaviplata: ventas.DAVIPLATA ?? 0,
     ventaTransferencia: ventas.TRANSFERENCIA ?? 0,
     ventaCredito: ventas.CREDITO ?? 0,
@@ -126,11 +125,6 @@ export function ParteTurnoForm({
   };
 
   const totales = totalesParte(fila);
-  const resumen = calcularCierreGeneral(
-    cierreInputDesdeFila(
-      parteComoFilaCierre(fila, configPorcentajeReposicion, configPorcentajeTercero)
-    )
-  );
   const cuadre = cuadreDelParte(fila);
   const diferencias = diferenciasConNequi(fila, nequi);
 
@@ -143,6 +137,7 @@ export function ParteTurnoForm({
         ventaEfectivo: fila.ventaEfectivo,
         ventaNequi: fila.ventaNequi,
         ventaTarjeta: fila.ventaTarjeta,
+        ventaTarjetaDebito: fila.ventaTarjetaDebito,
         ventaDaviplata: fila.ventaDaviplata,
         ventaTransferencia: fila.ventaTransferencia,
         ventaCredito: fila.ventaCredito,
@@ -170,6 +165,7 @@ export function ParteTurnoForm({
         ventaEfectivo: fila.ventaEfectivo,
         ventaNequi: fila.ventaNequi,
         ventaTarjeta: fila.ventaTarjeta,
+        ventaTarjetaDebito: fila.ventaTarjetaDebito,
         ventaDaviplata: fila.ventaDaviplata,
         ventaTransferencia: fila.ventaTransferencia,
         ventaCredito: fila.ventaCredito,
@@ -235,6 +231,10 @@ export function ParteTurnoForm({
               />
             </div>
           ))}
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">Tarjeta Débito</label>
+            <MoneyInput value={ventaTarjetaDebito} onChange={setVentaTarjetaDebito} />
+          </div>
           <div>
             <label className="mb-1 block text-xs text-gray-500">Venta sin factura</label>
             <MoneyInput value={ventaSinFactura} onChange={setVentaSinFactura} />
@@ -360,7 +360,7 @@ export function ParteTurnoForm({
           <div className="flex justify-between border-t border-gray-200 pt-1">
             <span className="text-gray-500">Retiro del cierre</span>
             <span className="font-medium text-gray-800">
-              ${resumen.retiroCierre.toLocaleString("es-CO")}
+              ${fila.retiroCierre.toLocaleString("es-CO")}
             </span>
           </div>
         </div>

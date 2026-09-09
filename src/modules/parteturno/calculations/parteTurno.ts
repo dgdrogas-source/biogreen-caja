@@ -1,20 +1,12 @@
 // Cálculos puros del parte de turno. Sin BD, sin Prisma: todo se testea directo.
 //
-// La pieza crítica es `parteComoFilaCierre`: adapta el parte a la forma que consume
-// `cierreInputDesdeFila` del Cierre general, para que la VISTA PREVIA que ve el admin antes
-// de aprobar y el RESULTADO real después de aprobar salgan del mismo cálculo. Reconstruir el
-// input a mano ya costó dos bugs silenciosos en este proyecto (los % congelados y
-// retiroCierre) — ver la advertencia en calculations/cierreGeneralItems.ts.
+// Desde 2026-09-09 este archivo es autocontenido: ya no depende de las funciones de Cierre
+// General (retirado — ver .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md). El cuadre de caja
+// física (calcularCuadreCaja) vive aquí mismo, copiado sin cambios de lo que antes era
+// nequi/calculations/cuadreCajaCierreGeneral.ts — es matemática genérica de caja, no política
+// de reparto 70/30.
 
-import {
-  sumarEfectivoCaja,
-  type CierreGeneralFila,
-} from "@/modules/nequi/calculations/cierreGeneralItems";
-import {
-  calcularCuadreCaja,
-  type CuadreCajaResumen,
-} from "@/modules/nequi/calculations/cuadreCajaCierreGeneral";
-import { BASE_FIJA_EFECTIVO_CAJA, COMISION_TARJETA } from "@/modules/nequi/types";
+import { BASE_FIJA_EFECTIVO_CAJA } from "@/modules/nequi/types";
 
 // Forma ESTRUCTURAL del parte (no el tipo de Prisma, para poder testear sin BD). La fila
 // generada por Prisma la satisface tal cual.
@@ -26,10 +18,11 @@ export interface ParteItem {
 export interface ParteTurnoFila {
   ventaEfectivo: number;
   ventaNequi: number;
-  ventaTarjeta: number;
+  ventaTarjeta: number; // Tarjeta Crédito
+  ventaTarjetaDebito: number;
   ventaDaviplata: number;
   ventaTransferencia: number;
-  ventaCredito: number;
+  ventaCredito: number; // Crédito (fiado) — no es dinero recibido
   ventaOtro: number;
   ventaSinFactura: number;
   retiroCierre: number;
@@ -39,12 +32,18 @@ export interface ParteTurnoFila {
 }
 
 export interface TotalesParte {
-  ventaTotal: number; // suma de los 7 medios de pago
-  base: number; // ventaTotal + ventaSinFactura (es la base del reparto)
+  ventaTotal: number; // suma de los 8 medios de pago
+  base: number; // ventaTotal + ventaSinFactura
   totalGastos: number;
   totalFacturas: number;
   gastosEfectivoCaja: number; // solo lo pagado DE la caja principal
   facturasEfectivoCaja: number;
+}
+
+function sumarEfectivoCaja(items: ParteItem[]): number {
+  return items
+    .filter((i) => i.metodoPago === null || i.metodoPago === "EFECTIVO_CAJA")
+    .reduce((s, i) => s + i.monto, 0);
 }
 
 export function totalesParte(p: ParteTurnoFila): TotalesParte {
@@ -52,6 +51,7 @@ export function totalesParte(p: ParteTurnoFila): TotalesParte {
     p.ventaEfectivo +
     p.ventaNequi +
     p.ventaTarjeta +
+    p.ventaTarjetaDebito +
     p.ventaDaviplata +
     p.ventaTransferencia +
     p.ventaCredito +
@@ -67,51 +67,42 @@ export function totalesParte(p: ParteTurnoFila): TotalesParte {
   };
 }
 
-// Comisión del 4% que el banco cobra sobre la venta con tarjeta. Al aprobar, el cierre la
-// registra como gasto automático (método DESCONTADO_ORIGEN), así que el cálculo del parte
-// también tiene que contarla o la utilidad de la vista previa saldría más alta que la real.
-export function comisionTarjetaDelParte(ventaTarjeta: number): number {
-  return Math.round(ventaTarjeta * COMISION_TARJETA);
+// ---------------------------------------------------------------------------
+// Cuadre físico de la caja principal del turno. La caja arranca cada turno con una base fija
+// (BASE_FIJA_EFECTIVO_CAJA); solo la venta en efectivo la aumenta, y solo los gastos/facturas
+// pagados CON esa caja la reducen — los pagados por otro medio (sobre blanco, Nequi, etc.) no
+// la tocan.
+// ---------------------------------------------------------------------------
+
+export type EstadoCuadreCaja = "PENDIENTE" | "CUADRO" | "SOBRO" | "FALTO";
+
+export interface CuadreCajaInput {
+  baseFija: number;
+  ventaEfectivo: number;
+  facturasEnEfectivoCaja: number;
+  gastosEnEfectivoCaja: number;
+  realEfectivo: number | null; // null = aún no se ha contado el efectivo físico
 }
 
-// ---------------------------------------------------------------------------
-// EL ADAPTADOR (parte → fila del Cierre general).
-//
-// ⚠️ Al añadir un campo al parte que el cálculo use, hay que pasarlo AQUÍ y cubrirlo con un
-// test. Es exactamente el agujero por el que se colaron los dos bugs del Cierre general.
-// ---------------------------------------------------------------------------
-export function parteComoFilaCierre(
-  p: ParteTurnoFila,
-  porcentajeReposicion: number, // entero 0..100, como está en la BD
-  porcentajeTercero: number
-): CierreGeneralFila {
-  const comision = comisionTarjetaDelParte(p.ventaTarjeta);
-
-  return {
-    ventaEfectivo: p.ventaEfectivo,
-    ventaNequi: p.ventaNequi,
-    ventaTarjeta: p.ventaTarjeta,
-    ventaDaviplata: p.ventaDaviplata,
-    ventaTransferencia: p.ventaTransferencia,
-    ventaCredito: p.ventaCredito,
-    ventaOtro: p.ventaOtro,
-    ventaSinFactura: p.ventaSinFactura,
-    // Campos legados de Fase 1: un parte SIEMPRE trae items, nunca un total agregado.
-    // Con items presentes, sumarConFallback ignora estos valores.
-    facturasPagadas: 0,
-    gastosVarios: 0,
-    retiroCierre: p.retiroCierre,
-    realEfectivo: p.realEfectivo,
-    porcentajeReposicion,
-    porcentajeTercero,
-    facturaItems: p.facturaItems,
-    // El gasto automático del 4% aún no existe como fila (lo crea la aprobación), pero ya
-    // cuenta para la utilidad: se inyecta para que previa y resultado coincidan.
-    gastoItems: comision > 0 ? [...p.gastoItems, { monto: comision }] : p.gastoItems,
-  };
+export interface CuadreCajaResumen {
+  efectivoEsperado: number;
+  descuadre: number | null; // real − esperado (positivo = sobró, negativo = faltó); null si aún no se contó
+  estado: EstadoCuadreCaja;
 }
 
-// Cuadre físico de la caja principal del turno, con la misma fórmula que el Cierre general.
+export function calcularCuadreCaja(input: CuadreCajaInput): CuadreCajaResumen {
+  const efectivoEsperado =
+    input.baseFija + input.ventaEfectivo - input.facturasEnEfectivoCaja - input.gastosEnEfectivoCaja;
+
+  if (input.realEfectivo == null) {
+    return { efectivoEsperado, descuadre: null, estado: "PENDIENTE" };
+  }
+
+  const descuadre = input.realEfectivo - efectivoEsperado;
+  const estado: EstadoCuadreCaja = descuadre === 0 ? "CUADRO" : descuadre > 0 ? "SOBRO" : "FALTO";
+  return { efectivoEsperado, descuadre, estado };
+}
+
 export function cuadreDelParte(
   p: ParteTurnoFila,
   baseFija: number = BASE_FIJA_EFECTIVO_CAJA

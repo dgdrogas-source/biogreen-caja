@@ -1,12 +1,8 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/permissions";
 import { formatDateCo, todayBogota } from "@/lib/dates";
-import {
-  getCategoriasGasto,
-  getCierreGeneralConfig,
-  getProveedores,
-  getTodayShiftInfo,
-} from "@/modules/nequi/queries";
+import { getCategoriasGasto, getProveedores } from "@/modules/cierreDiario/queries";
+import { getTodayShiftInfo } from "@/modules/nequi/queries";
 import type { MedioPago, Shift } from "@/modules/nequi/types";
 import { ParteFacturasList } from "@/modules/parteturno/components/ParteFacturasList";
 import { ParteGastosList } from "@/modules/parteturno/components/ParteGastosList";
@@ -34,15 +30,13 @@ export default async function ParteTurnoPage() {
 
   const date = todayBogota();
 
-  const [parte, nequi, categorias, proveedoresGasto, proveedoresCosto, config] =
-    await Promise.all([
-      getParteTurno(date, activeShift),
-      getResumenNequiDelTurno(date, activeShift),
-      getCategoriasGasto(),
-      getProveedores("GASTO"),
-      getProveedores("COSTO"),
-      getCierreGeneralConfig(),
-    ]);
+  const [parte, nequi, categorias, proveedoresGasto, proveedoresCosto] = await Promise.all([
+    getParteTurno(date, activeShift),
+    getResumenNequiDelTurno(date, activeShift),
+    getCategoriasGasto(),
+    getProveedores("GASTO"),
+    getProveedores("COSTO"),
+  ]);
 
   const estado = (parte?.estado ?? "BORRADOR") as ParteEstado;
   const bloqueado = estado !== "BORRADOR";
@@ -60,6 +54,7 @@ export default async function ParteTurnoPage() {
           CREDITO: parte.ventaCredito,
           OTRO: parte.ventaOtro,
         } satisfies Record<MedioPago, number>,
+        ventaTarjetaDebito: parte.ventaTarjetaDebito,
         ventaSinFactura: parte.ventaSinFactura,
         retiroCierre: parte.retiroCierre,
         realEfectivo: parte.realEfectivo,
@@ -98,8 +93,6 @@ export default async function ParteTurnoPage() {
         shift={activeShift}
         inicial={inicial}
         nequi={nequi.ventaFarmacia}
-        configPorcentajeReposicion={config.porcentajeReposicion}
-        configPorcentajeTercero={config.porcentajeTercero}
         slotFacturas={
           <ParteFacturasList
             date={date}

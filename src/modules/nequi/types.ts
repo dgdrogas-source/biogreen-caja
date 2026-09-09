@@ -19,9 +19,11 @@ export type PaymentMethod = "NEQUI" | "EFECTIVO";
 export type Direction = "INCOME" | "EXPENSE";
 export type Role = "ADMIN" | "WORKER";
 
-// Medios de pago del "Cierre general" (venta de la farmacia desglosada, de Dominium).
-// Es más amplio que PaymentMethod (que solo distingue Nequi/Efectivo para el cuadre Nequi);
-// aquí se captura la venta por cada medio, sin tocar el enum de Movement.
+// Medios de pago del Parte de Turno / Cierre Diario (venta de la farmacia desglosada, de
+// Dominium). Es más amplio que PaymentMethod (que solo distingue Nequi/Efectivo para el
+// cuadre Nequi); aquí se captura la venta por cada medio, sin tocar el enum de Movement.
+// Tarjeta Débito vive fuera de este array (campo suelto en ParteTurno) a propósito — ver
+// ParteTurnoForm.tsx — para no ensanchar este tipo compartido.
 export const MEDIOS_PAGO = [
   "EFECTIVO",
   "NEQUI",
@@ -36,7 +38,7 @@ export type MedioPago = (typeof MEDIOS_PAGO)[number];
 export const MEDIO_PAGO_LABELS: Record<MedioPago, string> = {
   EFECTIVO: "Efectivo",
   NEQUI: "Nequi",
-  TARJETA: "Tarjeta",
+  TARJETA: "Tarjeta Crédito", // Cierre Diario (2026-09-09): separada de Tarjeta Débito, ver ParteTurnoForm
   DAVIPLATA: "Daviplata",
   TRANSFERENCIA: "Transferencia",
   CREDITO: "Crédito (fiado)",
@@ -48,35 +50,16 @@ export const MEDIO_PAGO_LABELS: Record<MedioPago, string> = {
 export const MEDIOS_PAGO_ABONO = MEDIOS_PAGO.filter((m) => m !== "CREDITO");
 export type MedioPagoAbono = (typeof MEDIOS_PAGO_ABONO)[number];
 
-// Bolsas acumuladas 70/30 (Fase 2), aisladas de POCKET_BUCKETS/pockets.ts a propósito.
-export const BOLSA_GENERAL_BUCKETS = ["REPOSICION", "GASTOS_UTILIDAD"] as const;
-export type BolsaGeneralBucket = (typeof BOLSA_GENERAL_BUCKETS)[number];
-// Nombres alineados a cómo habla el dueño (2026-07-17): el 70% es "para facturas" y el
-// 30% "para gastos". Se conserva el nombre técnico entre paréntesis.
-export const BOLSA_GENERAL_LABELS: Record<BolsaGeneralBucket, string> = {
-  REPOSICION: "Bolsa de facturas (reposición)",
-  GASTOS_UTILIDAD: "Bolsa de gastos (utilidad)",
-};
-
-// Porcentaje de la venta que se aparta para reponer inventario (política del dueño).
-// El resto (1 − 0.7 = 30%) es el sobre de gastos/utilidad.
-export const PORCENTAJE_REPOSICION = 0.7;
-
 // Base fija de efectivo con la que arranca la caja principal cada turno (política del
 // dueño, confirmada 2026-07-15). El "sobre blanco" es una caja menor aparte que se cuenta
 // por separado — no entra en el cuadre de la caja principal.
 export const BASE_FIJA_EFECTIVO_CAJA = 200_000;
 
-// Medio de pago de un gasto o factura del Cierre general (de dónde salió la plata).
-// Distinto de MEDIOS_PAGO (que describe la VENTA): aquí importa diferenciar caja principal
-// vs sobre blanco, porque solo la caja principal se cuadra contra el conteo físico.
-// DAVIPLATA se añadió el 2026-07-17: se podía COBRAR por Daviplata (está en MEDIOS_PAGO)
-// pero no PAGAR desde Daviplata, así que su saldo por plataforma solo habría podido crecer.
-// DAVIPLATA se añadió el 2026-07-17: se podía COBRAR por Daviplata (está en MEDIOS_PAGO)
-// pero no PAGAR desde Daviplata, así que su saldo por plataforma solo habría podido crecer.
-// DESCONTADO_ORIGEN (2026-07-17): para el gasto automático del 4% de tarjeta — cuenta como
-// gasto (baja la bolsa de gastos) pero NO sale de ninguna plataforma, porque el banco ya lo
-// descontó del abono; esa plata nunca pasó por las manos de la dueña.
+// Medio de pago de un gasto o factura de Parte de Turno (de dónde salió la plata). Distinto
+// de MEDIOS_PAGO (que describe la VENTA): aquí importa diferenciar caja principal vs sobre
+// blanco, porque solo la caja principal se cuadra contra el conteo físico. DESCONTADO_ORIGEN
+// queda del extinto Cierre General (4% automático de tarjeta) — ya nadie lo genera, pero se
+// conserva en el enum por compatibilidad con gastos/facturas históricos que lo tengan.
 export const METODOS_PAGO_ITEM = [
   "EFECTIVO_CAJA",
   "EFECTIVO_SOBRE",
@@ -99,37 +82,14 @@ export const METODO_PAGO_ITEM_LABELS: Record<MetodoPagoItem, string> = {
   OTRO: "Otro",
 };
 
-// Métodos que la dueña puede elegir A MANO al registrar un gasto/factura. Excluye
-// DESCONTADO_ORIGEN, que es exclusivo del 4% automático de tarjeta (no sale de ninguna
-// plataforma): si se pudiera elegir a mano, descuadraría los saldos por plataforma.
+// Métodos que se pueden elegir A MANO al registrar un gasto/factura. Excluye
+// DESCONTADO_ORIGEN (legado del extinto Cierre General, ver arriba) — nadie debe poder
+// elegirlo a mano.
 export const METODOS_PAGO_ITEM_MANUAL = METODOS_PAGO_ITEM.filter(
   (m) => m !== "DESCONTADO_ORIGEN"
 );
 
-// Comisión que el banco cobra sobre TODA venta con tarjeta (igual débito/crédito). El banco
-// abona la venta menos este %, así que se registra como gasto automático al guardar el cierre.
-export const COMISION_TARJETA = 0.04;
-export const CATEGORIA_COMISION_TARJETA = "Comisión bancaria";
-
-// Categoría del gasto automático que representa el 4x1000 de un movimiento entre
-// plataformas propias (Fase 2, 2026-07-17). Separada de "Comisión bancaria" porque es un
-// costo evitable (rotar menos plata = pagar menos), no uno fijo como el de tarjeta.
-export const CATEGORIA_4X1000_INTERNO = "4x1000 (movimiento interno)";
-
-// Plataformas con SALDO CORRIDO (acumulado día a día). La caja principal NO está aquí: es
-// operativa y se cuadra por turno contra el conteo físico (ver cuadreCajaCierreGeneral). El
-// sobre blanco sí, porque es la reserva de facturas. La tarjeta tampoco: es "pendiente de
-// abono" (el banco la paga al día siguiente, en neto), no un saldo disponible.
-export const PLATAFORMAS = ["SOBRE_BLANCO", "NEQUI", "BANCO", "DAVIPLATA"] as const;
-export type Plataforma = (typeof PLATAFORMAS)[number];
-export const PLATAFORMA_LABELS: Record<Plataforma, string> = {
-  SOBRE_BLANCO: "Efectivo (sobre blanco)",
-  NEQUI: "Nequi",
-  BANCO: "Banco",
-  DAVIPLATA: "Daviplata",
-};
-
-// Proveedores del Cierre general: un proveedor es de UN tipo (COSTO para facturas, GASTO
+// Proveedores de Parte de Turno / Cierre Diario: un proveedor es de UN tipo (COSTO para facturas, GASTO
 // para gastos). Si el dueño necesita el mismo nombre en ambos contextos, crea dos registros
 // (decisión confirmada 2026-07-15).
 export const PROVEEDOR_TIPOS = ["COSTO", "GASTO"] as const;
