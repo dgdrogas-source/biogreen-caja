@@ -9,7 +9,7 @@ import { ParteGastosList } from "@/modules/parteturno/components/ParteGastosList
 import { ParteNequiPanel } from "@/modules/parteturno/components/ParteNequiPanel";
 import { ParteTurnoForm, type ParteInicial } from "@/modules/parteturno/components/ParteTurnoForm";
 import { getParteTurnoPorId, getResumenNequiDelTurno } from "@/modules/parteturno/queries";
-import { metodoPagoManual, type ParteEstado } from "@/modules/parteturno/types";
+import type { ParteEstado } from "@/modules/parteturno/types";
 
 // Pantalla del ADMIN para corregir un parte que reabrió (reabrirParteTurno lo dejó en
 // BORRADOR). Reusa el mismo formulario que la vendedora. Al terminar, "Enviar al
@@ -67,8 +67,6 @@ export default async function CorregirPartePage({
       OTRO: parte.ventaOtro,
     } satisfies Record<MedioPago, number>,
     ventaTarjetaDebito: parte.ventaTarjetaDebito,
-    ventaSinFactura: parte.ventaSinFactura,
-    retiroCierre: parte.retiroCierre,
     realEfectivo: parte.realEfectivo,
     nota: parte.nota ?? "",
     gastoItems: parte.gastoItems.map((g) => ({ monto: g.monto, metodoPago: g.metodoPago })),
@@ -76,11 +74,7 @@ export default async function CorregirPartePage({
   };
 
   const opcionesProveedor = (ps: typeof proveedoresGasto) =>
-    ps.map((p) => ({
-      id: p.id,
-      nombre: p.nombre,
-      medioPagoHabitual: metodoPagoManual(p.medioPagoHabitual),
-    }));
+    ps.map((p) => ({ id: p.id, nombre: p.nombre }));
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4">

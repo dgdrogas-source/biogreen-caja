@@ -6,18 +6,20 @@ import { getTodayShiftInfo } from "@/modules/nequi/queries";
 import type { MedioPago, Shift } from "@/modules/nequi/types";
 import { ParteFacturasList } from "@/modules/parteturno/components/ParteFacturasList";
 import { ParteGastosList } from "@/modules/parteturno/components/ParteGastosList";
-import { ParteNequiPanel } from "@/modules/parteturno/components/ParteNequiPanel";
 import {
   ParteTurnoForm,
   type ParteInicial,
 } from "@/modules/parteturno/components/ParteTurnoForm";
 import { getParteTurno, getResumenNequiDelTurno } from "@/modules/parteturno/queries";
-import { metodoPagoManual, type ParteEstado } from "@/modules/parteturno/types";
+import type { ParteEstado } from "@/modules/parteturno/types";
 
 // Parte de turno de la VENDEDORA: copia aquí el "Cuadre de Caja" que ya imprime el programa
-// al cambio de turno. Nada de esto afecta las cuentas hasta que el administrador lo aprueba.
+// al cambio de turno. Alineado con .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md (2026-09-09):
+// la pantalla es SOLO el formulario del parte — sin panel de Nequi, sin pre-llenado, sin
+// retiro ni venta sin factura. La venta que aquí se guarda alimenta la comparación bancaria
+// de Cierre Diario (cierreDiario/queries → getVentasDelDia) apenas se guarda.
 export default async function ParteTurnoPage() {
-  const user = await requireUser();
+  await requireUser();
   const shiftInfo = await getTodayShiftInfo();
 
   // Mismo criterio que /registrar para elegir el turno a mostrar.
@@ -55,8 +57,6 @@ export default async function ParteTurnoPage() {
           OTRO: parte.ventaOtro,
         } satisfies Record<MedioPago, number>,
         ventaTarjetaDebito: parte.ventaTarjetaDebito,
-        ventaSinFactura: parte.ventaSinFactura,
-        retiroCierre: parte.retiroCierre,
         realEfectivo: parte.realEfectivo,
         nota: parte.nota ?? "",
         gastoItems: parte.gastoItems.map((g) => ({ monto: g.monto, metodoPago: g.metodoPago })),
@@ -68,11 +68,7 @@ export default async function ParteTurnoPage() {
     : null;
 
   const opcionesProveedor = (ps: typeof proveedoresGasto) =>
-    ps.map((p) => ({
-      id: p.id,
-      nombre: p.nombre,
-      medioPagoHabitual: metodoPagoManual(p.medioPagoHabitual),
-    }));
+    ps.map((p) => ({ id: p.id, nombre: p.nombre }));
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4">
@@ -85,8 +81,6 @@ export default async function ParteTurnoPage() {
           ← Volver
         </Link>
       </div>
-
-      <ParteNequiPanel resumen={nequi} />
 
       <ParteTurnoForm
         date={date}
@@ -126,10 +120,6 @@ export default async function ParteTurnoPage() {
           />
         }
       />
-
-      <p className="pb-4 text-center text-xs text-gray-400">
-        Registrado por {user.name}
-      </p>
     </div>
   );
 }

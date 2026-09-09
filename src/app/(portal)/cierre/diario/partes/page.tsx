@@ -53,8 +53,6 @@ export default async function PartesDeTurnoPage() {
       ventaTransferencia: p.ventaTransferencia,
       ventaCredito: p.ventaCredito,
       ventaOtro: p.ventaOtro,
-      ventaSinFactura: p.ventaSinFactura,
-      retiroCierre: p.retiroCierre,
       realEfectivo: p.realEfectivo,
       gastoItems: p.gastoItems.map((g) => ({ monto: g.monto, metodoPago: g.metodoPago })),
       facturaItems: p.facturaItems.map((f) => ({ monto: f.monto, metodoPago: f.metodoPago })),
@@ -67,7 +65,7 @@ export default async function PartesDeTurnoPage() {
       date: p.businessDay.date,
       shift: p.businessDay.shift as 1 | 2,
       registradoPor: p.registradoBy.name,
-      ventaTotal: totales.base,
+      ventaTotal: totales.ventaTotal,
       ventasPorMedio: [
         { etiqueta: "Efectivo", monto: p.ventaEfectivo },
         { etiqueta: "Nequi", monto: p.ventaNequi },

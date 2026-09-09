@@ -24,8 +24,9 @@ export interface ParteTurnoFila {
   ventaTransferencia: number;
   ventaCredito: number; // Crédito (fiado) — no es dinero recibido
   ventaOtro: number;
-  ventaSinFactura: number;
-  retiroCierre: number;
+  // ventaSinFactura y retiroCierre se RETIRARON del parte el 2026-09-09 (alineación con
+  // .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md): eran restos del Cierre General 70/30 y
+  // ningún cálculo de Cierre Diario los lee. Las columnas siguen en la BD (nunca DROP).
   realEfectivo: number | null;
   gastoItems: ParteItem[];
   facturaItems: ParteItem[];
@@ -33,7 +34,6 @@ export interface ParteTurnoFila {
 
 export interface TotalesParte {
   ventaTotal: number; // suma de los 8 medios de pago
-  base: number; // ventaTotal + ventaSinFactura
   totalGastos: number;
   totalFacturas: number;
   gastosEfectivoCaja: number; // solo lo pagado DE la caja principal
@@ -59,7 +59,6 @@ export function totalesParte(p: ParteTurnoFila): TotalesParte {
 
   return {
     ventaTotal,
-    base: ventaTotal + p.ventaSinFactura,
     totalGastos: p.gastoItems.reduce((s, i) => s + i.monto, 0),
     totalFacturas: p.facturaItems.reduce((s, i) => s + i.monto, 0),
     gastosEfectivoCaja: sumarEfectivoCaja(p.gastoItems),

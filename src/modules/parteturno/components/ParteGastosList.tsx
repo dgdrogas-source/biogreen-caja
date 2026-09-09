@@ -26,11 +26,12 @@ export interface CategoriaOption {
   nombre: string;
 }
 
+// Sin `medioPagoHabitual`: la pre-selección del método según el proveedor era parte de
+// "proveedores-para-decidir-dónde-pagar", que el plan de Cierre Diario manda retirar (sección
+// 0.4). La vendedora elige el método a mano cada vez.
 export interface ProveedorOption {
   id: string;
   nombre: string;
-  // Ya normalizado a los métodos que la vendedora puede elegir (ver metodoPagoManual).
-  medioPagoHabitual: MetodoPagoManual | null;
 }
 
 // Gastos del turno que registra la VENDEDORA. Misma mecánica que la lista del admin, con dos
@@ -101,7 +102,7 @@ export function ParteGastosList({
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">4. Gastos del turno</h2>
+        <h2 className="text-base font-semibold text-gray-800">3. Gastos del turno</h2>
         <span className="text-sm font-bold text-gray-900">${total.toLocaleString("es-CO")}</span>
       </div>
 
@@ -177,19 +178,13 @@ export function ParteGastosList({
           <MoneyInput value={monto} onChange={setMonto} />
           <select
             value={proveedorId}
-            onChange={(e) => {
-              const id = e.target.value;
-              setProveedorId(id);
-              const habitual = proveedores.find((p) => p.id === id)?.medioPagoHabitual;
-              if (habitual) setMetodoPago(habitual);
-            }}
+            onChange={(e) => setProveedorId(e.target.value)}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
           >
             <option value="">Elige un proveedor</option>
             {proveedores.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nombre}
-                {p.medioPagoHabitual && ` (${METODO_PAGO_ITEM_LABELS[p.medioPagoHabitual]})`}
               </option>
             ))}
           </select>

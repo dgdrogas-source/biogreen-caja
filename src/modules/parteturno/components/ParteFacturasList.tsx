@@ -137,19 +137,13 @@ export function ParteFacturasList({
         <div className="space-y-2 border-t border-gray-100 pt-3">
           <select
             value={proveedorId}
-            onChange={(e) => {
-              const id = e.target.value;
-              setProveedorId(id);
-              const habitual = proveedores.find((p) => p.id === id)?.medioPagoHabitual;
-              if (habitual) setMetodoPago(habitual);
-            }}
+            onChange={(e) => setProveedorId(e.target.value)}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
           >
             <option value="">Elige un proveedor</option>
             {proveedores.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.nombre}
-                {p.medioPagoHabitual && ` (${METODO_PAGO_ITEM_LABELS[p.medioPagoHabitual]})`}
               </option>
             ))}
           </select>

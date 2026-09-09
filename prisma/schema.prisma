@@ -536,9 +536,14 @@ model ParteTurno {
   ventaTransferencia Int @default(0)
   ventaCredito       Int @default(0)
   ventaOtro          Int @default(0)
+  // DEPRECADO (2026-09-09): ya no se digita en el parte — resto del Cierre General 70/30,
+  // retirado al alinear la pantalla con .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md. La
+  // columna se conserva intacta (regla dura: nunca DROP); queda en 0 para partes nuevos.
   ventaSinFactura    Int @default(0)
 
-  retiroCierre Int     @default(0) // efectivo retirado al cerrar (va al sobre blanco)
+  // DEPRECADO (2026-09-09): igual que ventaSinFactura. Era el efectivo retirado al cerrar,
+  // que iba al "sobre blanco" de Saldos por plataforma (módulo retirado con Cierre General).
+  retiroCierre Int     @default(0)
   realEfectivo Int? // efectivo contado físicamente en la caja principal
   nota         String?
   notaAdmin    String? // por qué el admin lo devolvió

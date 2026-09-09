@@ -20,8 +20,6 @@ const RECIBO: ParteTurnoFila = {
   ventaTransferencia: 0,
   ventaCredito: 7_600, // CREDITO (1 registro)
   ventaOtro: 0,
-  ventaSinFactura: 0,
-  retiroCierre: 0,
   realEfectivo: null,
   gastoItems: [],
   facturaItems: [],
@@ -45,10 +43,6 @@ describe("totalesParte", () => {
       ventaOtro: 128,
     };
     expect(totalesParte(fila).ventaTotal).toBe(1 + 2 + 4 + 8 + 16 + 32 + 64 + 128);
-  });
-
-  it("la base suma la venta sin factura", () => {
-    expect(totalesParte({ ...RECIBO, ventaSinFactura: 40_400 }).base).toBe(900_000);
   });
 
   it("suma gastos y facturas de sus items", () => {

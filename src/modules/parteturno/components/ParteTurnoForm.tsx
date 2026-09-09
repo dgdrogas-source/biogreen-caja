@@ -27,8 +27,6 @@ export interface ParteInicial {
   notaAdmin: string | null;
   ventas: Record<MedioPago, number>;
   ventaTarjetaDebito: number;
-  ventaSinFactura: number;
-  retiroCierre: number;
   realEfectivo: number | null;
   nota: string;
   gastoItems: ParteItem[];
@@ -69,22 +67,14 @@ export function ParteTurnoForm({
   const estado: ParteEstado = inicial?.estado ?? "BORRADOR";
   const editable = parteEsEditable(estado);
 
-  // NEQUI ALIMENTA AL PARTE: si el parte aún no existe, la venta de farmacia ya registrada en
-  // Nequi pre-llena los dos campos que le corresponden. Manda el recibo del POS, así que son
-  // editables — pero se ahorra tecleo y, si ella escribe otra cosa, salta el aviso de abajo.
-  const inicialVentas: Record<MedioPago, number | null> = inicial
-    ? { ...inicial.ventas }
-    : { ...VACIO, NEQUI: nequi.nequi || null, EFECTIVO: nequi.efectivo || null };
+  // La vendedora copia cada medio de pago tal como sale en el recibo del POS. El módulo Nequi
+  // NO pre-llena nada (alineación con .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md,
+  // 2026-09-09): solo alimenta el aviso "no coincide" de más abajo (diferenciasConNequi).
+  const inicialVentas: Record<MedioPago, number | null> = inicial ? { ...inicial.ventas } : VACIO;
 
   const [ventas, setVentasState] = useState(inicialVentas);
   const [ventaTarjetaDebito, setVentaTarjetaDebitoState] = useState<number | null>(
     inicial?.ventaTarjetaDebito ?? null
-  );
-  const [ventaSinFactura, setVentaSinFacturaState] = useState<number | null>(
-    inicial?.ventaSinFactura ?? null
-  );
-  const [retiroCierre, setRetiroCierreState] = useState<number | null>(
-    inicial?.retiroCierre ?? null
   );
   const [realEfectivo, setRealEfectivoState] = useState<number | null>(
     inicial?.realEfectivo ?? null
@@ -101,8 +91,6 @@ export function ParteTurnoForm({
   const setVenta = (medio: MedioPago) =>
     marcar<number | null>((v) => setVentasState((prev) => ({ ...prev, [medio]: v })));
   const setVentaTarjetaDebito = marcar(setVentaTarjetaDebitoState);
-  const setVentaSinFactura = marcar(setVentaSinFacturaState);
-  const setRetiroCierre = marcar(setRetiroCierreState);
   const setRealEfectivo = marcar(setRealEfectivoState);
   const setNota = marcar(setNotaState);
 
@@ -117,8 +105,6 @@ export function ParteTurnoForm({
     ventaTransferencia: ventas.TRANSFERENCIA ?? 0,
     ventaCredito: ventas.CREDITO ?? 0,
     ventaOtro: ventas.OTRO ?? 0,
-    ventaSinFactura: ventaSinFactura ?? 0,
-    retiroCierre: retiroCierre ?? 0,
     realEfectivo,
     gastoItems: inicial?.gastoItems ?? [],
     facturaItems: inicial?.facturaItems ?? [],
@@ -142,8 +128,6 @@ export function ParteTurnoForm({
         ventaTransferencia: fila.ventaTransferencia,
         ventaCredito: fila.ventaCredito,
         ventaOtro: fila.ventaOtro,
-        ventaSinFactura: fila.ventaSinFactura,
-        retiroCierre: fila.retiroCierre,
         realEfectivo,
         nota: nota || undefined,
       });
@@ -170,8 +154,6 @@ export function ParteTurnoForm({
         ventaTransferencia: fila.ventaTransferencia,
         ventaCredito: fila.ventaCredito,
         ventaOtro: fila.ventaOtro,
-        ventaSinFactura: fila.ventaSinFactura,
-        retiroCierre: fila.retiroCierre,
         realEfectivo,
         nota: nota || undefined,
       });
@@ -235,16 +217,12 @@ export function ParteTurnoForm({
             <label className="mb-1 block text-xs text-gray-500">Tarjeta Débito</label>
             <MoneyInput value={ventaTarjetaDebito} onChange={setVentaTarjetaDebito} />
           </div>
-          <div>
-            <label className="mb-1 block text-xs text-gray-500">Venta sin factura</label>
-            <MoneyInput value={ventaSinFactura} onChange={setVentaSinFactura} />
-          </div>
         </div>
 
         <div className="mt-3 flex justify-between border-t border-gray-100 pt-3 text-sm">
           <span className="text-gray-500">Venta total</span>
           <span className="font-bold text-gray-900">
-            ${totales.base.toLocaleString("es-CO")}
+            ${totales.ventaTotal.toLocaleString("es-CO")}
           </span>
         </div>
 
@@ -270,23 +248,14 @@ export function ParteTurnoForm({
       {/* 2 ─── facturas ─────────────────────────────────────── */}
       {slotFacturas}
 
-      {/* 3 ─────────────────────────────────────────────────── */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-1 text-base font-semibold text-gray-800">3. Retiro del cierre</h2>
-        <p className="mb-3 text-xs text-gray-400">
-          El efectivo que sacas de la caja al cerrar, para dejar la base de $200.000.
-        </p>
-        <MoneyInput value={retiroCierre} onChange={setRetiroCierre} />
-      </div>
-
-      {/* 4 ─── gastos ───────────────────────────────────────── */}
+      {/* 3 ─── gastos ───────────────────────────────────────── */}
       {slotGastos}
 
-      {/* 5 ─────────────────────────────────────────────────── */}
+      {/* 4 ─────────────────────────────────────────────────── */}
       <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-1 text-base font-semibold text-gray-800">5. Cuadre de caja</h2>
+        <h2 className="mb-1 text-base font-semibold text-gray-800">4. Cuadre de caja</h2>
         <p className="mb-3 text-xs text-gray-400">
-          Efectivo contado en la caja principal, ANTES de sacar el retiro.
+          Efectivo contado en la caja principal, antes de sacar cualquier retiro.
         </p>
         <MoneyInput value={realEfectivo} onChange={setRealEfectivo} />
 
@@ -342,7 +311,7 @@ export function ParteTurnoForm({
           <div className="flex justify-between">
             <span className="text-gray-500">Venta total</span>
             <span className="font-medium text-gray-800">
-              ${totales.base.toLocaleString("es-CO")}
+              ${totales.ventaTotal.toLocaleString("es-CO")}
             </span>
           </div>
           <div className="flex justify-between">
@@ -355,12 +324,6 @@ export function ParteTurnoForm({
             <span className="text-gray-500">Gastos</span>
             <span className="font-medium text-gray-800">
               ${totales.totalGastos.toLocaleString("es-CO")}
-            </span>
-          </div>
-          <div className="flex justify-between border-t border-gray-200 pt-1">
-            <span className="text-gray-500">Retiro del cierre</span>
-            <span className="font-medium text-gray-800">
-              ${fila.retiroCierre.toLocaleString("es-CO")}
             </span>
           </div>
         </div>

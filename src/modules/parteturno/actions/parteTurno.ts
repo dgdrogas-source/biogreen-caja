@@ -28,8 +28,8 @@ const guardarSchema = turnoSchema.extend({
   ventaTransferencia: nonNeg,
   ventaCredito: nonNeg,
   ventaOtro: nonNeg,
-  ventaSinFactura: nonNeg,
-  retiroCierre: nonNeg,
+  // ventaSinFactura / retiroCierre ya no se reciben (retirados del parte el 2026-09-09, ver
+  // calculations/parteTurno.ts). Sus columnas quedan en 0 por defecto y no se tocan.
   realEfectivo: z.number().int().nonnegative().nullable().optional(),
   nota: z.string().max(300).optional(),
 });
@@ -59,8 +59,6 @@ export async function guardarParteTurno(input: GuardarParteInput): Promise<Actio
       ventaTransferencia: d.ventaTransferencia,
       ventaCredito: d.ventaCredito,
       ventaOtro: d.ventaOtro,
-      ventaSinFactura: d.ventaSinFactura,
-      retiroCierre: d.retiroCierre,
       realEfectivo: d.realEfectivo ?? null,
       nota: d.nota ?? null,
     };
