@@ -67,8 +67,6 @@ export default async function CorregirPartePage({
       OTRO: parte.ventaOtro,
     } satisfies Record<MedioPago, number>,
     ventaTarjetaDebito: parte.ventaTarjetaDebito,
-    realEfectivo: parte.realEfectivo,
-    nota: parte.nota ?? "",
     gastoItems: parte.gastoItems.map((g) => ({ monto: g.monto, metodoPago: g.metodoPago })),
     facturaItems: parte.facturaItems.map((f) => ({ monto: f.monto, metodoPago: f.metodoPago })),
   };
@@ -94,7 +92,6 @@ export default async function CorregirPartePage({
         date={date}
         shift={shift}
         inicial={inicial}
-        nequi={nequi.ventaFarmacia}
         slotFacturas={
           <ParteFacturasList
             date={date}

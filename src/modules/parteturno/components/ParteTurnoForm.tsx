@@ -11,14 +11,7 @@ import {
   type Shift,
 } from "@/modules/nequi/types";
 import { enviarParteTurno, guardarParteTurno } from "../actions/parteTurno";
-import {
-  cuadreDelParte,
-  diferenciasConNequi,
-  totalesParte,
-  type ParteItem,
-  type ParteTurnoFila,
-  type VentaFarmaciaNequi,
-} from "../calculations/parteTurno";
+import { totalesParte, type ParteItem, type ParteTurnoFila } from "../calculations/parteTurno";
 import { parteEsEditable, type ParteEstado } from "../types";
 import { ParteEstadoBadge } from "./ParteEstadoBadge";
 
@@ -27,8 +20,6 @@ export interface ParteInicial {
   notaAdmin: string | null;
   ventas: Record<MedioPago, number>;
   ventaTarjetaDebito: number;
-  realEfectivo: number | null;
-  nota: string;
   gastoItems: ParteItem[];
   facturaItems: ParteItem[];
 }
@@ -47,14 +38,12 @@ export function ParteTurnoForm({
   date,
   shift,
   inicial,
-  nequi,
   slotFacturas,
   slotGastos,
 }: {
   date: string;
   shift: Shift;
   inicial: ParteInicial | null;
-  nequi: VentaFarmaciaNequi;
   slotFacturas: ReactNode;
   slotGastos: ReactNode;
 }) {
@@ -67,19 +56,16 @@ export function ParteTurnoForm({
   const estado: ParteEstado = inicial?.estado ?? "BORRADOR";
   const editable = parteEsEditable(estado);
 
-  // La vendedora copia cada medio de pago tal como sale en el recibo del POS. El módulo Nequi
-  // NO pre-llena nada (alineación con .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md,
-  // 2026-09-09): solo alimenta el aviso "no coincide" de más abajo (diferenciasConNequi).
+  // La vendedora copia cada medio de pago tal como sale en el recibo del POS y nada más
+  // (alineación con .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md, 2026-09-09): sin
+  // pre-llenado desde Nequi, sin cuadre de efectivo (Dominium ya lo hace en el mismo recibo),
+  // sin retiro ni venta sin factura. Lo que Cierre Diario lee de aquí es la venta por medio.
   const inicialVentas: Record<MedioPago, number | null> = inicial ? { ...inicial.ventas } : VACIO;
 
   const [ventas, setVentasState] = useState(inicialVentas);
   const [ventaTarjetaDebito, setVentaTarjetaDebitoState] = useState<number | null>(
     inicial?.ventaTarjetaDebito ?? null
   );
-  const [realEfectivo, setRealEfectivoState] = useState<number | null>(
-    inicial?.realEfectivo ?? null
-  );
-  const [nota, setNotaState] = useState(inicial?.nota ?? "");
 
   function marcar<T>(setter: (v: T) => void) {
     return (v: T) => {
@@ -91,8 +77,6 @@ export function ParteTurnoForm({
   const setVenta = (medio: MedioPago) =>
     marcar<number | null>((v) => setVentasState((prev) => ({ ...prev, [medio]: v })));
   const setVentaTarjetaDebito = marcar(setVentaTarjetaDebitoState);
-  const setRealEfectivo = marcar(setRealEfectivoState);
-  const setNota = marcar(setNotaState);
 
   // Estado local → forma del parte, para calcular con las MISMAS funciones puras que usa el
   // servidor al aprobar.
@@ -105,14 +89,11 @@ export function ParteTurnoForm({
     ventaTransferencia: ventas.TRANSFERENCIA ?? 0,
     ventaCredito: ventas.CREDITO ?? 0,
     ventaOtro: ventas.OTRO ?? 0,
-    realEfectivo,
     gastoItems: inicial?.gastoItems ?? [],
     facturaItems: inicial?.facturaItems ?? [],
   };
 
   const totales = totalesParte(fila);
-  const cuadre = cuadreDelParte(fila);
-  const diferencias = diferenciasConNequi(fila, nequi);
 
   function guardar() {
     setError(null);
@@ -128,8 +109,6 @@ export function ParteTurnoForm({
         ventaTransferencia: fila.ventaTransferencia,
         ventaCredito: fila.ventaCredito,
         ventaOtro: fila.ventaOtro,
-        realEfectivo,
-        nota: nota || undefined,
       });
       if (r.ok) {
         setOk(true);
@@ -154,8 +133,6 @@ export function ParteTurnoForm({
         ventaTransferencia: fila.ventaTransferencia,
         ventaCredito: fila.ventaCredito,
         ventaOtro: fila.ventaOtro,
-        realEfectivo,
-        nota: nota || undefined,
       });
       if (!g.ok) return setError(g.error);
 
@@ -226,23 +203,6 @@ export function ParteTurnoForm({
           </span>
         </div>
 
-        {diferencias.length > 0 && (
-          <div className="mt-3 rounded-xl bg-amber-50 p-3">
-            <p className="text-xs font-semibold text-amber-800">
-              No coincide con lo registrado en Nequi
-            </p>
-            {diferencias.map((d) => (
-              <p key={d.campo} className="mt-1 text-xs text-amber-700">
-                {d.etiqueta}: el recibo dice ${d.parte.toLocaleString("es-CO")} y en Nequi hay $
-                {d.nequi.toLocaleString("es-CO")} ({d.diferencia > 0 ? "+" : "−"}$
-                {Math.abs(d.diferencia).toLocaleString("es-CO")})
-              </p>
-            ))}
-            <p className="mt-2 text-[11px] text-amber-600">
-              Puedes guardar igual — es solo un aviso para que lo revises.
-            </p>
-          </div>
-        )}
       </div>
 
       {/* 2 ─── facturas ─────────────────────────────────────── */}
@@ -250,84 +210,6 @@ export function ParteTurnoForm({
 
       {/* 3 ─── gastos ───────────────────────────────────────── */}
       {slotGastos}
-
-      {/* 4 ─────────────────────────────────────────────────── */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="mb-1 text-base font-semibold text-gray-800">4. Cuadre de caja</h2>
-        <p className="mb-3 text-xs text-gray-400">
-          Efectivo contado en la caja principal, antes de sacar cualquier retiro.
-        </p>
-        <MoneyInput value={realEfectivo} onChange={setRealEfectivo} />
-
-        <div className="mt-3 space-y-1 border-t border-gray-100 pt-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Efectivo esperado en caja</span>
-            <span className="font-medium text-gray-800">
-              ${cuadre.efectivoEsperado.toLocaleString("es-CO")}
-            </span>
-          </div>
-          {cuadre.descuadre !== null && (
-            <div className="flex justify-between">
-              <span className="text-gray-500">
-                {cuadre.estado === "CUADRO"
-                  ? "Cuadró"
-                  : cuadre.estado === "SOBRO"
-                    ? "Sobró"
-                    : "Faltó"}
-              </span>
-              <span
-                className={`font-bold ${
-                  cuadre.estado === "CUADRO"
-                    ? "text-emerald-600"
-                    : cuadre.estado === "SOBRO"
-                      ? "text-blue-600"
-                      : "text-red-600"
-                }`}
-              >
-                ${Math.abs(cuadre.descuadre).toLocaleString("es-CO")}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <textarea
-          value={nota}
-          onChange={(e) => setNota(e.target.value)}
-          rows={2}
-          maxLength={300}
-          placeholder="Nota (opcional): ¿por qué sobró o faltó?"
-          className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-        />
-      </div>
-
-      {/* Resumen (informativo: no afecta nada hasta que el admin apruebe) */}
-      <div className="rounded-2xl bg-gray-50 p-5">
-        <h2 className="mb-1 text-base font-semibold text-gray-800">Resumen del turno</h2>
-        <p className="mb-3 text-xs text-gray-400">
-          Estos números son solo para que veas cómo va el turno. No afectan las cuentas hasta
-          que el administrador apruebe el parte.
-        </p>
-        <div className="space-y-1 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Venta total</span>
-            <span className="font-medium text-gray-800">
-              ${totales.ventaTotal.toLocaleString("es-CO")}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Facturas pagadas</span>
-            <span className="font-medium text-gray-800">
-              ${totales.totalFacturas.toLocaleString("es-CO")}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Gastos</span>
-            <span className="font-medium text-gray-800">
-              ${totales.totalGastos.toLocaleString("es-CO")}
-            </span>
-          </div>
-        </div>
-      </div>
 
       {error && (
         <p className="rounded-lg bg-red-50 p-3 text-center text-sm text-red-600">{error}</p>

@@ -28,10 +28,9 @@ const guardarSchema = turnoSchema.extend({
   ventaTransferencia: nonNeg,
   ventaCredito: nonNeg,
   ventaOtro: nonNeg,
-  // ventaSinFactura / retiroCierre ya no se reciben (retirados del parte el 2026-09-09, ver
-  // calculations/parteTurno.ts). Sus columnas quedan en 0 por defecto y no se tocan.
-  realEfectivo: z.number().int().nonnegative().nullable().optional(),
-  nota: z.string().max(300).optional(),
+  // ventaSinFactura, retiroCierre, realEfectivo y nota ya no se reciben (retirados del parte
+  // el 2026-09-09, ver calculations/parteTurno.ts). Sus columnas quedan en su valor por
+  // defecto y no se tocan.
 });
 
 export type GuardarParteInput = z.infer<typeof guardarSchema>;
@@ -59,8 +58,6 @@ export async function guardarParteTurno(input: GuardarParteInput): Promise<Actio
       ventaTransferencia: d.ventaTransferencia,
       ventaCredito: d.ventaCredito,
       ventaOtro: d.ventaOtro,
-      realEfectivo: d.realEfectivo ?? null,
-      nota: d.nota ?? null,
     };
 
     await prisma.$transaction(async (tx) => {

@@ -105,6 +105,15 @@ describe("cuadreDelParte", () => {
     expect(r.efectivoEsperado).toBe(200_000 + 539_300 - 20_000);
     expect(r.estado).toBe("PENDIENTE");
   });
+
+  // Desde 2026-09-09 la vendedora ya no cuenta efectivo: el parte llega sin realEfectivo y el
+  // cuadre (que solo sigue viendo el admin) debe quedar en PENDIENTE, nunca inventar un 0.
+  it("sin realEfectivo (parte nuevo) el cuadre queda PENDIENTE", () => {
+    const { realEfectivo: _omitido, ...sinConteo } = RECIBO;
+    const r = cuadreDelParte(sinConteo);
+    expect(r.estado).toBe("PENDIENTE");
+    expect(r.descuadre).toBeNull();
+  });
 });
 
 describe("diferenciasConNequi", () => {

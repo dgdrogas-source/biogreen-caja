@@ -10,14 +10,15 @@ import {
   ParteTurnoForm,
   type ParteInicial,
 } from "@/modules/parteturno/components/ParteTurnoForm";
-import { getParteTurno, getResumenNequiDelTurno } from "@/modules/parteturno/queries";
+import { getParteTurno } from "@/modules/parteturno/queries";
 import type { ParteEstado } from "@/modules/parteturno/types";
 
 // Parte de turno de la VENDEDORA: copia aquí el "Cuadre de Caja" que ya imprime el programa
 // al cambio de turno. Alineado con .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md (2026-09-09):
-// la pantalla es SOLO el formulario del parte — sin panel de Nequi, sin pre-llenado, sin
-// retiro ni venta sin factura. La venta que aquí se guarda alimenta la comparación bancaria
-// de Cierre Diario (cierreDiario/queries → getVentasDelDia) apenas se guarda.
+// la pantalla es SOLO venta por medio de pago + facturas + gastos — sin panel ni aviso de
+// Nequi, sin pre-llenado, sin cuadre de efectivo, sin retiro ni venta sin factura. La venta
+// que aquí se guarda alimenta la comparación bancaria de Cierre Diario
+// (cierreDiario/queries → getVentasDelDia) apenas se guarda.
 export default async function ParteTurnoPage() {
   await requireUser();
   const shiftInfo = await getTodayShiftInfo();
@@ -32,9 +33,8 @@ export default async function ParteTurnoPage() {
 
   const date = todayBogota();
 
-  const [parte, nequi, categorias, proveedoresGasto, proveedoresCosto] = await Promise.all([
+  const [parte, categorias, proveedoresGasto, proveedoresCosto] = await Promise.all([
     getParteTurno(date, activeShift),
-    getResumenNequiDelTurno(date, activeShift),
     getCategoriasGasto(),
     getProveedores("GASTO"),
     getProveedores("COSTO"),
@@ -57,8 +57,6 @@ export default async function ParteTurnoPage() {
           OTRO: parte.ventaOtro,
         } satisfies Record<MedioPago, number>,
         ventaTarjetaDebito: parte.ventaTarjetaDebito,
-        realEfectivo: parte.realEfectivo,
-        nota: parte.nota ?? "",
         gastoItems: parte.gastoItems.map((g) => ({ monto: g.monto, metodoPago: g.metodoPago })),
         facturaItems: parte.facturaItems.map((f) => ({
           monto: f.monto,
@@ -86,7 +84,6 @@ export default async function ParteTurnoPage() {
         date={date}
         shift={activeShift}
         inicial={inicial}
-        nequi={nequi.ventaFarmacia}
         slotFacturas={
           <ParteFacturasList
             date={date}

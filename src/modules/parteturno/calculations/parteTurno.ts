@@ -27,7 +27,10 @@ export interface ParteTurnoFila {
   // ventaSinFactura y retiroCierre se RETIRARON del parte el 2026-09-09 (alineación con
   // .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md): eran restos del Cierre General 70/30 y
   // ningún cálculo de Cierre Diario los lee. Las columnas siguen en la BD (nunca DROP).
-  realEfectivo: number | null;
+  // realEfectivo es OPCIONAL desde 2026-09-09: la vendedora ya no cuenta efectivo en el parte
+  // (Dominium cuadra el efectivo en el mismo recibo — PROCESO-CIERRE-DIARIO.md §6). Solo lo
+  // traen las filas de Prisma que lee el admin, y para partes nuevos siempre es null.
+  realEfectivo?: number | null;
   gastoItems: ParteItem[];
   facturaItems: ParteItem[];
 }
@@ -112,7 +115,7 @@ export function cuadreDelParte(
     ventaEfectivo: p.ventaEfectivo,
     facturasEnEfectivoCaja: t.facturasEfectivoCaja,
     gastosEnEfectivoCaja: t.gastosEfectivoCaja,
-    realEfectivo: p.realEfectivo,
+    realEfectivo: p.realEfectivo ?? null,
   });
 }
 
