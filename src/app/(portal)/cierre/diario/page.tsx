@@ -8,6 +8,7 @@ import {
 import { CuentaCorrienteCard } from "@/modules/cierreDiario/components/CuentaCorrienteCard";
 import { DatafonoForm } from "@/modules/cierreDiario/components/DatafonoForm";
 import { DaviplataCard } from "@/modules/cierreDiario/components/DaviplataCard";
+import { HistorialMovimientosManualesCard } from "@/modules/cierreDiario/components/HistorialMovimientosManualesCard";
 import { MovimientosManualesCard } from "@/modules/cierreDiario/components/MovimientosManualesCard";
 import { NotaCierreCard } from "@/modules/cierreDiario/components/NotaCierreCard";
 import { PendientesTarjetaCard } from "@/modules/cierreDiario/components/PendientesTarjetaCard";
@@ -141,6 +142,8 @@ export default async function CierreDiarioPage() {
           impuesto4x1000: m.impuesto4x1000,
         }))}
       />
+
+      <HistorialMovimientosManualesCard />
 
       <NotaCierreCard date={date} notaInicial={cierre?.notaCC ?? ""} />
 

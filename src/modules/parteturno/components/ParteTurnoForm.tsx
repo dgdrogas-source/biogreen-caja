@@ -384,7 +384,7 @@ export function ParteTurnoForm({
             type="button"
             onClick={guardar}
             disabled={pending}
-            className="w-full rounded-xl border border-gray-300 bg-white py-3 text-sm font-semibold text-gray-700 disabled:opacity-50"
+            className="btn-inverso w-full rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
           >
             {pending ? "Guardando..." : "Guardar borrador"}
           </button>

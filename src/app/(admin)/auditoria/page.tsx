@@ -55,6 +55,7 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   CIERRE_DIARIO_DATAFONO: { label: "Registró el cierre del datáfono", style: "bg-blue-50 text-blue-700" },
   CIERRE_DIARIO_CALCE_TARJETA: { label: "Confirmó el calce de una tarjeta", style: "bg-emerald-50 text-emerald-700" },
   CIERRE_DIARIO_MOVIMIENTO_MANUAL_CREATE: { label: "Agregó un movimiento manual", style: "bg-emerald-50 text-emerald-700" },
+  CIERRE_DIARIO_MOVIMIENTO_MANUAL_UPDATE: { label: "Corrigió un movimiento manual", style: "bg-amber-50 text-amber-700" },
   CIERRE_DIARIO_MOVIMIENTO_MANUAL_DELETE: { label: "Quitó un movimiento manual", style: "bg-red-50 text-red-600" },
   CIERRE_DIARIO_RESET: { label: "Reinició el módulo Cierre Diario", style: "bg-red-50 text-red-600" },
 };
