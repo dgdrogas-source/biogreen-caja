@@ -716,7 +716,6 @@ const statements = [
 
   `CREATE TABLE IF NOT EXISTS "CierreDiario" (
     "date" TEXT NOT NULL,
-    "saldoConfirmadoAyerCC" INTEGER,
     "saldoRealCC" INTEGER,
     "notaCC" TEXT,
     "saldoRealDaviplata" INTEGER,

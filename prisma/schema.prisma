@@ -601,17 +601,19 @@ model ParteTurnoFactura {
 // ============================================================================
 
 model CierreDiario {
-  date                  String    @id // YYYY-MM-DD
-  saldoConfirmadoAyerCC Int? // saldo real de Cuenta Corriente confirmado el día anterior
-  saldoRealCC           Int? // saldo real observado hoy en el banco (Cuenta Corriente)
-  notaCC                String? // explicación cuando la diferencia de CC es real
-  saldoRealDaviplata    Int? // saldo real observado hoy en Daviplata
-  notaDaviplata         String?
-  cerradoById           String?
-  cerradoBy             User?     @relation(fields: [cerradoById], references: [id])
-  cerradoAt             DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  date               String    @id // YYYY-MM-DD
+  // El "saldo confirmado ayer" NO se guarda: se deriva del saldoRealCC de la confirmación
+  // anterior (getUltimaConfirmacionCC). Así la cadena tolera días sin confirmar: el esperado
+  // suma los movimientos de TODO el hueco desde la última confirmación hasta hoy.
+  saldoRealCC        Int? // saldo real observado hoy en el banco (Cuenta Corriente)
+  notaCC             String? // explicación cuando la diferencia de CC es real
+  saldoRealDaviplata Int? // saldo real observado hoy en Daviplata
+  notaDaviplata      String?
+  cerradoById        String?
+  cerradoBy          User?     @relation(fields: [cerradoById], references: [id])
+  cerradoAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 // Cierre de lote del datáfono (una vez al día, no por turno): desglose de tarjeta por

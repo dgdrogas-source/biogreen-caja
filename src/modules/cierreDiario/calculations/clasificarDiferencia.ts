@@ -5,7 +5,7 @@ import type { ClasificacionDiferencia } from "../types";
 // (diferencia = 0). El caso EXPLICADA cubre exactamente esto: un pendiente de tarjeta cuya
 // fecha estimada de llegada YA pasó, pero nadie ha confirmado el calce todavía (ver
 // actions/cierreDiario.ts → confirmarCalceTarjeta) — ese dinero ya está en el banco (sube el
-// saldo real) pero `tarjetaLlegadaHoy` sigue en 0 porque nadie lo marcó (no sube el esperado).
+// saldo real) pero `tarjetaLlegadaPeriodo` sigue en 0 porque nadie lo marcó (no sube el esperado).
 // El banco descuenta comisión (~2%-6%, ver calculations/calceTarjeta.ts) antes de consignar,
 // así que lo que realmente llegó es entre el 94% y el 98% del monto vendido pendiente — es
 // ESE rango el que se compara contra la diferencia observada, no la comisión en sí.

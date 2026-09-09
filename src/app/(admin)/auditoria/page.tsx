@@ -47,6 +47,7 @@ const ACTION_LABELS: Record<string, { label: string; style: string }> = {
   PARTE_TURNO_ENVIAR: { label: "Envió su parte de turno", style: "bg-blue-50 text-blue-700" },
   PARTE_TURNO_APROBAR: { label: "Aprobó un parte de turno", style: "bg-indigo-50 text-indigo-700" },
   PARTE_TURNO_DEVOLVER: { label: "Devolvió un parte de turno", style: "bg-amber-50 text-amber-700" },
+  PARTE_TURNO_REABRIR: { label: "Reabrió un parte aprobado para corregir", style: "bg-amber-50 text-amber-700" },
 };
 
 function formatValue(v: unknown): string {

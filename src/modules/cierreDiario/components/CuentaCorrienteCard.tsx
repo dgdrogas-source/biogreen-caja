@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { formatDateCo } from "@/lib/dates";
 import { MoneyInput } from "@/modules/nequi/components/MoneyInput";
 import { confirmarSaldoCuentaCorriente } from "../actions/cierreDiario";
 import { clasificarDiferencia } from "../calculations/clasificarDiferencia";
@@ -15,23 +16,27 @@ const CLASIFICACION_ESTILO: Record<ClasificacionDiferencia, { texto: string; cla
 
 export function CuentaCorrienteCard({
   date,
-  saldoConfirmadoAyer,
-  transferenciasHoy,
-  tarjetaLlegadaHoy,
-  ingresosManualesHoy,
-  egresosManualesHoy,
+  ultimaConfirmacion,
+  diasSinConfirmar,
+  diasHueco,
+  transferenciasRango,
+  tarjetaLlegadaRango,
+  ingresosManualesRango,
+  egresosManualesRango,
   saldoEsperado,
   saldoRealInicial,
   notaInicial,
   pendientesVencidos,
 }: {
   date: string;
-  saldoConfirmadoAyer: number | null;
-  transferenciasHoy: number;
-  tarjetaLlegadaHoy: number;
-  ingresosManualesHoy: number;
-  egresosManualesHoy: number;
-  saldoEsperado: number;
+  ultimaConfirmacion: { date: string; saldoRealCC: number } | null;
+  diasSinConfirmar: number | null;
+  diasHueco: number; // días del período que no son hoy (0 = ritmo diario normal)
+  transferenciasRango: number;
+  tarjetaLlegadaRango: number;
+  ingresosManualesRango: number;
+  egresosManualesRango: number;
+  saldoEsperado: number | null;
   saldoRealInicial: number | null;
   notaInicial: string;
   pendientesVencidos: { montoVendido: number }[];
@@ -43,9 +48,13 @@ export function CuentaCorrienteCard({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
 
-  const diferencia = saldoReal === null ? null : saldoReal - saldoEsperado;
+  const diferencia = saldoReal === null || saldoEsperado === null ? null : saldoReal - saldoEsperado;
   const clasificacion: ClasificacionDiferencia | null =
     diferencia === null ? null : clasificarDiferencia(diferencia, pendientesVencidos);
+
+  // diasHueco > 0 → la mamá lleva días sin confirmar y el esperado suma los movimientos de
+  // todo el hueco, no solo los de hoy.
+  const sufijoPeriodo = diasHueco > 0 ? " (del período sin confirmar)" : "";
 
   function confirmar() {
     if (saldoReal === null) {
@@ -75,38 +84,53 @@ export function CuentaCorrienteCard({
         )}
       </div>
 
-      <div className="space-y-1 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-500">Saldo confirmado ayer</span>
-          <span className="text-gray-700">
-            {saldoConfirmadoAyer === null ? "sin confirmar" : `$${saldoConfirmadoAyer.toLocaleString("es-CO")}`}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">+ Transferencias de hoy</span>
-          <span className="text-gray-700">${transferenciasHoy.toLocaleString("es-CO")}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-500">+ Tarjeta llegada hoy</span>
-          <span className="text-gray-700">${tarjetaLlegadaHoy.toLocaleString("es-CO")}</span>
-        </div>
-        {ingresosManualesHoy > 0 && (
-          <div className="flex justify-between">
-            <span className="text-gray-500">+ Ingresos manuales</span>
-            <span className="text-gray-700">${ingresosManualesHoy.toLocaleString("es-CO")}</span>
+      {ultimaConfirmacion === null ? (
+        <p className="rounded-xl bg-gray-50 p-3 text-sm text-gray-600">
+          {saldoRealInicial === null
+            ? "Aún no hay un saldo de referencia. Entra al banco y escribe el saldo actual de Cuenta Corriente para empezar la conciliación — desde mañana se compara solo."
+            : `Saldo de hoy confirmado en $${saldoRealInicial.toLocaleString("es-CO")}. Desde mañana la conciliación se compara automáticamente contra los movimientos del día.`}
+        </p>
+      ) : (
+        <>
+          {diasHueco > 0 && (
+            <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Última confirmación: {formatDateCo(ultimaConfirmacion.date)} · {diasSinConfirmar} días atrás.
+              El esperado incluye los movimientos de {diasHueco} día{diasHueco > 1 ? "s" : ""} sin
+              confirmar.
+            </p>
+          )}
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Saldo confirmado ({formatDateCo(ultimaConfirmacion.date)})</span>
+              <span className="text-gray-700">${ultimaConfirmacion.saldoRealCC.toLocaleString("es-CO")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">+ Transferencias{sufijoPeriodo}</span>
+              <span className="text-gray-700">${transferenciasRango.toLocaleString("es-CO")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">+ Tarjeta llegada{sufijoPeriodo}</span>
+              <span className="text-gray-700">${tarjetaLlegadaRango.toLocaleString("es-CO")}</span>
+            </div>
+            {ingresosManualesRango > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">+ Ingresos manuales{sufijoPeriodo}</span>
+                <span className="text-gray-700">${ingresosManualesRango.toLocaleString("es-CO")}</span>
+              </div>
+            )}
+            {egresosManualesRango > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">− Movimientos manuales{sufijoPeriodo}</span>
+                <span className="text-gray-700">${egresosManualesRango.toLocaleString("es-CO")}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-gray-100 pt-1.5 font-semibold text-gray-900">
+              <span>Saldo esperado</span>
+              <span>${(saldoEsperado ?? 0).toLocaleString("es-CO")}</span>
+            </div>
           </div>
-        )}
-        {egresosManualesHoy > 0 && (
-          <div className="flex justify-between">
-            <span className="text-gray-500">− Movimientos manuales</span>
-            <span className="text-gray-700">${egresosManualesHoy.toLocaleString("es-CO")}</span>
-          </div>
-        )}
-        <div className="flex justify-between border-t border-gray-100 pt-1.5 font-semibold text-gray-900">
-          <span>Saldo esperado</span>
-          <span>${saldoEsperado.toLocaleString("es-CO")}</span>
-        </div>
-      </div>
+        </>
+      )}
 
       <div className="mt-3 border-t border-dashed border-gray-200 pt-3">
         <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">

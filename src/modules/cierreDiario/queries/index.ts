@@ -26,14 +26,32 @@ export async function getCierreDiario(date: string) {
   return prisma.cierreDiario.findUnique({ where: { date } });
 }
 
-// Saldo confirmado más reciente antes de `date` (para encadenar "saldo confirmado ayer").
-export async function getUltimoSaldoConfirmadoCC(beforeDate: string): Promise<number | null> {
+// Confirmación de Cuenta Corriente más reciente antes de `date`: su fecha Y su saldo real.
+// La fecha importa tanto como el monto — es el ancla de la cadena. Si la mamá lleva días sin
+// confirmar (viaje, fin de semana), el esperado de hoy debe sumar los movimientos de TODO
+// ese hueco, no solo los de hoy. Devuelve null si nunca se ha confirmado un saldo (no hay
+// ancla → no se puede calcular un esperado; la UI pide confirmar uno para empezar).
+export async function getUltimaConfirmacionCC(
+  beforeDate: string
+): Promise<{ date: string; saldoRealCC: number } | null> {
   const anterior = await prisma.cierreDiario.findFirst({
     where: { date: { lt: beforeDate }, saldoRealCC: { not: null } },
     orderBy: { date: "desc" },
-    select: { saldoRealCC: true },
+    select: { date: true, saldoRealCC: true },
   });
-  return anterior?.saldoRealCC ?? null;
+  if (!anterior || anterior.saldoRealCC == null) return null;
+  return { date: anterior.date, saldoRealCC: anterior.saldoRealCC };
+}
+
+// Venta por transferencia bancaria (ambos turnos, vía Parte de Turno) en el rango [desde, hasta]
+// inclusive — alimenta el esperado de Cuenta Corriente. Rango, no un día, para tolerar huecos
+// de días sin confirmar.
+export async function getVentasTransferenciaRango(desde: string, hasta: string): Promise<number> {
+  const partes = await prisma.parteTurno.findMany({
+    where: { businessDay: { date: { gte: desde, lte: hasta } } },
+    select: { ventaTransferencia: true },
+  });
+  return partes.reduce((s, p) => s + p.ventaTransferencia, 0);
 }
 
 export async function getDatafono(date: string) {
@@ -63,22 +81,25 @@ export async function getPendientesVencidos(date: string) {
   });
 }
 
-// Tarjeta que se calzó HOY (consignaciones confirmadas con fechaConsignado = date), sin
-// importar de qué día venía vendida — es lo que alimenta "tarjeta llegada hoy" en el saldo
-// en cadena de Cuenta Corriente.
-export async function getTarjetaLlegadaHoy(date: string): Promise<number> {
+// Tarjeta que se calzó en el rango [desde, hasta] inclusive (consignaciones confirmadas cuyo
+// fechaConsignado cae ahí), sin importar de qué día venía vendida — alimenta "tarjeta llegada"
+// del esperado de Cuenta Corriente. Rango para tolerar huecos de días sin confirmar.
+export async function getTarjetaLlegadaRango(desde: string, hasta: string): Promise<number> {
   const filas = await prisma.cierreDiarioPendienteTarjeta.findMany({
-    where: { resuelto: true, fechaConsignado: date },
+    where: { resuelto: true, fechaConsignado: { gte: desde, lte: hasta } },
     select: { montoConsignado: true },
   });
   return filas.reduce((s, f) => s + (f.montoConsignado ?? 0), 0);
 }
 
-export async function getMovimientosManuales(date: string) {
+// Movimientos manuales en el rango [desde, hasta] inclusive. Con desde == hasta es "los de
+// hoy"; con un rango más ancho, todo el hueco de días sin confirmar (lo que realmente alimenta
+// el esperado de Cuenta Corriente). "Agregar" en la UI siempre apunta a hoy.
+export async function getMovimientosManualesRango(desde: string, hasta: string) {
   return prisma.cierreDiarioMovimientoManual.findMany({
-    where: { date },
+    where: { date: { gte: desde, lte: hasta } },
     include: { createdBy: { select: { name: true } } },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ date: "asc" }, { createdAt: "asc" }],
   });
 }
 

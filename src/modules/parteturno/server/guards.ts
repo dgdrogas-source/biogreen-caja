@@ -25,13 +25,14 @@ export function fechaPermitida(role: string | undefined, date: string | undefine
   return hoy;
 }
 
-// Un parte solo se puede tocar mientras esté en BORRADOR. Una vez ENVIADO es del admin, y una
-// vez APROBADO ya se volcó al cierre — corregirlo ahí sería corregir dos sitios a la vez.
+// Un parte solo se puede editar mientras esté en BORRADOR. Una vez ENVIADO es del admin; una
+// vez APROBADO queda bloqueado. Para corregir un parte ENVIADO/APROBADO el admin lo REABRE
+// (reabrirParteTurno → vuelve a BORRADOR), no se edita en su sitio.
 export function assertEditable(estado: string) {
   if (estado === "ENVIADO") {
     throw new Error("El parte ya fue enviado. Pídele al administrador que te lo devuelva.");
   }
   if (estado === "APROBADO") {
-    throw new Error("El parte ya fue aprobado y no se puede modificar.");
+    throw new Error("El parte ya fue aprobado. El administrador debe reabrirlo para corregirlo.");
   }
 }

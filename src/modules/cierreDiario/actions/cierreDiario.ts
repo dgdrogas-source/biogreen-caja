@@ -164,6 +164,12 @@ const calceSchema = z.object({
 // Confirma que llegó la consignación de un pendiente de tarjeta (calce tolerante, nunca
 // exacto — ver calculations/calceTarjeta.ts). El admin ve la diferencia antes de confirmar y
 // puede ajustar el monto si no coincide con lo que ve en el banco.
+//
+// ⚠️ Límite del modelo de cadena: si `fechaConsignado` cae ANTES o EN el día de la última
+// confirmación de Cuenta Corriente, ese dinero no entra en ningún `getTarjetaLlegadaRango`
+// futuro (el rango arranca el día siguiente a la última confirmación) → queda como sesgo
+// silencioso en el esperado. En la práctica el banco consigna dentro de 1-2 días hábiles y la
+// mamá confirma a diario, así que rara vez pasa; si pasa, se corrige re-confirmando el saldo.
 export async function confirmarCalceTarjeta(
   input: z.infer<typeof calceSchema>
 ): Promise<ActionResult> {

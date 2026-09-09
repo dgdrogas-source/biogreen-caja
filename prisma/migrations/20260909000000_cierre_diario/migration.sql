@@ -6,7 +6,6 @@ ALTER TABLE "ParteTurno" ADD COLUMN IF NOT EXISTS "ventaTarjetaDebito" INTEGER N
 
 CREATE TABLE IF NOT EXISTS "CierreDiario" (
     "date" TEXT NOT NULL,
-    "saldoConfirmadoAyerCC" INTEGER,
     "saldoRealCC" INTEGER,
     "notaCC" TEXT,
     "saldoRealDaviplata" INTEGER,

@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { todayBogota } from "@/lib/dates";
 import { requireAdmin } from "@/lib/permissions";
-import { calcularSaldoEsperadoCC } from "@/modules/cierreDiario/calculations/saldoCuentaCorriente";
+import {
+  calcularSaldoEsperadoCC,
+  rangoPeriodoCC,
+} from "@/modules/cierreDiario/calculations/saldoCuentaCorriente";
 import { CuentaCorrienteCard } from "@/modules/cierreDiario/components/CuentaCorrienteCard";
 import { DatafonoForm } from "@/modules/cierreDiario/components/DatafonoForm";
 import { DaviplataCard } from "@/modules/cierreDiario/components/DaviplataCard";
@@ -11,12 +14,13 @@ import { ReiniciarCierreDiarioButton } from "@/modules/cierreDiario/components/R
 import {
   getCierreDiario,
   getDatafono,
-  getMovimientosManuales,
+  getMovimientosManualesRango,
   getPendientesTarjeta,
   getPendientesVencidos,
-  getTarjetaLlegadaHoy,
-  getUltimoSaldoConfirmadoCC,
+  getTarjetaLlegadaRango,
+  getUltimaConfirmacionCC,
   getVentasDelDia,
+  getVentasTransferenciaRango,
 } from "@/modules/cierreDiario/queries";
 import {
   FRANQUICIA_LABELS,
@@ -32,32 +36,43 @@ export default async function CierreDiarioPage() {
   await requireAdmin();
   const date = todayBogota();
 
-  const [ventas, cierre, saldoConfirmadoAyer, datafono, pendientes, pendientesVencidos, tarjetaLlegadaHoy, movimientos] =
+  const ultimaConfirmacionCC = await getUltimaConfirmacionCC(date);
+  // La cadena arranca en la última confirmación; si la mamá lleva días sin confirmar, el
+  // esperado suma los movimientos de TODO el hueco (desde el día siguiente a esa confirmación
+  // hasta hoy), no solo los de hoy. Sin ninguna confirmación previa no hay ancla → esperado null.
+  const { desde: desdeCC, diasSinConfirmar, diasHueco } = rangoPeriodoCC(
+    ultimaConfirmacionCC?.date ?? null,
+    date
+  );
+
+  const [ventas, cierre, datafono, pendientes, pendientesVencidos, transferenciasRango, tarjetaLlegadaRango, movimientosRango] =
     await Promise.all([
       getVentasDelDia(date),
       getCierreDiario(date),
-      getUltimoSaldoConfirmadoCC(date),
       getDatafono(date),
       getPendientesTarjeta(),
       getPendientesVencidos(date),
-      getTarjetaLlegadaHoy(date),
-      getMovimientosManuales(date),
+      getVentasTransferenciaRango(desdeCC, date),
+      getTarjetaLlegadaRango(desdeCC, date),
+      getMovimientosManualesRango(desdeCC, date),
     ]);
 
-  const ingresosManualesHoy = movimientos
+  const ingresosManualesCC = movimientosRango
     .filter((m) => m.tipo === "INGRESO" && m.cuenta === "CUENTA_CORRIENTE")
     .reduce((s, m) => s + m.monto, 0);
-  const egresosManualesHoy = movimientos
+  const egresosManualesCC = movimientosRango
     .filter((m) => m.tipo === "EGRESO" && m.cuenta === "CUENTA_CORRIENTE")
     .reduce((s, m) => s + m.monto + m.impuesto4x1000, 0);
 
-  const saldoEsperadoCC = calcularSaldoEsperadoCC({
-    saldoConfirmadoAyer: saldoConfirmadoAyer ?? 0,
-    transferenciasHoy: ventas.transferencia,
-    tarjetaLlegadaHoy,
-    ingresosManualesHoy,
-    egresosManualesHoy,
-  });
+  const saldoEsperadoCC = ultimaConfirmacionCC
+    ? calcularSaldoEsperadoCC({
+        saldoConfirmadoAnterior: ultimaConfirmacionCC.saldoRealCC,
+        transferenciasPeriodo: transferenciasRango,
+        tarjetaLlegadaPeriodo: tarjetaLlegadaRango,
+        ingresosManualesPeriodo: ingresosManualesCC,
+        egresosManualesPeriodo: egresosManualesCC,
+      })
+    : null;
 
   return (
     <div className="space-y-4">
@@ -67,11 +82,13 @@ export default async function CierreDiarioPage() {
 
       <CuentaCorrienteCard
         date={date}
-        saldoConfirmadoAyer={saldoConfirmadoAyer}
-        transferenciasHoy={ventas.transferencia}
-        tarjetaLlegadaHoy={tarjetaLlegadaHoy}
-        ingresosManualesHoy={ingresosManualesHoy}
-        egresosManualesHoy={egresosManualesHoy}
+        ultimaConfirmacion={ultimaConfirmacionCC}
+        diasSinConfirmar={diasSinConfirmar}
+        diasHueco={diasHueco}
+        transferenciasRango={transferenciasRango}
+        tarjetaLlegadaRango={tarjetaLlegadaRango}
+        ingresosManualesRango={ingresosManualesCC}
+        egresosManualesRango={egresosManualesCC}
         saldoEsperado={saldoEsperadoCC}
         saldoRealInicial={cierre?.saldoRealCC ?? null}
         notaInicial={cierre?.notaCC ?? ""}
@@ -112,8 +129,10 @@ export default async function CierreDiarioPage() {
 
       <MovimientosManualesCard
         date={date}
-        items={movimientos.map((m) => ({
+        rangoDesde={diasHueco > 0 ? desdeCC : null}
+        items={movimientosRango.map((m) => ({
           id: m.id,
+          date: m.date,
           descripcion: m.descripcion,
           tipo: m.tipo as TipoMovimientoManual,
           cuenta: m.cuenta as CuentaCierreDiario,

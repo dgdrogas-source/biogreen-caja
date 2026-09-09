@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { addDays, formatDateCo, todayBogota } from "@/lib/dates";
 import { requireAdmin } from "@/lib/permissions";
 import {
   cuadreDelParte,
@@ -8,16 +10,27 @@ import {
   ParteRevisionCard,
   type ParteRevision,
 } from "@/modules/parteturno/components/ParteRevisionCard";
-import { getPartesPendientes } from "@/modules/parteturno/queries";
+import { ReabrirParteButton } from "@/modules/parteturno/components/ReabrirParteButton";
+import {
+  getPartesAprobadosRecientes,
+  getPartesEnCorreccion,
+  getPartesPendientes,
+} from "@/modules/parteturno/queries";
 
-// Partes de turno que las vendedoras mandaron y esperan aprobación. Aprobar solo BLOQUEA el
-// parte (deja de poder editarse/devolverse) y deja constancia en AuditLog: no vuelca nada a
-// otro lado. La venta de cada parte alimenta la comparación bancaria de Cierre Diario desde
-// que se guarda (getVentasDelDia lee los ParteTurno del día directamente).
+// Partes de turno. Aprobar solo BLOQUEA el parte (deja de poder editarse) y deja constancia en
+// AuditLog: no vuelca nada a otro lado. La venta de cada parte alimenta la comparación bancaria
+// de Cierre Diario desde que se guarda (getVentasDelDia lee los ParteTurno del día
+// directamente), esté aprobado o no. Para corregir un typo en un parte ya aprobado, el admin
+// lo REABRE aquí → lo corrige en /cierre/diario/partes/[id] → lo vuelve a aprobar.
 export default async function PartesDeTurnoPage() {
   await requireAdmin();
 
-  const pendientes = await getPartesPendientes();
+  const hoy = todayBogota();
+  const [pendientes, enCorreccion, aprobados] = await Promise.all([
+    getPartesPendientes(),
+    getPartesEnCorreccion(hoy),
+    getPartesAprobadosRecientes(addDays(hoy, -15)),
+  ]);
 
   const revisiones: ParteRevision[] = pendientes.map((p) => {
     const fila: ParteTurnoFila = {
@@ -87,6 +100,54 @@ export default async function PartesDeTurnoPage() {
       ) : (
         revisiones.map((r) => <ParteRevisionCard key={r.id} parte={r} />)
       )}
+
+      {enCorreccion.length > 0 && (
+        <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <h2 className="text-base font-semibold text-gray-800">En corrección</h2>
+          <p className="mt-1 mb-3 text-xs text-gray-400">
+            Borradores de días anteriores y partes reabiertos. Ajusta el dato y vuélvelos a
+            mandar a aprobar.
+          </p>
+          <ul className="divide-y divide-gray-100">
+            {enCorreccion.map((p) => (
+              <li key={p.id} className="flex items-center justify-between py-2 text-sm">
+                <span className="text-gray-700">
+                  {formatDateCo(p.businessDay.date)} · Turno {p.businessDay.shift}
+                  <span className="text-gray-400"> · {p.registradoBy.name}</span>
+                </span>
+                <Link
+                  href={`/cierre/diario/partes/${p.id}`}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  Corregir →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-800">Aprobados (últimos 15 días)</h2>
+        <p className="mt-1 mb-3 text-xs text-gray-400">
+          Si encuentras un error de digitación en uno de estos, reábrelo para corregirlo.
+        </p>
+        {aprobados.length === 0 ? (
+          <p className="py-2 text-sm text-gray-400">Ninguno todavía.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {aprobados.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                <span className="text-gray-700">
+                  {formatDateCo(p.businessDay.date)} · Turno {p.businessDay.shift}
+                  <span className="text-gray-400"> · {p.registradoBy.name}</span>
+                </span>
+                <ReabrirParteButton parteId={p.id} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

@@ -52,6 +52,49 @@ export async function contarPartesPendientes(): Promise<number> {
   return prisma.parteTurno.count({ where: { estado: "ENVIADO" } });
 }
 
+// Un parte por id, con sus items y la fecha/turno del BusinessDay — para la pantalla de
+// corrección del admin (/cierre/diario/partes/[id]).
+export async function getParteTurnoPorId(id: string) {
+  return prisma.parteTurno.findUnique({
+    where: { id },
+    include: {
+      ...parteItemsInclude,
+      businessDay: { select: { date: true, shift: true } },
+      registradoBy: { select: { name: true } },
+    },
+  });
+}
+
+// Partes APROBADOS desde `desde` (YYYY-MM-DD), del más reciente al más antiguo — para que el
+// admin pueda reabrir uno y corregir un dato.
+export async function getPartesAprobadosRecientes(desde: string) {
+  return prisma.parteTurno.findMany({
+    where: { estado: "APROBADO", businessDay: { date: { gte: desde } } },
+    include: {
+      businessDay: { select: { date: true, shift: true } },
+      registradoBy: { select: { name: true } },
+    },
+    orderBy: [{ businessDay: { date: "desc" } }, { businessDay: { shift: "desc" } }],
+  });
+}
+
+// Partes en BORRADOR que el admin debería mirar: los de días ANTERIORES a hoy (borradores
+// olvidados o reabiertos), y los de HOY que tienen `notaAdmin` (o sea, el admin los reabrió o
+// los devolvió — no es un borrador fresco que la vendedora esté llenando en /parte).
+export async function getPartesEnCorreccion(hoy: string) {
+  return prisma.parteTurno.findMany({
+    where: {
+      estado: "BORRADOR",
+      OR: [{ businessDay: { date: { lt: hoy } } }, { notaAdmin: { not: null } }],
+    },
+    include: {
+      businessDay: { select: { date: true, shift: true } },
+      registradoBy: { select: { name: true } },
+    },
+    orderBy: [{ businessDay: { date: "desc" } }, { businessDay: { shift: "desc" } }],
+  });
+}
+
 // ---------------------------------------------------------------------------
 // NEQUI → PARTE (flujo de una sola dirección).
 //

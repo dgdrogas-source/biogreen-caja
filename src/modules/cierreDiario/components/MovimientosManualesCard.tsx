@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { formatDateCo } from "@/lib/dates";
 import { MoneyInput } from "@/modules/nequi/components/MoneyInput";
 import { eliminarMovimientoManual, registrarMovimientoManual } from "../actions/movimientoManual";
 import {
@@ -15,6 +16,7 @@ import {
 
 export interface MovimientoManualItem {
   id: string;
+  date: string;
   descripcion: string;
   tipo: TipoMovimientoManual;
   cuenta: CuentaCierreDiario;
@@ -22,7 +24,18 @@ export interface MovimientoManualItem {
   impuesto4x1000: number;
 }
 
-export function MovimientosManualesCard({ date, items }: { date: string; items: MovimientoManualItem[] }) {
+// `rangoDesde` !== null cuando hay un hueco de días sin confirmar en Cuenta Corriente: la
+// lista muestra los movimientos de todo el período (con su fecha) porque son los que alimentan
+// el esperado. "Agregar" siempre apunta a hoy (`date`).
+export function MovimientosManualesCard({
+  date,
+  rangoDesde,
+  items,
+}: {
+  date: string;
+  rangoDesde: string | null;
+  items: MovimientoManualItem[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [abierto, setAbierto] = useState(false);
@@ -61,13 +74,16 @@ export function MovimientosManualesCard({ date, items }: { date: string; items: 
 
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
-      <h2 className="mb-1 text-base font-semibold text-gray-800">Movimientos manuales de hoy</h2>
+      <h2 className="mb-1 text-base font-semibold text-gray-800">
+        {rangoDesde ? "Movimientos manuales del período" : "Movimientos manuales de hoy"}
+      </h2>
       <p className="mb-3 text-xs text-gray-400">
         Arriendo, nómina, retiros, cuotas de manejo — lo que Dominium no ve.
+        {rangoDesde && ` Del período sin conciliar: desde ${formatDateCo(rangoDesde)}.`}
       </p>
 
       {items.length === 0 ? (
-        <p className="py-1 text-sm text-gray-400">Sin movimientos hoy.</p>
+        <p className="py-1 text-sm text-gray-400">Sin movimientos{rangoDesde ? " en el período" : " hoy"}.</p>
       ) : (
         <div className="divide-y divide-gray-50">
           {items.map((m) => (
@@ -75,6 +91,7 @@ export function MovimientosManualesCard({ date, items }: { date: string; items: 
               <div>
                 <p className="text-gray-700">{m.descripcion}</p>
                 <p className="text-xs text-gray-400">
+                  {rangoDesde && `${formatDateCo(m.date)} · `}
                   {CUENTA_CIERRE_DIARIO_LABELS[m.cuenta]}
                   {m.impuesto4x1000 > 0 && ` · 4x1000: $${m.impuesto4x1000.toLocaleString("es-CO")}`}
                 </p>

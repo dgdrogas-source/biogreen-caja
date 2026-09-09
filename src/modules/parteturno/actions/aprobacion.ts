@@ -67,6 +67,52 @@ export async function aprobarParteTurno(parteId: string): Promise<ActionResult> 
   }
 }
 
+// Reabre un parte ya ENVIADO o APROBADO y lo regresa a BORRADOR para corregir un error de
+// digitación (un typo en un medio de pago, casi siempre). Solo el admin. Distinto de
+// "devolver": no es para que la vendedora lo rehaga —puede ser un parte de hace días, con la
+// vendedora fuera de turno— sino para que el admin corrija el dato desde
+// /cierre/diario/partes/[id] y lo vuelva a mandar a aprobar. Limpia los sellos de envío y
+// aprobación para que el ciclo BORRADOR→ENVIADO→APROBADO vuelva a empezar limpio.
+export async function reabrirParteTurno(parteId: string): Promise<ActionResult> {
+  try {
+    const user = await requireAdminAction();
+
+    const parte = await prisma.parteTurno.findUnique({ where: { id: parteId } });
+    if (!parte) return { ok: false, error: "Parte no encontrado" };
+    if (parte.estado === "BORRADOR") {
+      return { ok: false, error: "Este parte ya está en borrador, se puede corregir directamente" };
+    }
+
+    await prisma.$transaction([
+      prisma.parteTurno.update({
+        where: { id: parteId },
+        data: {
+          estado: "BORRADOR",
+          enviadoAt: null,
+          aprobadoAt: null,
+          aprobadoById: null,
+          notaAdmin: "Reabierto para corregir. Ajusta el dato y vuélvelo a mandar a aprobar.",
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          businessDayId: parte.businessDayId,
+          action: "PARTE_TURNO_REABRIR",
+          changedById: user.id,
+          fieldChanges: JSON.stringify({
+            estado: { before: parte.estado, after: "BORRADOR" },
+          }),
+        },
+      }),
+    ]);
+
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error inesperado" };
+  }
+}
+
 const devolverSchema = z.object({
   parteId: z.string().min(1),
   notaAdmin: z.string().max(300).optional(),
