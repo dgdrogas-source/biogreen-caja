@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/permissions";
 import { formatDateCo, todayBogota } from "@/lib/dates";
-import { getCategoriasGasto, getProveedores } from "@/modules/cierreDiario/queries";
+import { DatafonoForm } from "@/modules/cierreDiario/components/DatafonoForm";
+import {
+  getCategoriasGasto,
+  getDatafono,
+  getProveedores,
+  getVentasDelDia,
+} from "@/modules/cierreDiario/queries";
+import { FRANQUICIA_LABELS, type Franquicia } from "@/modules/cierreDiario/types";
 import { getTodayShiftInfo } from "@/modules/nequi/queries";
 import type { MedioPago, Shift } from "@/modules/nequi/types";
 import { ParteFacturasList } from "@/modules/parteturno/components/ParteFacturasList";
@@ -42,13 +49,16 @@ export default async function ParteTurnoPage({
 
   const date = todayBogota();
 
-  const [parte1, parte2, categorias, proveedoresGasto, proveedoresCosto] = await Promise.all([
-    getParteTurno(date, 1),
-    getParteTurno(date, 2),
-    getCategoriasGasto(),
-    getProveedores("GASTO"),
-    getProveedores("COSTO"),
-  ]);
+  const [parte1, parte2, categorias, proveedoresGasto, proveedoresCosto, datafono, ventasDia] =
+    await Promise.all([
+      getParteTurno(date, 1),
+      getParteTurno(date, 2),
+      getCategoriasGasto(),
+      getProveedores("GASTO"),
+      getProveedores("COSTO"),
+      getDatafono(date),
+      getVentasDelDia(date),
+    ]);
   const partes = { 1: parte1, 2: parte2 } as const;
   const parte = partes[shift];
   const estados: Record<Shift, ParteEstado | null> = {
@@ -143,6 +153,29 @@ export default async function ParteTurnoPage({
           />
         }
       />
+
+      {/* Cierre de lote del datáfono: UNA vez al día, lo carga quien tenga el datáfono físico
+          (PROCESO-CIERRE-DIARIO.md §3, pasos 4-5) — normalmente la cajera de la tarde. Va
+          DESPUÉS del parte a propósito: el total esperado suma la tarjeta de los partes del día,
+          así que conviene guardar primero las ventas. Es del DÍA, no del turno: no lleva key. */}
+      {datafono ? (
+        <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <h2 className="mb-1 text-base font-semibold text-gray-800">Datáfono de hoy</h2>
+          <p className="mb-3 text-xs text-gray-400">
+            El cierre del datáfono de hoy ya quedó registrado.
+          </p>
+          <div className="space-y-1 text-sm">
+            {datafono.franquicias.map((f) => (
+              <div key={f.id} className="flex justify-between">
+                <span className="text-gray-500">{FRANQUICIA_LABELS[f.franquicia as Franquicia]}</span>
+                <span className="text-gray-800">${f.montoVendido.toLocaleString("es-CO")}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <DatafonoForm date={date} totalTarjetaEsperado={ventasDia.tarjetaTotal} />
+      )}
     </div>
   );
 }

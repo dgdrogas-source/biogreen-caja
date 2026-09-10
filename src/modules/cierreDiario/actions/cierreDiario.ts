@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { todayBogota } from "@/lib/dates";
 import { FRANQUICIAS } from "../types";
 
 export type ActionResult = { ok: true; mensaje?: string } | { ok: false; error: string };
@@ -12,6 +13,15 @@ async function requireAdmin() {
   const session = await auth();
   if (!session?.user) throw new Error("No autorizado");
   if (session.user.role !== "ADMIN") throw new Error("Solo el administrador puede hacer esto");
+  return session.user;
+}
+
+// Cualquier usuario con sesión (admin o vendedora). Solo lo usa registrarDatafono: el lote del
+// datáfono lo cierra quien tiene el aparato físico, normalmente la cajera de la tarde
+// (PROCESO-CIERRE-DIARIO.md §2 y §3, pasos 4-5). El resto del módulo sigue siendo solo admin.
+async function requireUsuario() {
+  const session = await auth();
+  if (!session?.user) throw new Error("No autorizado");
   return session.user;
 }
 
@@ -139,20 +149,26 @@ const datafonoSchema = z.object({
 
 // Registra el cierre de lote del datáfono del día (una vez al día): el desglose de tarjeta
 // por franquicia. Cada franquicia con venta > 0 crea también su pendiente por consignar.
+//
+// La puede usar la VENDEDORA desde /parte (2026-09-10) además del admin desde /cierre/diario.
+// La vendedora solo registra el día de HOY: la fecha que mande se ignora, igual que en
+// parteturno/server/guards.ts (fechaPermitida). El admin puede indicar una fecha pasada.
 export async function registrarDatafono(
   input: z.infer<typeof datafonoSchema>
 ): Promise<ActionResult> {
   try {
-    const user = await requireAdmin();
+    const user = await requireUsuario();
     const d = datafonoSchema.parse(input);
+    const hoy = todayBogota();
+    const date = user.role === "ADMIN" && d.date <= hoy ? d.date : hoy;
 
-    const existente = await prisma.cierreDiarioDatafono.findUnique({ where: { date: d.date } });
+    const existente = await prisma.cierreDiarioDatafono.findUnique({ where: { date } });
     if (existente) return { ok: false, error: "Ya se registró el datáfono de este día" };
 
     await prisma.$transaction(async (tx) => {
       await tx.cierreDiarioDatafono.create({
         data: {
-          date: d.date,
+          date,
           franquicias: {
             create: d.franquicias.map((f) => ({ franquicia: f.franquicia, montoVendido: f.montoVendido })),
           },
@@ -163,7 +179,7 @@ export async function registrarDatafono(
       if (pendientes.length > 0) {
         await tx.cierreDiarioPendienteTarjeta.createMany({
           data: pendientes.map((f) => ({
-            dateOrigen: d.date,
+            dateOrigen: date,
             franquicia: f.franquicia,
             montoVendido: f.montoVendido,
           })),
@@ -175,7 +191,7 @@ export async function registrarDatafono(
           action: "CIERRE_DIARIO_DATAFONO",
           changedById: user.id,
           fieldChanges: JSON.stringify({
-            dia: { before: null, after: d.date },
+            dia: { before: null, after: date },
             franquicias: { before: null, after: d.franquicias.length },
           }),
         },
