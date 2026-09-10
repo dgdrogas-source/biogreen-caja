@@ -64,7 +64,8 @@ export default async function RegistrarPage() {
     licoresClientes,
     misVentasLicor,
     pockets,
-    parte,
+    parte1,
+    parte2,
     fuxion,
     fuxionClientes,
     misVentasFuxion,
@@ -77,7 +78,10 @@ export default async function RegistrarPage() {
     getClientesLicorParaVender(),
     getMisVentasDelDia(user.id, todayBogota()),
     getPockets(),
-    getParteTurno(todayBogota(), activeShift),
+    // Los DOS partes de hoy: el banner de cierre muestra cada turno con su botón (la cajera
+    // elige cuál cierra; la página no lo adivina).
+    getParteTurno(todayBogota(), 1),
+    getParteTurno(todayBogota(), 2),
     getProductosFuxionParaVender(),
     getClientesFuxionParaVender(),
     getMisVentasFuxionDelDia(user.id, todayBogota()),
@@ -179,8 +183,14 @@ export default async function RegistrarPage() {
   return (
     <div className="space-y-4">
       <CerrarTurnoBanner
-        estado={(parte?.estado as ParteEstado | undefined) ?? null}
-        turnoCerrado={shiftInfo.shiftStatus[activeShift] === "CLOSED"}
+        estados={{
+          1: (parte1?.estado as ParteEstado | undefined) ?? null,
+          2: (parte2?.estado as ParteEstado | undefined) ?? null,
+        }}
+        turnoCerrado={{
+          1: shiftInfo.shiftStatus[1] === "CLOSED",
+          2: shiftInfo.shiftStatus[2] === "CLOSED",
+        }}
       />
 
       {closedShifts.length === 2 ? (

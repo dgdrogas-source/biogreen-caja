@@ -177,7 +177,13 @@ export function ParteTurnoForm({
           Copia cada forma de pago tal como sale en el recibo que imprime el programa.
         </p>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* fieldset disabled apaga TODOS los campos de adentro cuando el parte ya no es editable
+            (ENVIADO/APROBADO), sin tocar MoneyInput (vive en el módulo Nequi). Antes solo se
+            ocultaban los botones y la cajera podía escribir en un parte que no iba a guardar. */}
+        <fieldset
+          disabled={!editable}
+          className="grid min-w-0 grid-cols-2 gap-3 disabled:opacity-60"
+        >
           {MEDIOS_PAGO.map((medio) => (
             <div key={medio}>
               <label className="mb-1 block text-xs text-gray-500">
@@ -194,7 +200,7 @@ export function ParteTurnoForm({
             <label className="mb-1 block text-xs text-gray-500">Tarjeta Débito</label>
             <MoneyInput value={ventaTarjetaDebito} onChange={setVentaTarjetaDebito} />
           </div>
-        </div>
+        </fieldset>
 
         <div className="mt-3 flex justify-between border-t border-gray-100 pt-3 text-sm">
           <span className="text-gray-500">Venta total</span>

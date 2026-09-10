@@ -10,6 +10,7 @@ import {
   ParteTurnoForm,
   type ParteInicial,
 } from "@/modules/parteturno/components/ParteTurnoForm";
+import { TurnoSelector } from "@/modules/parteturno/components/TurnoSelector";
 import { getParteTurno } from "@/modules/parteturno/queries";
 import type { ParteEstado } from "@/modules/parteturno/types";
 
@@ -19,26 +20,41 @@ import type { ParteEstado } from "@/modules/parteturno/types";
 // Nequi, sin pre-llenado, sin cuadre de efectivo, sin retiro ni venta sin factura. La venta
 // que aquí se guarda alimenta la comparación bancaria de Cierre Diario
 // (cierreDiario/queries → getVentasDelDia) apenas se guarda.
-export default async function ParteTurnoPage() {
+//
+// El turno lo ELIGE la cajera (?turno=1|2, ver TurnoSelector). Si la URL no lo trae, se
+// sugiere por la hora con el mismo criterio que /registrar — pero es solo una sugerencia.
+export default async function ParteTurnoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ turno?: string | string[] }>;
+}) {
   await requireUser();
-  const shiftInfo = await getTodayShiftInfo();
+  const [{ turno }, shiftInfo] = await Promise.all([searchParams, getTodayShiftInfo()]);
 
-  // Mismo criterio que /registrar para elegir el turno a mostrar.
   const otherShift: Shift = shiftInfo.defaultShift === 1 ? 2 : 1;
-  const activeShift: Shift =
+  const sugerido: Shift =
     shiftInfo.shiftStatus[shiftInfo.defaultShift] === "CLOSED" &&
     shiftInfo.shiftStatus[otherShift] !== "CLOSED"
       ? otherShift
       : shiftInfo.defaultShift;
+  const elegido: Shift | null = turno === "1" ? 1 : turno === "2" ? 2 : null;
+  const shift: Shift = elegido ?? sugerido;
 
   const date = todayBogota();
 
-  const [parte, categorias, proveedoresGasto, proveedoresCosto] = await Promise.all([
-    getParteTurno(date, activeShift),
+  const [parte1, parte2, categorias, proveedoresGasto, proveedoresCosto] = await Promise.all([
+    getParteTurno(date, 1),
+    getParteTurno(date, 2),
     getCategoriasGasto(),
     getProveedores("GASTO"),
     getProveedores("COSTO"),
   ]);
+  const partes = { 1: parte1, 2: parte2 } as const;
+  const parte = partes[shift];
+  const estados: Record<Shift, ParteEstado | null> = {
+    1: (parte1?.estado as ParteEstado | undefined) ?? null,
+    2: (parte2?.estado as ParteEstado | undefined) ?? null,
+  };
 
   const estado = (parte?.estado ?? "BORRADOR") as ParteEstado;
   const bloqueado = estado !== "BORRADOR";
@@ -68,6 +84,11 @@ export default async function ParteTurnoPage() {
   const opcionesProveedor = (ps: typeof proveedoresGasto) =>
     ps.map((p) => ({ id: p.id, nombre: p.nombre }));
 
+  // `key` por turno: los componentes de abajo guardan estado local con useState al montar. Sin
+  // la key, al cambiar de turno React reutilizaría la misma instancia y seguiría mostrando las
+  // cifras del turno anterior (el mismo "se congela" que ya se corrigió en /registrar).
+  const key = `${date}-${shift}`;
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4">
       <div className="flex items-center justify-between">
@@ -80,14 +101,18 @@ export default async function ParteTurnoPage() {
         </Link>
       </div>
 
+      <TurnoSelector actual={shift} estados={estados} />
+
       <ParteTurnoForm
+        key={key}
         date={date}
-        shift={activeShift}
+        shift={shift}
         inicial={inicial}
         slotFacturas={
           <ParteFacturasList
+            key={`facturas-${key}`}
             date={date}
-            shift={activeShift}
+            shift={shift}
             items={(parte?.facturaItems ?? []).map((f) => ({
               id: f.id,
               monto: f.monto,
@@ -101,8 +126,9 @@ export default async function ParteTurnoPage() {
         }
         slotGastos={
           <ParteGastosList
+            key={`gastos-${key}`}
             date={date}
-            shift={activeShift}
+            shift={shift}
             items={(parte?.gastoItems ?? []).map((g) => ({
               id: g.id,
               monto: g.monto,
