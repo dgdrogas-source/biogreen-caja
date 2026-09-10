@@ -1,11 +1,7 @@
 import Link from "next/link";
 import { addDays, formatDateCo, todayBogota } from "@/lib/dates";
 import { requireAdmin } from "@/lib/permissions";
-import {
-  cuadreDelParte,
-  totalesParte,
-  type ParteTurnoFila,
-} from "@/modules/parteturno/calculations/parteTurno";
+import { totalesParte, type ParteTurnoFila } from "@/modules/parteturno/calculations/parteTurno";
 import {
   ParteRevisionCard,
   type ParteRevision,
@@ -53,9 +49,6 @@ export default async function PartesDeTurnoPage() {
       ventaTransferencia: p.ventaTransferencia,
       ventaCredito: p.ventaCredito,
       ventaOtro: p.ventaOtro,
-      realEfectivo: p.realEfectivo,
-      gastoItems: p.gastoItems.map((g) => ({ monto: g.monto, metodoPago: g.metodoPago })),
-      facturaItems: p.facturaItems.map((f) => ({ monto: f.monto, metodoPago: f.metodoPago })),
     };
 
     const totales = totalesParte(fila);
@@ -76,20 +69,7 @@ export default async function PartesDeTurnoPage() {
         { etiqueta: "Crédito (fiado)", monto: p.ventaCredito },
         { etiqueta: "Otro", monto: p.ventaOtro },
       ].filter((v) => v.monto > 0),
-      retiroCierre: p.retiroCierre,
-      realEfectivo: p.realEfectivo,
-      descuadre: cuadreDelParte(fila).descuadre,
       nota: p.nota,
-      gastos: p.gastoItems.map((g) => ({
-        etiqueta: g.categoria.nombre,
-        detalle: g.proveedorRef.nombre,
-        monto: g.monto,
-      })),
-      facturas: p.facturaItems.map((f) => ({
-        etiqueta: f.proveedorRef.nombre,
-        detalle: f.descripcion,
-        monto: f.monto,
-      })),
     };
   });
 

@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { addDays } from "@/lib/dates";
+import { addDays, dayOfWeek } from "@/lib/dates";
+import { esDiaTurnoUnico } from "@/modules/nequi/calculations/turnos";
+import { getDiasTurnoUnico } from "@/modules/nequi/queries";
 import type { ProveedorTipo } from "@/modules/nequi/types";
 
 // Catálogos (movidos aquí desde nequi/queries — Cierre General ya no existe, pero
@@ -138,4 +140,48 @@ export async function getVentasDelDia(date: string) {
     tarjetaTotal: totales.tarjetaCredito + totales.tarjetaDebito,
     turnosRegistrados: partes.map((p) => p.businessDay.shift),
   };
+}
+
+// Venta Daviplata del día, agrupada POR TURNO (a diferencia de getVentasDelDia, que la suma).
+// Daviplata se compara turno a turno: el banco no distingue turnos, pero Daviplata sí llega sin
+// desfase el mismo día, así que agrupar evita que un turno con error quede tapado por el otro.
+export async function getVentaDaviplataPorTurno(date: string): Promise<Record<1 | 2, number>> {
+  const partes = await prisma.parteTurno.findMany({
+    where: { businessDay: { date } },
+    select: { businessDay: { select: { shift: true } }, ventaDaviplata: true },
+  });
+
+  const totales: Record<1 | 2, number> = { 1: 0, 2: 0 };
+  for (const p of partes) {
+    const shift = p.businessDay.shift as 1 | 2;
+    totales[shift] += p.ventaDaviplata;
+  }
+  return totales;
+}
+
+// Saldo real de Daviplata confirmado por turno, para los dos turnos de `date`.
+export async function getDaviplataDelDia(
+  date: string
+): Promise<Record<1 | 2, { saldoReal: number | null; nota: string | null } | null>> {
+  const filas = await prisma.cierreDiarioDaviplataTurno.findMany({
+    where: { date },
+    select: { shift: true, saldoReal: true, nota: true },
+  });
+
+  const porTurno: Record<1 | 2, { saldoReal: number | null; nota: string | null } | null> = {
+    1: null,
+    2: null,
+  };
+  for (const f of filas) {
+    porTurno[f.shift as 1 | 2] = { saldoReal: f.saldoReal, nota: f.nota };
+  }
+  return porTurno;
+}
+
+// ¿`date` es un día de "turno único" (p.ej. domingo)? Lectura pura — NO usa getOrCreateDay ni
+// getTodayShiftInfo (que sí crean el BusinessDay): abrir una pantalla de solo lectura no debe
+// crear filas (mismo criterio que el resto de este módulo).
+export async function esDiaTurnoUnicoFecha(date: string): Promise<boolean> {
+  const dias = await getDiasTurnoUnico();
+  return esDiaTurnoUnico(dayOfWeek(date), dias);
 }

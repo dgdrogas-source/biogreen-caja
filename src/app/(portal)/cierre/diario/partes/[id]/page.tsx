@@ -2,10 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatDateCo } from "@/lib/dates";
 import { requireAdmin } from "@/lib/permissions";
-import { getCategoriasGasto, getProveedores } from "@/modules/cierreDiario/queries";
 import type { MedioPago, Shift } from "@/modules/nequi/types";
-import { ParteFacturasList } from "@/modules/parteturno/components/ParteFacturasList";
-import { ParteGastosList } from "@/modules/parteturno/components/ParteGastosList";
 import { ParteNequiPanel } from "@/modules/parteturno/components/ParteNequiPanel";
 import { ParteTurnoForm, type ParteInicial } from "@/modules/parteturno/components/ParteTurnoForm";
 import { getParteTurnoPorId, getResumenNequiDelTurno } from "@/modules/parteturno/queries";
@@ -47,12 +44,7 @@ export default async function CorregirPartePage({
     );
   }
 
-  const [nequi, categorias, proveedoresGasto, proveedoresCosto] = await Promise.all([
-    getResumenNequiDelTurno(date, shift),
-    getCategoriasGasto(),
-    getProveedores("GASTO"),
-    getProveedores("COSTO"),
-  ]);
+  const nequi = await getResumenNequiDelTurno(date, shift);
 
   const inicial: ParteInicial = {
     estado,
@@ -67,12 +59,7 @@ export default async function CorregirPartePage({
       OTRO: parte.ventaOtro,
     } satisfies Record<MedioPago, number>,
     ventaTarjetaDebito: parte.ventaTarjetaDebito,
-    gastoItems: parte.gastoItems.map((g) => ({ monto: g.monto, metodoPago: g.metodoPago })),
-    facturaItems: parte.facturaItems.map((f) => ({ monto: f.monto, metodoPago: f.metodoPago })),
   };
-
-  const opcionesProveedor = (ps: typeof proveedoresGasto) =>
-    ps.map((p) => ({ id: p.id, nombre: p.nombre }));
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4">
@@ -88,43 +75,7 @@ export default async function CorregirPartePage({
 
       <ParteNequiPanel resumen={nequi} />
 
-      <ParteTurnoForm
-        date={date}
-        shift={shift}
-        inicial={inicial}
-        slotFacturas={
-          <ParteFacturasList
-            date={date}
-            shift={shift}
-            items={parte.facturaItems.map((f) => ({
-              id: f.id,
-              monto: f.monto,
-              descripcion: f.descripcion,
-              metodoPago: f.metodoPago,
-              proveedorRef: { id: f.proveedorRef.id, nombre: f.proveedorRef.nombre },
-            }))}
-            proveedores={opcionesProveedor(proveedoresCosto)}
-            bloqueado={false}
-          />
-        }
-        slotGastos={
-          <ParteGastosList
-            date={date}
-            shift={shift}
-            items={parte.gastoItems.map((g) => ({
-              id: g.id,
-              monto: g.monto,
-              descripcion: g.descripcion,
-              metodoPago: g.metodoPago,
-              categoria: { id: g.categoria.id, nombre: g.categoria.nombre },
-              proveedorRef: { id: g.proveedorRef.id, nombre: g.proveedorRef.nombre },
-            }))}
-            categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
-            proveedores={opcionesProveedor(proveedoresGasto)}
-            bloqueado={false}
-          />
-        }
-      />
+      <ParteTurnoForm date={date} shift={shift} inicial={inicial} />
     </div>
   );
 }

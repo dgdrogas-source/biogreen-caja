@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  calcularCuadreCaja,
-  cuadreDelParte,
   diferenciasConNequi,
   totalesParte,
   type ParteTurnoFila,
@@ -20,9 +18,6 @@ const RECIBO: ParteTurnoFila = {
   ventaTransferencia: 0,
   ventaCredito: 7_600, // CREDITO (1 registro)
   ventaOtro: 0,
-  realEfectivo: null,
-  gastoItems: [],
-  facturaItems: [],
 };
 
 describe("totalesParte", () => {
@@ -43,76 +38,6 @@ describe("totalesParte", () => {
       ventaOtro: 128,
     };
     expect(totalesParte(fila).ventaTotal).toBe(1 + 2 + 4 + 8 + 16 + 32 + 64 + 128);
-  });
-
-  it("suma gastos y facturas de sus items", () => {
-    const t = totalesParte({
-      ...RECIBO,
-      gastoItems: [{ monto: 20_000, metodoPago: "EFECTIVO_CAJA" }, { monto: 5_000, metodoPago: "NEQUI" }],
-      facturaItems: [{ monto: 300_000, metodoPago: "EFECTIVO_SOBRE" }],
-    });
-    expect(t.totalGastos).toBe(25_000);
-    expect(t.totalFacturas).toBe(300_000);
-  });
-
-  // Solo lo pagado DE la caja principal baja el efectivo que debe quedar en ella.
-  it("separa lo pagado de la caja principal de lo pagado por otros medios", () => {
-    const t = totalesParte({
-      ...RECIBO,
-      gastoItems: [
-        { monto: 20_000, metodoPago: "EFECTIVO_CAJA" },
-        { monto: 5_000, metodoPago: "NEQUI" },
-        { monto: 3_000, metodoPago: null }, // null = caja principal (compatibilidad)
-      ],
-      facturaItems: [{ monto: 300_000, metodoPago: "EFECTIVO_SOBRE" }],
-    });
-    expect(t.gastosEfectivoCaja).toBe(23_000);
-    expect(t.facturasEfectivoCaja).toBe(0); // el sobre blanco no toca la caja principal
-  });
-});
-
-describe("calcularCuadreCaja", () => {
-  it("efectivo esperado = base fija + venta en efectivo − lo pagado de la caja", () => {
-    const r = calcularCuadreCaja({
-      baseFija: 200_000,
-      ventaEfectivo: 539_300,
-      facturasEnEfectivoCaja: 0,
-      gastosEnEfectivoCaja: 20_000,
-      realEfectivo: null,
-    });
-    expect(r.efectivoEsperado).toBe(200_000 + 539_300 - 20_000);
-    expect(r.estado).toBe("PENDIENTE");
-    expect(r.descuadre).toBeNull();
-  });
-
-  it("detecta sobrante, faltante y cuadre exacto contra el conteo físico", () => {
-    const base = { baseFija: 200_000, ventaEfectivo: 539_300, facturasEnEfectivoCaja: 0, gastosEnEfectivoCaja: 0 };
-    expect(calcularCuadreCaja({ ...base, realEfectivo: 739_400 }).estado).toBe("SOBRO");
-    expect(calcularCuadreCaja({ ...base, realEfectivo: 739_400 }).descuadre).toBe(100);
-    expect(calcularCuadreCaja({ ...base, realEfectivo: 739_000 }).estado).toBe("FALTO");
-    expect(calcularCuadreCaja({ ...base, realEfectivo: 739_300 }).estado).toBe("CUADRO");
-  });
-});
-
-describe("cuadreDelParte", () => {
-  it("usa la base fija de caja y los items del parte", () => {
-    const r = cuadreDelParte({
-      ...RECIBO,
-      gastoItems: [{ monto: 20_000, metodoPago: "EFECTIVO_CAJA" }],
-      facturaItems: [{ monto: 300_000, metodoPago: "EFECTIVO_SOBRE" }], // no toca la caja
-      realEfectivo: null,
-    });
-    expect(r.efectivoEsperado).toBe(200_000 + 539_300 - 20_000);
-    expect(r.estado).toBe("PENDIENTE");
-  });
-
-  // Desde 2026-09-09 la vendedora ya no cuenta efectivo: el parte llega sin realEfectivo y el
-  // cuadre (que solo sigue viendo el admin) debe quedar en PENDIENTE, nunca inventar un 0.
-  it("sin realEfectivo (parte nuevo) el cuadre queda PENDIENTE", () => {
-    const { realEfectivo: _omitido, ...sinConteo } = RECIBO;
-    const r = cuadreDelParte(sinConteo);
-    expect(r.estado).toBe("PENDIENTE");
-    expect(r.descuadre).toBeNull();
   });
 });
 

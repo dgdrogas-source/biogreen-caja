@@ -6,12 +6,6 @@ import { formatDateCo } from "@/lib/dates";
 import { SHIFT_LABELS, type Shift } from "@/modules/nequi/types";
 import { aprobarParteTurno, devolverParteTurno } from "../actions/aprobacion";
 
-export interface ParteRevisionLinea {
-  etiqueta: string;
-  monto: number;
-  detalle?: string | null;
-}
-
 export interface ParteRevision {
   id: string;
   date: string;
@@ -19,12 +13,7 @@ export interface ParteRevision {
   registradoPor: string;
   ventaTotal: number;
   ventasPorMedio: { etiqueta: string; monto: number }[];
-  retiroCierre: number;
-  realEfectivo: number | null;
-  descuadre: number | null;
   nota: string | null;
-  gastos: ParteRevisionLinea[];
-  facturas: ParteRevisionLinea[];
 }
 
 export function ParteRevisionCard({ parte }: { parte: ParteRevision }) {
@@ -77,66 +66,6 @@ export function ParteRevisionCard({ parte }: { parte: ParteRevision }) {
             <span className="text-gray-800">${v.monto.toLocaleString("es-CO")}</span>
           </div>
         ))}
-      </div>
-
-      {/* Facturas y gastos */}
-      {(parte.facturas.length > 0 || parte.gastos.length > 0) && (
-        <div className="mb-3 space-y-2 border-t border-gray-100 pt-3">
-          {parte.facturas.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-gray-500">Facturas</p>
-              {parte.facturas.map((f, i) => (
-                <div key={i} className="flex justify-between text-sm">
-                  <span className="text-gray-700">
-                    {f.etiqueta}
-                    {f.detalle && <span className="text-gray-400"> · {f.detalle}</span>}
-                  </span>
-                  <span className="text-gray-800">${f.monto.toLocaleString("es-CO")}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {parte.gastos.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-gray-500">Gastos</p>
-              {parte.gastos.map((g, i) => (
-                <div key={i} className="flex justify-between text-sm">
-                  <span className="text-gray-700">
-                    {g.etiqueta}
-                    {g.detalle && <span className="text-gray-400"> · {g.detalle}</span>}
-                  </span>
-                  <span className="text-gray-800">${g.monto.toLocaleString("es-CO")}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Cierre y cuadre */}
-      <div className="mb-3 space-y-1 border-t border-gray-100 pt-3 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-500">Retiro del cierre</span>
-          <span className="text-gray-800">${parte.retiroCierre.toLocaleString("es-CO")}</span>
-        </div>
-        {parte.descuadre !== null && (
-          <div className="flex justify-between">
-            <span className="text-gray-500">
-              {parte.descuadre === 0 ? "Cuadró" : parte.descuadre > 0 ? "Sobró" : "Faltó"}
-            </span>
-            <span
-              className={`font-medium ${
-                parte.descuadre === 0
-                  ? "text-emerald-600"
-                  : parte.descuadre > 0
-                    ? "text-blue-600"
-                    : "text-red-600"
-              }`}
-            >
-              ${Math.abs(parte.descuadre).toLocaleString("es-CO")}
-            </span>
-          </div>
-        )}
       </div>
 
       {parte.nota && (

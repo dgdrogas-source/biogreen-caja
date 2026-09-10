@@ -32,6 +32,12 @@ const confirmarSaldoSchema = z.object({
   saldoReal: z.number().int(),
 });
 
+const confirmarSaldoDaviplataSchema = z.object({
+  date: dateSchema,
+  shift: z.union([z.literal(1), z.literal(2)]),
+  saldoReal: z.number().int(),
+});
+
 // Confirma el saldo real de Cuenta Corriente observado en el banco. Si ya había un saldo
 // confirmado para este día, lo reemplaza (la administradora puede volver a mirar el banco y
 // corregir). La nota del cierre se guarda aparte (guardarNotaCierre) — confirmar un saldo NO
@@ -71,24 +77,37 @@ export async function confirmarSaldoCuentaCorriente(
   }
 }
 
+// Daviplata se confirma POR TURNO (2026-09-10), no por día como Cuenta Corriente — ver
+// CierreDiarioDaviplataTurno en prisma/schema.prisma. Reemplaza el upsert viejo sobre
+// CierreDiario.saldoRealDaviplata, que queda en la BD sin uso (nunca DROP).
 export async function confirmarSaldoDaviplata(
-  input: z.infer<typeof confirmarSaldoSchema>
+  input: z.infer<typeof confirmarSaldoDaviplataSchema>
 ): Promise<ActionResult> {
   try {
     const user = await requireAdmin();
-    const d = confirmarSaldoSchema.parse(input);
+    const d = confirmarSaldoDaviplataSchema.parse(input);
 
     await prisma.$transaction([
-      prisma.cierreDiario.upsert({
-        where: { date: d.date },
-        update: { saldoRealDaviplata: d.saldoReal },
-        create: { date: d.date, saldoRealDaviplata: d.saldoReal },
+      prisma.cierreDiarioDaviplataTurno.upsert({
+        where: { date_shift: { date: d.date, shift: d.shift } },
+        update: { saldoReal: d.saldoReal, confirmadoById: user.id, confirmadoAt: new Date() },
+        create: {
+          date: d.date,
+          shift: d.shift,
+          saldoReal: d.saldoReal,
+          confirmadoById: user.id,
+          confirmadoAt: new Date(),
+        },
       }),
       prisma.auditLog.create({
         data: {
           action: "CIERRE_DIARIO_SALDO_DAVIPLATA",
           changedById: user.id,
-          fieldChanges: JSON.stringify({ dia: { before: null, after: d.date }, saldoReal: { before: null, after: d.saldoReal } }),
+          fieldChanges: JSON.stringify({
+            dia: { before: null, after: d.date },
+            turno: { before: null, after: d.shift },
+            saldoReal: { before: null, after: d.saldoReal },
+          }),
         },
       }),
     ]);

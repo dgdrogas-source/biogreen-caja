@@ -1,20 +1,11 @@
 // Cálculos puros del parte de turno. Sin BD, sin Prisma: todo se testea directo.
 //
-// Desde 2026-09-09 este archivo es autocontenido: ya no depende de las funciones de Cierre
-// General (retirado — ver .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md). El cuadre de caja
-// física (calcularCuadreCaja) vive aquí mismo, copiado sin cambios de lo que antes era
-// nequi/calculations/cuadreCajaCierreGeneral.ts — es matemática genérica de caja, no política
-// de reparto 70/30.
-
-import { BASE_FIJA_EFECTIVO_CAJA } from "@/modules/nequi/types";
+// Desde 2026-09-10 (.claude/PLAN-CIERRE-DIARIO-AJUSTES-2026-09-10.md) este archivo pierde el
+// cuadre físico de caja (calcularCuadreCaja/cuadreDelParte): Dominium ya cuadra el efectivo en
+// el mismo recibo que copia la cajera, así que nada en el sistema necesita recalcularlo.
 
 // Forma ESTRUCTURAL del parte (no el tipo de Prisma, para poder testear sin BD). La fila
 // generada por Prisma la satisface tal cual.
-export interface ParteItem {
-  monto: number;
-  metodoPago: string | null;
-}
-
 export interface ParteTurnoFila {
   ventaEfectivo: number;
   ventaNequi: number;
@@ -24,29 +15,14 @@ export interface ParteTurnoFila {
   ventaTransferencia: number;
   ventaCredito: number; // Crédito (fiado) — no es dinero recibido
   ventaOtro: number;
-  // ventaSinFactura y retiroCierre se RETIRARON del parte el 2026-09-09 (alineación con
-  // .claude/PLAN-CIERRE-DIARIO-IMPLEMENTACION.md): eran restos del Cierre General 70/30 y
-  // ningún cálculo de Cierre Diario los lee. Las columnas siguen en la BD (nunca DROP).
-  // realEfectivo es OPCIONAL desde 2026-09-09: la vendedora ya no cuenta efectivo en el parte
-  // (Dominium cuadra el efectivo en el mismo recibo — PROCESO-CIERRE-DIARIO.md §6). Solo lo
-  // traen las filas de Prisma que lee el admin, y para partes nuevos siempre es null.
-  realEfectivo?: number | null;
-  gastoItems: ParteItem[];
-  facturaItems: ParteItem[];
+  // ventaSinFactura, retiroCierre y realEfectivo se RETIRARON del parte (alineación con
+  // .claude/PLAN-CIERRE-DIARIO-AJUSTES-2026-09-10.md): eran restos del Cierre General 70/30 y
+  // del cuadre físico de caja, y ningún cálculo de Cierre Diario los lee. Las columnas siguen
+  // en la BD (nunca DROP).
 }
 
 export interface TotalesParte {
   ventaTotal: number; // suma de los 8 medios de pago
-  totalGastos: number;
-  totalFacturas: number;
-  gastosEfectivoCaja: number; // solo lo pagado DE la caja principal
-  facturasEfectivoCaja: number;
-}
-
-function sumarEfectivoCaja(items: ParteItem[]): number {
-  return items
-    .filter((i) => i.metodoPago === null || i.metodoPago === "EFECTIVO_CAJA")
-    .reduce((s, i) => s + i.monto, 0);
 }
 
 export function totalesParte(p: ParteTurnoFila): TotalesParte {
@@ -60,63 +36,7 @@ export function totalesParte(p: ParteTurnoFila): TotalesParte {
     p.ventaCredito +
     p.ventaOtro;
 
-  return {
-    ventaTotal,
-    totalGastos: p.gastoItems.reduce((s, i) => s + i.monto, 0),
-    totalFacturas: p.facturaItems.reduce((s, i) => s + i.monto, 0),
-    gastosEfectivoCaja: sumarEfectivoCaja(p.gastoItems),
-    facturasEfectivoCaja: sumarEfectivoCaja(p.facturaItems),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Cuadre físico de la caja principal del turno. La caja arranca cada turno con una base fija
-// (BASE_FIJA_EFECTIVO_CAJA); solo la venta en efectivo la aumenta, y solo los gastos/facturas
-// pagados CON esa caja la reducen — los pagados por otro medio (sobre blanco, Nequi, etc.) no
-// la tocan.
-// ---------------------------------------------------------------------------
-
-export type EstadoCuadreCaja = "PENDIENTE" | "CUADRO" | "SOBRO" | "FALTO";
-
-export interface CuadreCajaInput {
-  baseFija: number;
-  ventaEfectivo: number;
-  facturasEnEfectivoCaja: number;
-  gastosEnEfectivoCaja: number;
-  realEfectivo: number | null; // null = aún no se ha contado el efectivo físico
-}
-
-export interface CuadreCajaResumen {
-  efectivoEsperado: number;
-  descuadre: number | null; // real − esperado (positivo = sobró, negativo = faltó); null si aún no se contó
-  estado: EstadoCuadreCaja;
-}
-
-export function calcularCuadreCaja(input: CuadreCajaInput): CuadreCajaResumen {
-  const efectivoEsperado =
-    input.baseFija + input.ventaEfectivo - input.facturasEnEfectivoCaja - input.gastosEnEfectivoCaja;
-
-  if (input.realEfectivo == null) {
-    return { efectivoEsperado, descuadre: null, estado: "PENDIENTE" };
-  }
-
-  const descuadre = input.realEfectivo - efectivoEsperado;
-  const estado: EstadoCuadreCaja = descuadre === 0 ? "CUADRO" : descuadre > 0 ? "SOBRO" : "FALTO";
-  return { efectivoEsperado, descuadre, estado };
-}
-
-export function cuadreDelParte(
-  p: ParteTurnoFila,
-  baseFija: number = BASE_FIJA_EFECTIVO_CAJA
-): CuadreCajaResumen {
-  const t = totalesParte(p);
-  return calcularCuadreCaja({
-    baseFija,
-    ventaEfectivo: p.ventaEfectivo,
-    facturasEnEfectivoCaja: t.facturasEfectivoCaja,
-    gastosEnEfectivoCaja: t.gastosEfectivoCaja,
-    realEfectivo: p.realEfectivo ?? null,
-  });
+  return { ventaTotal };
 }
 
 // ---------------------------------------------------------------------------

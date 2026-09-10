@@ -39,6 +39,7 @@ model User {
   fuxionCierres          FuxionCierre[]
   partesRegistrados      ParteTurno[]  @relation("ParteRegistradoPor")
   partesAprobados        ParteTurno[]  @relation("ParteAprobadoPor")
+  cierresDiarioDaviplataTurno CierreDiarioDaviplataTurno[]
 }
 
 // Un registro por TURNO de caja (2 turnos por día, lunes-sábado). Las filas
@@ -623,6 +624,26 @@ model CierreDiario {
   cerradoAt          DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+}
+
+// Daviplata se compara POR TURNO (no por día como Cuenta Corriente): el banco no distingue
+// turnos, Daviplata sí llega sin desfase el mismo día. Reemplaza a CierreDiario.saldoRealDaviplata
+// (2026-09-10, tras confirmar con el dueño que comparar por día puede esconder un error real de
+// un turno si el otro lo compensa). CierreDiario.saldoRealDaviplata/notaDaviplata quedan en la
+// BD sin uso, nunca se borran (regla dura de CLAUDE.md).
+model CierreDiarioDaviplataTurno {
+  id             String    @id @default(cuid())
+  date           String // YYYY-MM-DD
+  shift          Int // 1 o 2
+  saldoReal      Int?
+  nota           String?
+  confirmadoById String?
+  confirmadoBy   User?     @relation(fields: [confirmadoById], references: [id])
+  confirmadoAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([date, shift])
 }
 
 // Cierre de lote del datáfono (una vez al día, no por turno): desglose de tarjeta por

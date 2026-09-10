@@ -6,13 +6,18 @@ import { MoneyInput } from "@/modules/nequi/components/MoneyInput";
 import { confirmarSaldoDaviplata } from "../actions/cierreDiario";
 
 // Daviplata es más simple que Cuenta Corriente: comparación directa, mismo día (llega sin
-// desfase) — no hay saldo en cadena ni pendientes.
+// desfase) — no hay saldo en cadena ni pendientes. Se compara POR TURNO desde 2026-09-10 (el
+// banco no distingue turnos, pero Daviplata sí llega sin desfase, y comparar por día podía
+// esconder un error real de un turno si el otro lo compensaba) — por eso la página monta una
+// tarjeta de esta por turno.
 export function DaviplataCard({
   date,
+  shift,
   ventaEsperada,
   saldoRealInicial,
 }: {
   date: string;
+  shift: 1 | 2;
   ventaEsperada: number;
   saldoRealInicial: number | null;
 }) {
@@ -33,7 +38,7 @@ export function DaviplataCard({
     setError(null);
     setOk(false);
     startTransition(async () => {
-      const r = await confirmarSaldoDaviplata({ date, saldoReal });
+      const r = await confirmarSaldoDaviplata({ date, shift, saldoReal });
       if (r.ok) {
         setOk(true);
         router.refresh();
@@ -44,7 +49,7 @@ export function DaviplataCard({
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Daviplata</h2>
+        <h2 className="text-base font-semibold text-gray-800">Daviplata · Turno {shift}</h2>
         {diferencia !== null && (
           <span
             className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
@@ -59,7 +64,7 @@ export function DaviplataCard({
 
       <div className="space-y-1 text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-500">Ventas Daviplata (boucher Dominium, ambos turnos)</span>
+          <span className="text-gray-500">Ventas Daviplata (boucher Dominium, este turno)</span>
           <span className="text-gray-700">${ventaEsperada.toLocaleString("es-CO")}</span>
         </div>
         <div className="flex justify-between border-t border-gray-100 pt-1.5 font-semibold text-gray-900">

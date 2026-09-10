@@ -14,13 +14,16 @@ import { NotaCierreCard } from "@/modules/cierreDiario/components/NotaCierreCard
 import { PendientesTarjetaCard } from "@/modules/cierreDiario/components/PendientesTarjetaCard";
 import { ReiniciarCierreDiarioButton } from "@/modules/cierreDiario/components/ReiniciarCierreDiarioButton";
 import {
+  esDiaTurnoUnicoFecha,
   getCierreDiario,
   getDatafono,
+  getDaviplataDelDia,
   getMovimientosManualesRango,
   getPendientesTarjeta,
   getPendientesVencidos,
   getTarjetaLlegadaRango,
   getUltimaConfirmacionCC,
+  getVentaDaviplataPorTurno,
   getVentasDelDia,
   getVentasTransferenciaRango,
 } from "@/modules/cierreDiario/queries";
@@ -47,17 +50,31 @@ export default async function CierreDiarioPage() {
     date
   );
 
-  const [ventas, cierre, datafono, pendientes, pendientesVencidos, transferenciasRango, tarjetaLlegadaRango, movimientosRango] =
-    await Promise.all([
-      getVentasDelDia(date),
-      getCierreDiario(date),
-      getDatafono(date),
-      getPendientesTarjeta(),
-      getPendientesVencidos(date),
-      getVentasTransferenciaRango(desdeCC, date),
-      getTarjetaLlegadaRango(desdeCC, date),
-      getMovimientosManualesRango(desdeCC, date),
-    ]);
+  const [
+    ventas,
+    cierre,
+    datafono,
+    pendientes,
+    pendientesVencidos,
+    transferenciasRango,
+    tarjetaLlegadaRango,
+    movimientosRango,
+    ventaDaviplataPorTurno,
+    daviplataDelDia,
+    turnoUnicoHoy,
+  ] = await Promise.all([
+    getVentasDelDia(date),
+    getCierreDiario(date),
+    getDatafono(date),
+    getPendientesTarjeta(),
+    getPendientesVencidos(date),
+    getVentasTransferenciaRango(desdeCC, date),
+    getTarjetaLlegadaRango(desdeCC, date),
+    getMovimientosManualesRango(desdeCC, date),
+    getVentaDaviplataPorTurno(date),
+    getDaviplataDelDia(date),
+    esDiaTurnoUnicoFecha(date),
+  ]);
 
   const ingresosManualesCC = movimientosRango
     .filter((m) => m.tipo === "INGRESO" && m.cuenta === "CUENTA_CORRIENTE")
@@ -97,11 +114,25 @@ export default async function CierreDiarioPage() {
           pendientesVencidos={pendientesVencidos.map((p) => ({ montoVendido: p.montoVendido }))}
         />
 
-        <DaviplataCard
-          date={date}
-          ventaEsperada={ventas.daviplata}
-          saldoRealInicial={cierre?.saldoRealDaviplata ?? null}
-        />
+        <div className="space-y-4">
+          <DaviplataCard
+            date={date}
+            shift={1}
+            ventaEsperada={ventaDaviplataPorTurno[1]}
+            saldoRealInicial={daviplataDelDia[1]?.saldoReal ?? null}
+          />
+          {/* Domingo es turno único (DiaTurnoUnico): la cajera solo cierra el Turno 1, así
+              que la tarjeta del Turno 2 no tiene nada que comparar y confundiría más que
+              ayudar. Mismo mecanismo que ya usa /registrar para sugerir turno. */}
+          {!turnoUnicoHoy && (
+            <DaviplataCard
+              date={date}
+              shift={2}
+              ventaEsperada={ventaDaviplataPorTurno[2]}
+              saldoRealInicial={daviplataDelDia[2]?.saldoReal ?? null}
+            />
+          )}
+        </div>
       </div>
 
       <PendientesTarjetaCard

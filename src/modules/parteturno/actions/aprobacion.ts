@@ -5,21 +5,17 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { todayBogota } from "@/lib/dates";
 import { getUltimaConfirmacionCC } from "@/modules/cierreDiario/queries";
-import { cuadreDelParte } from "../calculations/parteTurno";
 import { yaSeDescartaronPartesViejos } from "../queries";
 import { requireAdminAction } from "../server/guards";
 import type { ActionResult } from "../types";
 
 // EL PUNTO DE CONTROL. Hasta aquí, nada de lo que registró la vendedora ha movido un peso ni
-// afectado ninguna cuenta — el parte vive en sus propias tablas (ParteTurno/ParteTurnoGasto/
-// ParteTurnoFactura). Aprobar solo LOCK-ea el parte (ya no se puede editar ni devolver) y dejar
-// constancia en el AuditLog.
+// afectado ninguna cuenta — el parte vive en sus propias tablas (ParteTurno). Aprobar solo
+// LOCK-ea el parte (ya no se puede editar ni devolver) y deja constancia en el AuditLog.
 //
-// Desde 2026-09-09 (retiro de Cierre General) aprobar NO vuelca nada a ningún otro lado: los
-// gastos/facturas del turno YA son filas reales desde que la vendedora los agregó
-// (agregarGastoParte/agregarFacturaParte, con assertEditable) — no hay nada que copiar. Cierre
-// Diario lee directo de los ParteTurno del día (ver cierreDiario/queries → getVentasDelDia),
-// no necesita que "aprobar" le escriba nada aparte.
+// Aprobar NO vuelca nada a ningún otro lado: Cierre Diario lee directo de los ParteTurno del
+// día (ver cierreDiario/queries → getVentasDelDia), no necesita que "aprobar" le escriba nada
+// aparte.
 //
 // Sigue sin tocarse el módulo Nequi: no se crea ni un Movement.
 
@@ -41,14 +37,7 @@ export async function aprobarParteTurno(parteId: string): Promise<ActionResult> 
         throw new Error("Este parte ya no está pendiente de aprobar");
       }
 
-      const parte = await tx.parteTurno.findUniqueOrThrow({
-        where: { id: parteId },
-        include: { gastoItems: true, facturaItems: true },
-      });
-
-      // El descuadre se calcula con la MISMA fórmula que ve la vendedora en su resumen
-      // (función pura testeada), no se copia de un campo que hubiera podido teclear.
-      const cuadre = cuadreDelParte(parte);
+      const parte = await tx.parteTurno.findUniqueOrThrow({ where: { id: parteId } });
 
       await tx.auditLog.create({
         data: {
@@ -57,7 +46,6 @@ export async function aprobarParteTurno(parteId: string): Promise<ActionResult> 
           changedById: user.id,
           fieldChanges: JSON.stringify({
             estado: { before: "ENVIADO", after: "APROBADO" },
-            descuadre: { before: null, after: cuadre.descuadre },
           }),
         },
       });

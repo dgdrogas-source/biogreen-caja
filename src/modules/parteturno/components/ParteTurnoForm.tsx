@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition } from "react";
 import { MoneyInput } from "@/modules/nequi/components/MoneyInput";
 import {
   MEDIOS_PAGO,
@@ -11,7 +11,7 @@ import {
   type Shift,
 } from "@/modules/nequi/types";
 import { enviarParteTurno, guardarParteTurno } from "../actions/parteTurno";
-import { totalesParte, type ParteItem, type ParteTurnoFila } from "../calculations/parteTurno";
+import { totalesParte, type ParteTurnoFila } from "../calculations/parteTurno";
 import { parteEsEditable, type ParteEstado } from "../types";
 import { ParteEstadoBadge } from "./ParteEstadoBadge";
 
@@ -20,8 +20,6 @@ export interface ParteInicial {
   notaAdmin: string | null;
   ventas: Record<MedioPago, number>;
   ventaTarjetaDebito: number;
-  gastoItems: ParteItem[];
-  facturaItems: ParteItem[];
 }
 
 const VACIO: Record<MedioPago, number | null> = {
@@ -38,14 +36,10 @@ export function ParteTurnoForm({
   date,
   shift,
   inicial,
-  slotFacturas,
-  slotGastos,
 }: {
   date: string;
   shift: Shift;
   inicial: ParteInicial | null;
-  slotFacturas: ReactNode;
-  slotGastos: ReactNode;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -80,8 +74,6 @@ export function ParteTurnoForm({
     ventaTransferencia: ventas.TRANSFERENCIA ?? 0,
     ventaCredito: ventas.CREDITO ?? 0,
     ventaOtro: ventas.OTRO ?? 0,
-    gastoItems: inicial?.gastoItems ?? [],
-    facturaItems: inicial?.facturaItems ?? [],
   };
 
   const totales = totalesParte(fila);
@@ -178,12 +170,6 @@ export function ParteTurnoForm({
         </div>
 
       </div>
-
-      {/* 2 ─── facturas ─────────────────────────────────────── */}
-      {slotFacturas}
-
-      {/* 3 ─── gastos ───────────────────────────────────────── */}
-      {slotGastos}
 
       {error && (
         <p className="rounded-lg bg-red-50 p-3 text-center text-sm text-red-600">{error}</p>
