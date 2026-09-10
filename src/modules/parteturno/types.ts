@@ -6,9 +6,11 @@ import { METODOS_PAGO_ITEM_MANUAL } from "@/modules/nequi/types";
 export const PARTE_ESTADOS = ["BORRADOR", "ENVIADO", "APROBADO"] as const;
 export type ParteEstado = (typeof PARTE_ESTADOS)[number];
 
-// Cómo se le nombra el estado a la VENDEDORA (en su pantalla).
+// Cómo se le nombra el estado a la VENDEDORA (en su pantalla). BORRADOR ya no nace de un
+// botón "guardar borrador" (retirado 2026-09-10): existe cuando se agregó una factura/gasto
+// sin enviar, o cuando el admin devolvió/reabrió el parte — por eso se lee "Sin enviar".
 export const PARTE_ESTADO_LABELS: Record<ParteEstado, string> = {
-  BORRADOR: "Borrador guardado",
+  BORRADOR: "Sin enviar",
   ENVIADO: "Enviado, esperando aprobación",
   APROBADO: "Aprobado",
 };

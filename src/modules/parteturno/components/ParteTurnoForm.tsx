@@ -50,8 +50,6 @@ export function ParteTurnoForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState(false);
-  const [dirty, setDirty] = useState(false);
 
   const estado: ParteEstado = inicial?.estado ?? "BORRADOR";
   const editable = parteEsEditable(estado);
@@ -67,16 +65,9 @@ export function ParteTurnoForm({
     inicial?.ventaTarjetaDebito ?? null
   );
 
-  function marcar<T>(setter: (v: T) => void) {
-    return (v: T) => {
-      setter(v);
-      setDirty(true);
-      setOk(false);
-    };
-  }
-  const setVenta = (medio: MedioPago) =>
-    marcar<number | null>((v) => setVentasState((prev) => ({ ...prev, [medio]: v })));
-  const setVentaTarjetaDebito = marcar(setVentaTarjetaDebitoState);
+  const setVenta = (medio: MedioPago) => (v: number | null) =>
+    setVentasState((prev) => ({ ...prev, [medio]: v }));
+  const setVentaTarjetaDebito = setVentaTarjetaDebitoState;
 
   // Estado local → forma del parte, para calcular con las MISMAS funciones puras que usa el
   // servidor al aprobar.
@@ -95,33 +86,12 @@ export function ParteTurnoForm({
 
   const totales = totalesParte(fila);
 
-  function guardar() {
-    setError(null);
-    startTransition(async () => {
-      const r = await guardarParteTurno({
-        date,
-        shift,
-        ventaEfectivo: fila.ventaEfectivo,
-        ventaNequi: fila.ventaNequi,
-        ventaTarjeta: fila.ventaTarjeta,
-        ventaTarjetaDebito: fila.ventaTarjetaDebito,
-        ventaDaviplata: fila.ventaDaviplata,
-        ventaTransferencia: fila.ventaTransferencia,
-        ventaCredito: fila.ventaCredito,
-        ventaOtro: fila.ventaOtro,
-      });
-      if (r.ok) {
-        setOk(true);
-        setDirty(false);
-        router.refresh();
-      } else setError(r.error);
-    });
-  }
-
+  // Un solo botón, "Enviar cierre" (2026-09-10, a pedido del dueño: sin "guardar borrador").
+  // Por dentro sigue siendo guardar + enviar: las ventas se escriben en el parte y acto
+  // seguido pasa a ENVIADO. Facturas y gastos ya se guardan solos al agregarlos.
   function enviar() {
     setError(null);
     startTransition(async () => {
-      // Se guarda primero para que no se pierda nada que esté escrito y sin guardar.
       const g = await guardarParteTurno({
         date,
         shift,
@@ -137,10 +107,8 @@ export function ParteTurnoForm({
       if (!g.ok) return setError(g.error);
 
       const r = await enviarParteTurno({ date, shift });
-      if (r.ok) {
-        setDirty(false);
-        router.refresh();
-      } else setError(r.error);
+      if (r.ok) router.refresh();
+      else setError(r.error);
     });
   }
 
@@ -220,32 +188,15 @@ export function ParteTurnoForm({
       {error && (
         <p className="rounded-lg bg-red-50 p-3 text-center text-sm text-red-600">{error}</p>
       )}
-      {ok && (
-        <p className="rounded-lg bg-emerald-50 p-3 text-center text-sm text-emerald-700">
-          Guardado. Puedes seguir editando y enviarlo cuando termines.
-        </p>
-      )}
-
       {editable && (
         <div className="space-y-2">
-          {dirty && (
-            <p className="text-center text-xs text-amber-600">Tienes cambios sin guardar</p>
-          )}
-          <button
-            type="button"
-            onClick={guardar}
-            disabled={pending}
-            className="btn-inverso w-full rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
-          >
-            {pending ? "Guardando..." : "Guardar borrador"}
-          </button>
           <button
             type="button"
             onClick={enviar}
             disabled={pending}
             className="w-full rounded-xl bg-emerald-600 py-3.5 text-base font-semibold text-white disabled:opacity-50"
           >
-            {pending ? "Enviando..." : "Enviar al administrador"}
+            {pending ? "Enviando..." : "Enviar cierre"}
           </button>
           <p className="text-center text-xs text-gray-400">
             Una vez enviado ya no lo puedes editar. Si te equivocas, pídele al administrador
