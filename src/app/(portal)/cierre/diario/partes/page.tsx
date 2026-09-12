@@ -6,8 +6,8 @@ import {
   ParteRevisionCard,
   type ParteRevision,
 } from "@/modules/parteturno/components/ParteRevisionCard";
+import { ParteAprobadoCard, type ParteAprobado } from "@/modules/parteturno/components/ParteAprobadoCard";
 import { DescartarPartesViejosButton } from "@/modules/parteturno/components/DescartarPartesViejosButton";
-import { ReabrirParteButton } from "@/modules/parteturno/components/ReabrirParteButton";
 import { getUltimaConfirmacionCC } from "@/modules/cierreDiario/queries";
 import {
   contarPartesAnteriores,
@@ -39,36 +39,45 @@ export default async function PartesDeTurnoPage() {
   // descuadraría — la acción lo bloquea también en servidor).
   const mostrarLimpieza = !yaLimpio && anclaCC === null && partesViejos > 0;
 
+  // Venta por medio de pago de un parte (pendiente o aprobado): misma forma para las dos listas
+  // de abajo, así la mamá ve exactamente los mismos números antes y después de aprobar — nada
+  // se resume ni se pierde al aprobar, solo cambia qué botones hay debajo.
+  const ventaDe = (p: ParteTurnoFila) => ({
+    total: totalesParte(p).ventaTotal,
+    porMedio: [
+      { etiqueta: "Efectivo", monto: p.ventaEfectivo },
+      { etiqueta: "Nequi", monto: p.ventaNequi },
+      { etiqueta: "Tarjeta Crédito", monto: p.ventaTarjeta },
+      { etiqueta: "Tarjeta Débito", monto: p.ventaTarjetaDebito },
+      { etiqueta: "Daviplata", monto: p.ventaDaviplata },
+      { etiqueta: "Transferencia", monto: p.ventaTransferencia },
+      { etiqueta: "Crédito (fiado)", monto: p.ventaCredito },
+      { etiqueta: "Otro", monto: p.ventaOtro },
+    ].filter((v) => v.monto > 0),
+  });
+
   const revisiones: ParteRevision[] = pendientes.map((p) => {
-    const fila: ParteTurnoFila = {
-      ventaEfectivo: p.ventaEfectivo,
-      ventaNequi: p.ventaNequi,
-      ventaTarjeta: p.ventaTarjeta,
-      ventaTarjetaDebito: p.ventaTarjetaDebito,
-      ventaDaviplata: p.ventaDaviplata,
-      ventaTransferencia: p.ventaTransferencia,
-      ventaCredito: p.ventaCredito,
-      ventaOtro: p.ventaOtro,
-    };
-
-    const totales = totalesParte(fila);
-
+    const venta = ventaDe(p);
     return {
       id: p.id,
       date: p.businessDay.date,
       shift: p.businessDay.shift as 1 | 2,
       registradoPor: p.registradoBy.name,
-      ventaTotal: totales.ventaTotal,
-      ventasPorMedio: [
-        { etiqueta: "Efectivo", monto: p.ventaEfectivo },
-        { etiqueta: "Nequi", monto: p.ventaNequi },
-        { etiqueta: "Tarjeta Crédito", monto: p.ventaTarjeta },
-        { etiqueta: "Tarjeta Débito", monto: p.ventaTarjetaDebito },
-        { etiqueta: "Daviplata", monto: p.ventaDaviplata },
-        { etiqueta: "Transferencia", monto: p.ventaTransferencia },
-        { etiqueta: "Crédito (fiado)", monto: p.ventaCredito },
-        { etiqueta: "Otro", monto: p.ventaOtro },
-      ].filter((v) => v.monto > 0),
+      ventaTotal: venta.total,
+      ventasPorMedio: venta.porMedio,
+      nota: p.nota,
+    };
+  });
+
+  const aprobadosVista: ParteAprobado[] = aprobados.map((p) => {
+    const venta = ventaDe(p);
+    return {
+      id: p.id,
+      date: p.businessDay.date,
+      shift: p.businessDay.shift as 1 | 2,
+      registradoPor: p.registradoBy.name,
+      ventaTotal: venta.total,
+      ventasPorMedio: venta.porMedio,
       nota: p.nota,
     };
   });
@@ -118,25 +127,19 @@ export default async function PartesDeTurnoPage() {
 
       <div className="rounded-2xl bg-white p-5 shadow-sm">
         <h2 className="text-base font-semibold text-gray-800">Aprobados (últimos 15 días)</h2>
-        <p className="mt-1 mb-3 text-xs text-gray-400">
-          Si encuentras un error de digitación en uno de estos, reábrelo para corregirlo.
+        <p className="mt-1 text-xs text-gray-400">
+          La venta por medio de pago de cada turno, para comparar contra el banco al hacer el
+          cierre. Si encuentras un error de digitación, reábrelo para corregirlo.
         </p>
-        {aprobados.length === 0 ? (
-          <p className="py-2 text-sm text-gray-400">Ninguno todavía.</p>
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {aprobados.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
-                <span className="text-gray-700">
-                  {formatDateCo(p.businessDay.date)} · Turno {p.businessDay.shift}
-                  <span className="text-gray-400"> · {p.registradoBy.name}</span>
-                </span>
-                <ReabrirParteButton parteId={p.id} />
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
+
+      {aprobadosVista.length === 0 ? (
+        <p className="rounded-2xl bg-white p-8 text-center text-sm text-gray-400 shadow-sm">
+          Ninguno todavía.
+        </p>
+      ) : (
+        aprobadosVista.map((p) => <ParteAprobadoCard key={p.id} parte={p} />)
+      )}
 
       {mostrarLimpieza && <DescartarPartesViejosButton cantidad={partesViejos} />}
     </div>
