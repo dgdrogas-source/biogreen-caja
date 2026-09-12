@@ -26,23 +26,21 @@ export function ReiniciarCierreDiarioButton() {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-sm">
-      <h2 className="mb-1 text-base font-semibold text-gray-800">Zona de emergencia</h2>
-      <p className="mb-3 text-xs text-gray-400">
-        Borra todo el histórico de Cierre Diario para empezar de cero. Úsalo solo si algo quedó
-        mal registrado y no hay otra forma de corregirlo.
-      </p>
-      {error && (
-        <p className="mb-3 rounded-lg bg-red-50 p-2 text-center text-sm text-red-600">{error}</p>
-      )}
-      <button
-        type="button"
-        onClick={reiniciar}
-        disabled={pending}
-        className="w-full rounded-xl border border-red-300 bg-red-50 py-2.5 text-sm font-semibold text-red-700 disabled:opacity-50"
-      >
-        {pending ? "Reiniciando..." : "Reiniciar valores del módulo"}
-      </button>
+    <div className="rounded-xl border border-dashed border-gray-300 px-4 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-gray-400">
+          Zona de emergencia: borra todo el histórico de Cierre Diario para empezar de cero.
+        </p>
+        <button
+          type="button"
+          onClick={reiniciar}
+          disabled={pending}
+          className="whitespace-nowrap rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:opacity-50"
+        >
+          {pending ? "Reiniciando..." : "Reiniciar valores del módulo"}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-center text-xs text-red-600">{error}</p>}
     </div>
   );
 }

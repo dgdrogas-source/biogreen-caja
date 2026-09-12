@@ -65,9 +65,9 @@ export function PendientesTarjetaCard({ items }: { items: PendienteItem[] }) {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-sm">
+    <>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Pendiente por consignar</h2>
+        <h3 className="text-sm font-semibold text-gray-600">Pendiente por consignar</h3>
         <span className="text-xs text-gray-400">No cuenta como descuadre</span>
       </div>
 
@@ -136,6 +136,6 @@ export function PendientesTarjetaCard({ items }: { items: PendienteItem[] }) {
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { formatDateCo } from "@/lib/dates";
 import { MoneyInput } from "@/modules/nequi/components/MoneyInput";
 import { confirmarSaldoCuentaCorriente } from "../actions/cierreDiario";
@@ -37,6 +37,8 @@ export function CuentaCorrienteCard({
   saldoEsperado,
   saldoRealInicial,
   pendientesVencidos,
+  pendientesSlot,
+  notaSlot,
 }: {
   date: string;
   ultimaConfirmacion: { date: string; saldoRealCC: number } | null;
@@ -49,6 +51,8 @@ export function CuentaCorrienteCard({
   saldoEsperado: number | null;
   saldoRealInicial: number | null;
   pendientesVencidos: { montoVendido: number }[];
+  pendientesSlot?: ReactNode;
+  notaSlot?: ReactNode;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -113,36 +117,63 @@ export function CuentaCorrienteCard({
               confirmar.
             </p>
           )}
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-500">{etiquetaAncla}</span>
-              <span className="text-gray-700">${ultimaConfirmacion.saldoRealCC.toLocaleString("es-CO")}</span>
+
+          <div className="mb-3 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-gray-500">Saldo esperado</p>
+              <p className="font-semibold text-gray-900">{pesos(saldoEsperado ?? 0)}</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">+ Transferencias{sufijo}</span>
-              <span className="text-gray-700">${transferenciasRango.toLocaleString("es-CO")}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">+ Tarjeta llegada{sufijo}</span>
-              <span className="text-gray-700">${tarjetaLlegadaRango.toLocaleString("es-CO")}</span>
-            </div>
-            {ingresosManualesRango > 0 && (
-              <div className="flex justify-between">
-                <span className="text-gray-500">+ Ingresos manuales{sufijo}</span>
-                <span className="text-gray-700">${ingresosManualesRango.toLocaleString("es-CO")}</span>
-              </div>
-            )}
-            {egresosManualesRango > 0 && (
-              <div className="flex justify-between">
-                <span className="text-gray-500">− Movimientos manuales{sufijo}</span>
-                <span className="text-gray-700">${egresosManualesRango.toLocaleString("es-CO")}</span>
-              </div>
-            )}
-            <div className="flex justify-between border-t border-gray-100 pt-1.5 font-semibold text-gray-900">
-              <span>Saldo esperado</span>
-              <span>{pesos(saldoEsperado ?? 0)}</span>
+            <div>
+              <p className="text-gray-500">Diferencia</p>
+              <p
+                className={`font-bold ${
+                  diferencia === null ? "text-gray-400" : diferencia === 0 ? "text-emerald-600" : "text-red-600"
+                }`}
+              >
+                {diferencia === null ? "—" : `$${Math.abs(diferencia).toLocaleString("es-CO")}`}
+              </p>
             </div>
           </div>
+
+          {pendientesSlot}
+
+          {clasificacion === "REAL" && (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+              Diferencia sin explicar. Deja constancia abajo, en <strong>Nota del cierre</strong>.
+            </p>
+          )}
+
+          <details className="mt-3 text-sm">
+            <summary className="cursor-pointer text-xs font-semibold text-gray-500">
+              Ver el cálculo detrás del esperado
+            </summary>
+            <div className="mt-2 space-y-1">
+              <div className="flex justify-between">
+                <span className="text-gray-500">{etiquetaAncla}</span>
+                <span className="text-gray-700">${ultimaConfirmacion.saldoRealCC.toLocaleString("es-CO")}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">+ Transferencias{sufijo}</span>
+                <span className="text-gray-700">${transferenciasRango.toLocaleString("es-CO")}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">+ Tarjeta llegada{sufijo}</span>
+                <span className="text-gray-700">${tarjetaLlegadaRango.toLocaleString("es-CO")}</span>
+              </div>
+              {ingresosManualesRango > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">+ Ingresos manuales{sufijo}</span>
+                  <span className="text-gray-700">${ingresosManualesRango.toLocaleString("es-CO")}</span>
+                </div>
+              )}
+              {egresosManualesRango > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">− Movimientos manuales{sufijo}</span>
+                  <span className="text-gray-700">${egresosManualesRango.toLocaleString("es-CO")}</span>
+                </div>
+              )}
+            </div>
+          </details>
         </>
       )}
 
@@ -151,21 +182,6 @@ export function CuentaCorrienteCard({
           Saldo real (banco)
         </label>
         <MoneyInput value={saldoReal} onChange={setSaldoReal} />
-
-        {diferencia !== null && (
-          <div className="mt-2 flex justify-between text-sm">
-            <span className="text-gray-500">Diferencia</span>
-            <span className={`font-bold ${diferencia === 0 ? "text-emerald-600" : "text-red-600"}`}>
-              ${Math.abs(diferencia).toLocaleString("es-CO")}
-            </span>
-          </div>
-        )}
-
-        {clasificacion === "REAL" && (
-          <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
-            Diferencia sin explicar. Deja constancia abajo, en <strong>Nota del cierre</strong>.
-          </p>
-        )}
 
         {error && <p className="mt-2 text-center text-sm text-red-600">{error}</p>}
         {ok && <p className="mt-2 text-center text-sm text-emerald-700">Guardado.</p>}
@@ -179,6 +195,9 @@ export function CuentaCorrienteCard({
           {pending ? "Guardando..." : "Confirmar saldo de hoy"}
         </button>
       </div>
+
+      <hr className="mt-3 border-gray-100" />
+      {notaSlot}
     </div>
   );
 }

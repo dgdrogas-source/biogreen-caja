@@ -38,7 +38,6 @@ export function MovimientosManualesCard({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [abierto, setAbierto] = useState(false);
   const [descripcion, setDescripcion] = useState("");
   const [tipo, setTipo] = useState<TipoMovimientoManual>("EGRESO");
   const [cuenta, setCuenta] = useState<CuentaCierreDiario>("CUENTA_CORRIENTE");
@@ -55,7 +54,6 @@ export function MovimientosManualesCard({
       if (r.ok) {
         setDescripcion("");
         setMonto(null);
-        setAbierto(false);
         router.refresh();
       } else setError(r.error);
     });
@@ -118,70 +116,51 @@ export function MovimientosManualesCard({
         <p className="mt-3 rounded-lg bg-red-50 p-2 text-center text-sm text-red-600">{error}</p>
       )}
 
-      {abierto ? (
-        <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-          <input
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Descripción (ej. arriendo local)"
-            maxLength={200}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={tipo}
-              onChange={(e) => setTipo(e.target.value as TipoMovimientoManual)}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-            >
-              {TIPOS_MOVIMIENTO_MANUAL.map((t) => (
-                <option key={t} value={t}>
-                  {TIPO_MOVIMIENTO_MANUAL_LABELS[t]}
-                </option>
-              ))}
-            </select>
-            <select
-              value={cuenta}
-              onChange={(e) => setCuenta(e.target.value as CuentaCierreDiario)}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-            >
-              {CUENTAS_CIERRE_DIARIO.map((c) => (
-                <option key={c} value={c}>
-                  {CUENTA_CIERRE_DIARIO_LABELS[c]}
-                </option>
-              ))}
-            </select>
-          </div>
-          {tipo === "EGRESO" && cuenta === "CUENTA_CORRIENTE" && (
-            <p className="text-xs text-gray-400">Se le suma el 4x1000 automático.</p>
-          )}
-          <MoneyInput value={monto} onChange={setMonto} placeholder="Monto" />
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={agregar}
-              disabled={pending}
-              className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {pending ? "Guardando..." : "Agregar"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAbierto(false)}
-              className="flex-1 rounded-lg border border-gray-300 py-2 text-sm text-gray-600"
-            >
-              Cancelar
-            </button>
-          </div>
+      <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+        <input
+          value={descripcion}
+          onChange={(e) => setDescripcion(e.target.value)}
+          placeholder="Descripción (ej. arriendo local)"
+          maxLength={200}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value as TipoMovimientoManual)}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          >
+            {TIPOS_MOVIMIENTO_MANUAL.map((t) => (
+              <option key={t} value={t}>
+                {TIPO_MOVIMIENTO_MANUAL_LABELS[t]}
+              </option>
+            ))}
+          </select>
+          <select
+            value={cuenta}
+            onChange={(e) => setCuenta(e.target.value as CuentaCierreDiario)}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          >
+            {CUENTAS_CIERRE_DIARIO.map((c) => (
+              <option key={c} value={c}>
+                {CUENTA_CIERRE_DIARIO_LABELS[c]}
+              </option>
+            ))}
+          </select>
         </div>
-      ) : (
+        {tipo === "EGRESO" && cuenta === "CUENTA_CORRIENTE" && (
+          <p className="text-xs text-gray-400">Se le suma el 4x1000 automático.</p>
+        )}
+        <MoneyInput value={monto} onChange={setMonto} placeholder="Monto" />
         <button
           type="button"
-          onClick={() => setAbierto(true)}
-          className="btn-inverso mt-3 rounded-lg px-4 py-2 text-sm font-semibold"
+          onClick={agregar}
+          disabled={pending}
+          className="w-full rounded-lg bg-emerald-600 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
-          + Agregar movimiento
+          {pending ? "Guardando..." : "Agregar"}
         </button>
-      )}
+      </div>
     </div>
   );
 }

@@ -28,9 +28,9 @@ export function NotaCierreCard({ date, notaInicial }: { date: string; notaInicia
   }
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-sm">
+    <>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Nota del cierre</h2>
+        <h3 className="text-sm font-semibold text-gray-600">Nota del cierre</h3>
         <span className="text-xs text-gray-400">Solo si algo no cuadra de verdad</span>
       </div>
 
@@ -56,6 +56,6 @@ export function NotaCierreCard({ date, notaInicial }: { date: string; notaInicia
           {pending ? "Guardando..." : "Guardar nota"}
         </button>
       )}
-    </div>
+    </>
   );
 }
