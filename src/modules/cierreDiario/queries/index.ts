@@ -4,6 +4,8 @@ import { addDays, dayOfWeek } from "@/lib/dates";
 import { esDiaTurnoUnico } from "@/modules/nequi/calculations/turnos";
 import { getDiasTurnoUnico } from "@/modules/nequi/queries";
 import type { ProveedorTipo } from "@/modules/nequi/types";
+import { calcularEstadoDia, type EstadoDiaResultado } from "../calculations/estadoDia";
+import { calcularSaldoEsperadoCC, rangoPeriodoCC } from "../calculations/saldoCuentaCorriente";
 
 // Catálogos (movidos aquí desde nequi/queries — Cierre General ya no existe, pero
 // Parte de Turno sigue necesitando categorías y proveedores para registrar gastos/facturas).
@@ -184,4 +186,98 @@ export async function getDaviplataDelDia(
 export async function esDiaTurnoUnicoFecha(date: string): Promise<boolean> {
   const dias = await getDiasTurnoUnico();
   return esDiaTurnoUnico(dayOfWeek(date), dias);
+}
+
+// Pendientes de tarjeta ORIGINADOS en `date`, resueltos o no (a diferencia de
+// getPendientesTarjeta, que es la cola global sin resolver). Alimenta el detalle de un día en
+// Historial: ahí interesa ver si ESE día quedó completo, no la cola pendiente de hoy.
+export async function getPendientesTarjetaPorFechaOrigen(date: string) {
+  return prisma.cierreDiarioPendienteTarjeta.findMany({
+    where: { dateOrigen: date },
+    orderBy: { franquicia: "asc" },
+  });
+}
+
+export interface CadenaCC {
+  ultimaConfirmacionCC: { date: string; saldoRealCC: number } | null;
+  desde: string;
+  diasSinConfirmar: number | null;
+  diasHueco: number;
+  transferenciasRango: number;
+  tarjetaLlegadaRango: number;
+  ingresosManualesRango: number;
+  egresosManualesRango: number;
+  movimientosRango: Awaited<ReturnType<typeof getMovimientosManualesRango>>;
+  saldoEsperadoCC: number | null;
+}
+
+// Todo lo que necesita la cadena de Cuenta Corriente de `date`: el ancla (última confirmación
+// antes de esa fecha), el período a sumar, y el saldo esperado ya calculado. Extraído de lo que
+// antes vivía en línea en page.tsx para que "Comparación bancaria" de hoy y el detalle de un
+// día en Historial NUNCA puedan calcularlo distinto (ver PLAN-PARTES-HISTORIAL-2026-09-12.md,
+// motivado por el mismo patrón de bug que ya costó dos veces con cierreInputDesdeFila).
+export async function getCadenaCC(date: string): Promise<CadenaCC> {
+  const ultimaConfirmacionCC = await getUltimaConfirmacionCC(date);
+  const { desde, diasSinConfirmar, diasHueco } = rangoPeriodoCC(ultimaConfirmacionCC?.date ?? null, date);
+
+  const [transferenciasRango, tarjetaLlegadaRango, movimientosRango] = await Promise.all([
+    getVentasTransferenciaRango(desde, date),
+    getTarjetaLlegadaRango(desde, date),
+    getMovimientosManualesRango(desde, date),
+  ]);
+
+  const ingresosManualesRango = movimientosRango
+    .filter((m) => m.tipo === "INGRESO" && m.cuenta === "CUENTA_CORRIENTE")
+    .reduce((s, m) => s + m.monto, 0);
+  const egresosManualesRango = movimientosRango
+    .filter((m) => m.tipo === "EGRESO" && m.cuenta === "CUENTA_CORRIENTE")
+    .reduce((s, m) => s + m.monto + m.impuesto4x1000, 0);
+
+  const saldoEsperadoCC = ultimaConfirmacionCC
+    ? calcularSaldoEsperadoCC({
+        saldoConfirmadoAnterior: ultimaConfirmacionCC.saldoRealCC,
+        transferenciasPeriodo: transferenciasRango,
+        tarjetaLlegadaPeriodo: tarjetaLlegadaRango,
+        ingresosManualesPeriodo: ingresosManualesRango,
+        egresosManualesPeriodo: egresosManualesRango,
+      })
+    : null;
+
+  return {
+    ultimaConfirmacionCC,
+    desde,
+    diasSinConfirmar,
+    diasHueco,
+    transferenciasRango,
+    tarjetaLlegadaRango,
+    ingresosManualesRango,
+    egresosManualesRango,
+    movimientosRango,
+    saldoEsperadoCC,
+  };
+}
+
+// Estado resumido de UN día para el semáforo de Historial (y, en el futuro, cualquier otra
+// vista que necesite "¿cómo cerró este día?" sin traer toda la data de Comparación bancaria).
+export async function getEstadoDia(date: string): Promise<EstadoDiaResultado> {
+  const [cadenaCC, cierre, datafono, pendientesVencidos, ventaDaviplataPorTurno, daviplataDelDia, turnoUnico] =
+    await Promise.all([
+      getCadenaCC(date),
+      getCierreDiario(date),
+      getDatafono(date),
+      getPendientesVencidos(date),
+      getVentaDaviplataPorTurno(date),
+      getDaviplataDelDia(date),
+      esDiaTurnoUnicoFecha(date),
+    ]);
+
+  return calcularEstadoDia({
+    turnoUnico,
+    ventaDaviplataPorTurno,
+    daviplataDelDia,
+    saldoRealCCGuardado: cierre?.saldoRealCC ?? null,
+    saldoEsperadoCC: cadenaCC.saldoEsperadoCC,
+    pendientesVencidos: pendientesVencidos.map((p) => ({ montoVendido: p.montoVendido })),
+    datafonoRegistrado: datafono !== null,
+  });
 }

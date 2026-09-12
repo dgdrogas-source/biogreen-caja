@@ -39,7 +39,7 @@ export function DatafonoForm({ date, totalTarjetaEsperado }: { date: string; tot
     <div className="rounded-2xl bg-white p-5 shadow-sm">
       <h2 className="mb-1 text-base font-semibold text-gray-800">Cierre del datáfono</h2>
       <p className="mb-3 text-xs text-gray-400">
-        Una vez al día. Desglosa por franquicia lo que hoy se vendió con tarjeta.
+        Una vez al día. Desglosa por franquicia lo que se vendió con tarjeta.
       </p>
 
       <div className="grid grid-cols-2 gap-3">

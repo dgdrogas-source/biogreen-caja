@@ -31,3 +31,8 @@ export const CLASIFICACIONES_DIFERENCIA = ["CUADRA", "EXPLICADA", "REAL"] as con
 export type ClasificacionDiferencia = (typeof CLASIFICACIONES_DIFERENCIA)[number];
 
 export type ActionResult = { ok: true; mensaje?: string } | { ok: false; error: string };
+
+// Estado de un indicador puntual (un turno de Daviplata, Cuenta Corriente, Datáfono) en la
+// franja de chips de "Comparación bancaria" y en el semáforo de Historial. "pendiente" = sin
+// dato todavía (no es un error, solo falta digitarlo).
+export type EstadoChip = "pendiente" | "done" | "warn" | "danger";

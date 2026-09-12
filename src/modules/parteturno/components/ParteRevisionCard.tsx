@@ -59,7 +59,7 @@ export function ParteRevisionCard({ parte }: { parte: ParteRevision }) {
       </div>
 
       {/* Venta por medio */}
-      <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+      <div className="mb-3 space-y-1 text-sm">
         {parte.ventasPorMedio.map((v) => (
           <div key={v.etiqueta} className="flex justify-between">
             <span className="text-gray-500">{v.etiqueta}</span>

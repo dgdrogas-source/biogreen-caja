@@ -65,8 +65,9 @@ export function CuentaCorrienteCard({
     diferencia === null ? null : clasificarDiferencia(diferencia, pendientesVencidos);
 
   // diasHueco > 0 → la mamá lleva días sin confirmar y el esperado suma los movimientos de
-  // todo el hueco, no solo los de hoy.
-  const sufijo = diasHueco > 0 ? " del período" : " de hoy";
+  // todo el hueco, no solo los del día. Esta tarjeta también se usa para días pasados desde
+  // Historial — "del día" evita decir "de hoy" viendo una fecha de hace una semana.
+  const sufijo = diasHueco > 0 ? " del período" : " del día";
   const etiquetaAncla =
     ultimaConfirmacion === null
       ? ""
@@ -106,7 +107,7 @@ export function CuentaCorrienteCard({
         <p className="rounded-xl bg-gray-50 p-3 text-sm text-gray-600">
           {saldoRealInicial === null
             ? "Aún no hay un saldo de referencia. Entra al banco y escribe el saldo actual de Cuenta Corriente para empezar la conciliación — desde mañana se compara solo."
-            : `Saldo de hoy confirmado en $${saldoRealInicial.toLocaleString("es-CO")}. Desde mañana la conciliación se compara automáticamente contra los movimientos del día.`}
+            : `Saldo confirmado en $${saldoRealInicial.toLocaleString("es-CO")}. Desde mañana la conciliación se compara automáticamente contra los movimientos del día.`}
         </p>
       ) : (
         <>
@@ -192,7 +193,7 @@ export function CuentaCorrienteCard({
           disabled={pending}
           className="mt-3 w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {pending ? "Guardando..." : "Confirmar saldo de hoy"}
+          {pending ? "Guardando..." : "Confirmar saldo"}
         </button>
       </div>
 

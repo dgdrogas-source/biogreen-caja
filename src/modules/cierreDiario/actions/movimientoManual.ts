@@ -44,8 +44,9 @@ function impuestoDe(tipo: TipoMovimientoManual, cuenta: CuentaCierreDiario, mont
 // Movimientos que Dominium no conoce (arriendo, nómina, retiros, cuotas de manejo,
 // transferencias entre cuentas propias) — antes se llevaban de memoria. El 4x1000 se calcula
 // automático SOLO para egresos de Cuenta Corriente (Daviplata no lo paga). `date` puede ser
-// cualquier día hasta hoy, pero la UI de MovimientosManualesCard solo registra contra el día
-// de hoy (corregir un día pasado quedó fuera de alcance — ver historial de este archivo).
+// cualquier día hasta hoy: MovimientosManualesCard no decide la fecha, solo usa la que le pasa
+// la página que lo monta — "hoy" desde /cierre/diario, o un día pasado desde
+// /cierre/diario/historial/[date] (agregado 2026-09-12).
 export async function registrarMovimientoManual(
   input: z.infer<typeof movimientoSchema>
 ): Promise<ActionResult> {

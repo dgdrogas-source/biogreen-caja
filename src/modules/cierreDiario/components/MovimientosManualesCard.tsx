@@ -73,7 +73,7 @@ export function MovimientosManualesCard({
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
       <h2 className="mb-1 text-base font-semibold text-gray-800">
-        {rangoDesde ? "Movimientos manuales del período" : "Movimientos manuales de hoy"}
+        {rangoDesde ? "Movimientos manuales del período" : "Movimientos manuales del día"}
       </h2>
       <p className="mb-3 text-xs text-gray-400">
         Arriendo, nómina, retiros, cuotas de manejo — lo que Dominium no ve.
@@ -81,7 +81,7 @@ export function MovimientosManualesCard({
       </p>
 
       {items.length === 0 ? (
-        <p className="py-1 text-sm text-gray-400">Sin movimientos{rangoDesde ? " en el período" : " hoy"}.</p>
+        <p className="py-1 text-sm text-gray-400">Sin movimientos{rangoDesde ? " en el período" : " este día"}.</p>
       ) : (
         <div className="divide-y divide-gray-50">
           {items.map((m) => (

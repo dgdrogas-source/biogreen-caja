@@ -40,6 +40,12 @@ export default async function CierreDiarioLayout({ children }: { children: React
           >
             Proveedores
           </Link>
+          <Link
+            href="/cierre/diario/historial"
+            className="rounded-lg px-3 py-1.5 font-medium text-gray-600 hover:bg-white"
+          >
+            Historial
+          </Link>
         </nav>
       </div>
 

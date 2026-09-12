@@ -103,7 +103,7 @@ export function DaviplataCard({
           disabled={pending}
           className="mt-3 w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {pending ? "Guardando..." : "Confirmar saldo de hoy"}
+          {pending ? "Guardando..." : "Confirmar saldo"}
         </button>
       </div>
     </div>

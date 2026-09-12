@@ -27,16 +27,26 @@ async function requireUsuario() {
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida");
 
-const confirmarSaldoSchema = z.object({
-  date: dateSchema,
-  saldoReal: z.number().int(),
-});
+// Antes no hacía falta: el único llamador siempre mandaba `todayBogota()`. Desde que Historial
+// permite elegir una fecha pasada arbitraria (2026-09-12), el candado debe vivir en el
+// servidor, no solo en la UI (mismo patrón que ya usa movimientoManual.ts).
+const noFechaFutura = (d: { date: string }) => d.date <= todayBogota();
+const MSG_FECHA_FUTURA = { message: "No puedes registrar una fecha futura", path: ["date"] };
 
-const confirmarSaldoDaviplataSchema = z.object({
-  date: dateSchema,
-  shift: z.union([z.literal(1), z.literal(2)]),
-  saldoReal: z.number().int(),
-});
+const confirmarSaldoSchema = z
+  .object({
+    date: dateSchema,
+    saldoReal: z.number().int(),
+  })
+  .refine(noFechaFutura, MSG_FECHA_FUTURA);
+
+const confirmarSaldoDaviplataSchema = z
+  .object({
+    date: dateSchema,
+    shift: z.union([z.literal(1), z.literal(2)]),
+    saldoReal: z.number().int(),
+  })
+  .refine(noFechaFutura, MSG_FECHA_FUTURA);
 
 // Confirma el saldo real de Cuenta Corriente observado en el banco. Si ya había un saldo
 // confirmado para este día, lo reemplaza (la administradora puede volver a mirar el banco y
@@ -120,10 +130,12 @@ export async function confirmarSaldoDaviplata(
   }
 }
 
-const notaSchema = z.object({
-  date: dateSchema,
-  nota: z.string().max(600),
-});
+const notaSchema = z
+  .object({
+    date: dateSchema,
+    nota: z.string().max(600),
+  })
+  .refine(noFechaFutura, MSG_FECHA_FUTURA);
 
 // Nota del cierre del día (una sola, tarjeta propia en la pantalla). Se guarda en
 // CierreDiario.notaCC. `notaDaviplata` queda en la BD sin uso (deprecada).
